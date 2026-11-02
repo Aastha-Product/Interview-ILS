@@ -10,6 +10,7 @@ import { lastNightlyBackup } from "@/lib/backup-schedule";
 import { backupsDir } from "@/lib/backups";
 import { mcpUrl } from "@/lib/connector/oauth";
 import { exportFileName } from "@/lib/data-export";
+import { isSqliteUrl } from "@/lib/database";
 import { formatShortDate } from "@/lib/dates";
 import { env } from "@/lib/env";
 import { googleConnection } from "@/lib/google/account";
@@ -211,15 +212,18 @@ function formatBytes(bytes: number): string {
 async function aboutFacts(): Promise<AboutFacts> {
   const requestHeaders = await headers();
   const host = requestHeaders.get("x-forwarded-host")?.split(",")[0]?.trim() || requestHeaders.get("host") || "Unknown";
+  const sqlite = isSqliteUrl(env.DATABASE_URL);
   const [[database], ai, applications] = await Promise.all([
-    prisma.$queryRaw<{ size: bigint }[]>`SELECT pg_database_size(current_database()) AS size`,
+    sqlite
+      ? prisma.$queryRaw<{ size: bigint }[]>`SELECT page_count * page_size AS size FROM pragma_page_count(), pragma_page_size()`
+      : prisma.$queryRaw<{ size: bigint }[]>`SELECT pg_database_size(current_database()) AS size`,
     loadAiConfig(),
     prisma.application.count({ where: { awaitingReview: false } }),
   ]);
   return [
     { label: "Version", value: appVersion },
     { label: "Server", value: host },
-    { label: "Database", value: `PostgreSQL · ${formatBytes(Number(database.size))}` },
+    { label: "Database", value: `${sqlite ? "SQLite" : "PostgreSQL"} · ${formatBytes(Number(database.size))}` },
     { label: "Sign-in", value: "set via DOSSIER_PASSWORD" },
     { label: "AI", value: [providerOption(ai.provider).name, ai.model].filter(Boolean).join(" · ") },
     { label: "Applications", value: String(applications) },

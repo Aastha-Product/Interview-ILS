@@ -166,8 +166,8 @@ export async function dismissCandidate(candidateId: string): Promise<{ undo: Dis
   const hadDraft = Boolean(candidate.applicationId) || candidate.status !== AgentCandidateStatus.SCORED;
   await dismissPosting(foundFromCandidate(candidate));
   await prisma.$transaction(async (tx) => {
-    // Locked, so a draft that's just being created either lands first and is deleted here, or finds it dismissed and isn't made.
-    await tx.$queryRaw`SELECT 1 FROM "AgentCandidate" WHERE id = ${candidateId} FOR UPDATE`;
+    // Locked (by a write that changes nothing), so a draft that's just being created either lands first and is deleted here, or finds it dismissed and isn't made.
+    await tx.$executeRaw`UPDATE "AgentCandidate" SET id = id WHERE id = ${candidateId}`;
     const current = await tx.agentCandidate.findUniqueOrThrow({ where: { id: candidateId }, select: { applicationId: true } });
     if (current.applicationId) await tx.application.deleteMany({ where: { id: current.applicationId } });
     await tx.agentCandidate.update({ where: { id: candidateId }, data: { status: AgentCandidateStatus.DISMISSED, ...DISMISSED_TRIM } });

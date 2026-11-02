@@ -48,13 +48,19 @@ const schema = z.object({
   ),
   DATABASE_URL: required(
     "DATABASE_URL",
-    "Set it to your PostgreSQL connection string, e.g. postgresql://user:password@host:5432/dossier.",
+    "Set it to your PostgreSQL connection string, e.g. postgresql://user:password@host:5432/dossier, or to an SQLite file, e.g. file:/data/dossier.db.",
   ).pipe(
     // Never echo the value: it contains the database password.
-    z.string().regex(/^postgres(ql)?:\/\//, {
-      error:
-        "DATABASE_URL must be a PostgreSQL connection string starting with postgresql://.",
-    }),
+    z
+      .string()
+      .regex(/^(postgres(ql)?:\/\/|file:)/, {
+        error:
+          "DATABASE_URL must be a PostgreSQL connection string starting with postgresql://, or an SQLite file starting with file:.",
+      })
+      // A relative path would mean another file to the migrations, which run in another folder.
+      .refine((url) => !url.startsWith("file:") || path.isAbsolute(url.slice("file:".length)), {
+        error: "DATABASE_URL must give the SQLite file's full path, e.g. file:/data/dossier.db.",
+      }),
   ),
   DOSSIER_DATA_DIR: z
     .preprocess(unsetIfEmpty, z.string().default("/data"))

@@ -2,7 +2,7 @@ import "server-only";
 
 import type { PrismaClient } from "@/generated/prisma/client";
 
-import { afterFailure, GLOBAL, PER_IP, waitMs, type ThrottleState } from "./throttle";
+import { afterFailure, GLOBAL, PER_IP, waitMs } from "./throttle";
 
 // Rate limiting for sign-in (PRD AUTH-5), stored in Postgres so limits survive
 // restarts without Redis. Each failure counts for the client IP and for all IPs
@@ -25,13 +25,16 @@ export async function recordLoginFailure(db: PrismaClient, ip: string, now = new
       [ip, PER_IP],
       [GLOBAL_KEY, GLOBAL],
     ] as const) {
+      // Creates the row, or locks it with a write that changes nothing, so
+      // concurrent failures take turns (in PostgreSQL and SQLite alike).
       await tx.$executeRaw`
         INSERT INTO "LoginThrottle" (key, "windowStart", "updatedAt")
         VALUES (${key}, ${now}, ${now})
-        ON CONFLICT (key) DO NOTHING`;
-      const [row] = await tx.$queryRaw<ThrottleState[]>`
-        SELECT failures, "windowStart", "blockedUntil" FROM "LoginThrottle"
-        WHERE key = ${key} FOR UPDATE`;
+        ON CONFLICT (key) DO UPDATE SET key = excluded.key`;
+      const row = await tx.loginThrottle.findUniqueOrThrow({
+        where: { key },
+        select: { failures: true, windowStart: true, blockedUntil: true },
+      });
       const next = afterFailure(row.failures === 0 ? null : row, now, policy);
       await tx.loginThrottle.update({ where: { key }, data: { ...next, updatedAt: now } });
     }

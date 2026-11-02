@@ -90,6 +90,13 @@ describe("parseEnv", () => {
     ]);
   });
 
+  it("takes an SQLite file as the database, by its full path", () => {
+    expect(parseEnv({ ...valid, DATABASE_URL: "file:/data/dossier.db" }).DATABASE_URL).toBe("file:/data/dossier.db");
+    expect(problems({ ...valid, DATABASE_URL: "file:./dossier.db" })).toEqual([
+      "DATABASE_URL must give the SQLite file's full path, e.g. file:/data/dossier.db.",
+    ]);
+  });
+
   it("wants a hash of the password, not the password itself", () => {
     expect(problems({ ...valid, DOSSIER_PASSWORD: "correct horse" })).toEqual([
       expect.stringMatching(/^DOSSIER_PASSWORD must be a hash of your password, not the password itself\. .*hash-password/),

@@ -21,8 +21,9 @@ export async function applyStatusChange(
   now = new Date(),
 ): Promise<StatusChangeResult> {
   return db.$transaction(async (tx) => {
-    // Lock the row so two changes to the same application can't interleave.
-    await tx.$queryRaw`SELECT 1 FROM "Application" WHERE id = ${applicationId} FOR UPDATE`;
+    // Lock the row so two changes to the same application can't interleave:
+    // a write that changes nothing locks it in PostgreSQL and SQLite alike.
+    await tx.$executeRaw`UPDATE "Application" SET id = id WHERE id = ${applicationId}`;
     const application = await tx.application.findUnique({
       where: { id: applicationId },
       select: { status: true, furthestStage: true, sentAt: true },
@@ -53,7 +54,7 @@ export async function undoStatusChange(db: PrismaClient, eventId: string): Promi
     const event = await tx.statusEvent.findUnique({ where: { id: eventId } });
     if (!event) return { outcome: "not-found" };
 
-    await tx.$queryRaw`SELECT 1 FROM "Application" WHERE id = ${event.applicationId} FOR UPDATE`;
+    await tx.$executeRaw`UPDATE "Application" SET id = id WHERE id = ${event.applicationId}`;
     const latest = await tx.statusEvent.findFirst({
       where: { applicationId: event.applicationId },
       orderBy: [{ at: "desc" }, { id: "desc" }],
