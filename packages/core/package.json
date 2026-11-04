@@ -6,7 +6,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./profile": "./src/profile/schema.ts",
-    "./profile-strength": "./src/profile/strength.ts"
+    "./profile-strength": "./src/profile/strength.ts",
+    "./applications/types": "./src/applications/types.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"
@@ -20,6 +21,7 @@
     "pino": "^10.4.0",
     "unpdf": "^2.1.0",
     "zod": "^4.6.7",
-    "@pathfinder/feeds": "workspace:*"
+    "@pathfinder/feeds": "workspace:*",
+    "pg-boss": "^12.38.0"
   }
 }

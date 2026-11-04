@@ -41,6 +41,7 @@ model User {
   usageRecords      UsageRecord[]
   auditLogs         AuditLog[]
   feedSearches      FeedSearch[]
+  applicationTasks  ApplicationTask[]
 }
 
 // Auth.js adapter tables (field names follow @auth/prisma-adapter).
@@ -375,6 +376,7 @@ model Application {
   jobListing JobListing          @relation(fields: [jobListingId], references: [id], onDelete: Cascade)
   events     ApplicationEvent[]
   documents  GeneratedDocument[]
+  tasks      ApplicationTask[]
 
   @@unique([userId, jobListingId])
   @@index([userId, status])
@@ -403,23 +405,65 @@ enum DocumentKind {
 }
 
 model GeneratedDocument {
-  id             String       @id @default(cuid())
-  userId         String
-  applicationId  String
-  kind           DocumentKind
-  version        Int
-  content        Json
-  pdfStorageKey  String?
-  profileVersion Int
-  factCheck      Json?
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+  id              String       @id @default(cuid())
+  userId          String
+  applicationId   String
+  kind            DocumentKind
+  version         Int
+  content         Json
+  pdfStorageKey   String?
+  pdfRenderedAt   DateTime?
+  profileVersion  Int
+  factCheck       Json?
+  /// True once the student has edited this version by hand.
+  editedByStudent Boolean      @default(false)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
 
   user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
 
   @@unique([applicationId, kind, version])
   @@index([userId])
+}
+
+enum TaskKind {
+  TAILOR
+  PDF
+}
+
+enum TaskState {
+  QUEUED
+  WORKING
+  NEEDS_INPUT
+  DONE
+  FAILED
+}
+
+/// A background job the student is waiting on (drafting, PDF), mirrored from pg-boss for the UI.
+model ApplicationTask {
+  id             String    @id @default(cuid())
+  userId         String
+  applicationId  String
+  kind           TaskKind
+  state          TaskState @default(QUEUED)
+  /// Plain-English reason shown to the student when state is FAILED or NEEDS_INPUT.
+  reason         String    @default("")
+  /// user|job|action|profileVersion (plus document version for PDFs). A double-click enqueues once.
+  idempotencyKey String    @unique
+  bossJobId      String?
+  documentId     String?
+  attempts       Int       @default(0)
+  startedAt      DateTime?
+  finishedAt     DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@index([userId, state])
+  @@index([applicationId, createdAt])
 }
 
 // ---------- Usage and audit ----------

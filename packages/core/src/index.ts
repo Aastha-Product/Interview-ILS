@@ -42,3 +42,7 @@ export type { ImportJobInput, ImportJobResult } from "./jobs/import";
 export { fetchJobPage, isPublicAddress, isAllowedByRobots, PageFetchError } from "./jobs/fetch-page";
 export { parsePostingHtml, htmlToText } from "./jobs/posting";
 export { incrementUsage } from "./usage";
+// Applications (Phase 3)
+export type * from "./applications/types";
+export { QUEUE, QUEUE_SETTINGS, deadLetterQueue } from "./queue/names";
+export type { QueueName, QueueSettings, TailorJobData, PdfJobData } from "./queue/names";

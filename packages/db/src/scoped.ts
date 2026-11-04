@@ -22,6 +22,7 @@ export const USER_OWNED_MODELS = new Set([
   "UsageRecord",
   "AuditLog",
   "FeedSearch",
+  "ApplicationTask",
 ]);
 
 /** Shared models any signed-in user may read, minus their user-owned relations. */
