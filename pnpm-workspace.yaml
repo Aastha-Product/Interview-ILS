@@ -1,0 +1,16 @@
+packages:
+  - apps/*
+  - packages/*
+  - e2e
+
+# pnpm 10 only runs install scripts for packages listed here.
+onlyBuiltDependencies:
+  - "@prisma/engines"
+  - prisma
+  - esbuild
+  - sharp
+  - unrs-resolver
+  - "@embedded-postgres/windows-x64"
+  - "@embedded-postgres/linux-x64"
+  - "@embedded-postgres/darwin-arm64"
+  - "@embedded-postgres/darwin-x64"

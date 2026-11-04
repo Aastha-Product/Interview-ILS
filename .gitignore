@@ -1,0 +1,26 @@
+node_modules/
+.next/
+out/
+dist/
+coverage/
+*.tsbuildinfo
+next-env.d.ts
+
+# env files hold secrets; only the example is committed
+.env
+.env.*
+!.env.example
+
+# generated
+packages/db/src/generated/
+
+# playwright
+e2e/test-results/
+e2e/playwright-report/
+e2e/.auth/
+
+.DS_Store
+Thumbs.db
+
+# local Postgres data and dev file storage
+.local/

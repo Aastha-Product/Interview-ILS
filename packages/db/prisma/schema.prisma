@@ -1,0 +1,428 @@
+// Pathfinder data model.
+// Rule: every user-owned table carries `userId`, and app code reaches it only through
+// `scopedDb(userId)` (src/scoped.ts), which adds that filter to every query.
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "esm"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------- Users and Auth.js ----------
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  emailVerified DateTime?
+  name          String?
+  image         String?
+  deletedAt     DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts          Account[]
+  sessions          Session[]
+  profile           Profile?
+  experiences       Experience[]
+  projects          Project[]
+  educations        Education[]
+  skills            Skill[]
+  resumeFiles       ResumeFile[]
+  jobPreference     JobPreference?
+  jobMatches        JobMatch[]
+  applications      Application[]
+  applicationEvents ApplicationEvent[]
+  documents         GeneratedDocument[]
+  aiRuns            AiRun[]
+  usageRecords      UsageRecord[]
+  auditLogs         AuditLog[]
+}
+
+// Auth.js adapter tables (field names follow @auth/prisma-adapter).
+model Account {
+  id                String   @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([identifier, token])
+}
+
+// ---------- Profile ----------
+
+model Profile {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  headline  String   @default("")
+  summary   String   @default("")
+  location  String   @default("")
+  phone     String?
+  /// [{ label, url }]
+  links     Json     @default("[]")
+  /// Incremented on every change. Generated documents record the version they used.
+  version   Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  experiences Experience[]
+  projects    Project[]
+  educations  Education[]
+  skills      Skill[]
+}
+
+model Experience {
+  id         String   @id @default(cuid())
+  userId     String
+  profileId  String
+  order      Int
+  title      String
+  company    String
+  location   String   @default("")
+  startDate  String   @default("")
+  endDate    String   @default("")
+  current    Boolean  @default(false)
+  highlights String[]
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId, order])
+  @@index([userId])
+}
+
+model Project {
+  id           String   @id @default(cuid())
+  userId       String
+  profileId    String
+  order        Int
+  name         String
+  role         String   @default("")
+  url          String   @default("")
+  startDate    String   @default("")
+  endDate      String   @default("")
+  technologies String[]
+  highlights   String[]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId, order])
+  @@index([userId])
+}
+
+model Education {
+  id          String   @id @default(cuid())
+  userId      String
+  profileId   String
+  order       Int
+  institution String
+  degree      String   @default("")
+  field       String   @default("")
+  startDate   String   @default("")
+  endDate     String   @default("")
+  grade       String   @default("")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId, order])
+  @@index([userId])
+}
+
+model Skill {
+  id        String   @id @default(cuid())
+  userId    String
+  profileId String
+  order     Int
+  name      String
+  category  String   @default("")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId, order])
+  @@index([userId])
+}
+
+model ResumeFile {
+  id         String    @id @default(cuid())
+  userId     String
+  storageKey String    @unique
+  mime       String
+  size       Int
+  parsedAt   DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+enum ExperienceLevel {
+  FRESHER
+  ZERO_TO_ONE
+  ONE_TO_THREE
+}
+
+model JobPreference {
+  id              String          @id @default(cuid())
+  userId          String          @unique
+  roles           String[]
+  locations       String[]
+  remoteOk        Boolean         @default(true)
+  minSalary       Int?
+  experienceLevel ExperienceLevel @default(FRESHER)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ---------- Jobs (shared across users) ----------
+
+enum JobSource {
+  jsearch
+  adzuna
+  manual
+}
+
+model JobListing {
+  id            String    @id @default(cuid())
+  source        JobSource
+  sourceId      String
+  urlNormalised String?
+  company       String
+  title         String
+  location      String    @default("")
+  description   String
+  postedAt      DateTime?
+  closedAt      DateTime?
+  raw           Json?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  extraction   JobExtraction?
+  // User-owned back-relations. The scoped client refuses to include these from a shared model.
+  matches      JobMatch[]
+  applications Application[]
+
+  @@unique([source, sourceId])
+  @@index([urlNormalised])
+}
+
+model JobExtraction {
+  id           String   @id @default(cuid())
+  jobListingId String   @unique
+  requirements Json
+  skills       String[]
+  seniority    String
+  modelUsed    String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  jobListing JobListing @relation(fields: [jobListingId], references: [id], onDelete: Cascade)
+}
+
+model JobMatch {
+  id             String   @id @default(cuid())
+  userId         String
+  jobListingId   String
+  score          Int
+  reasons        Json
+  gaps           Json
+  profileVersion Int
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jobListing JobListing @relation(fields: [jobListingId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, jobListingId])
+}
+
+// ---------- Applications ----------
+
+enum ApplicationStatus {
+  DRAFT
+  APPLIED
+  RESPONSE
+  INTERVIEW
+  OFFER
+  REJECTED
+  WITHDRAWN
+}
+
+model Application {
+  id           String            @id @default(cuid())
+  userId       String
+  jobListingId String
+  status       ApplicationStatus @default(DRAFT)
+  appliedAt    DateTime?
+  responseAt   DateTime?
+  notes        String            @default("")
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  user       User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jobListing JobListing          @relation(fields: [jobListingId], references: [id], onDelete: Cascade)
+  events     ApplicationEvent[]
+  documents  GeneratedDocument[]
+
+  @@unique([userId, jobListingId])
+  @@index([userId, status])
+}
+
+model ApplicationEvent {
+  id            String   @id @default(cuid())
+  userId        String
+  applicationId String
+  type          String
+  at            DateTime @default(now())
+  note          String   @default("")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@index([applicationId])
+  @@index([userId])
+}
+
+enum DocumentKind {
+  RESUME
+  ANSWERS
+}
+
+model GeneratedDocument {
+  id             String       @id @default(cuid())
+  userId         String
+  applicationId  String
+  kind           DocumentKind
+  version        Int
+  content        Json
+  pdfStorageKey  String?
+  profileVersion Int
+  factCheck      Json?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@unique([applicationId, kind, version])
+  @@index([userId])
+}
+
+// ---------- Usage and audit ----------
+
+/// One row per model call. The prompt itself is never stored, only a hash of it.
+model AiRun {
+  id           String   @id @default(cuid())
+  userId       String
+  task         String
+  model        String
+  inputTokens  Int
+  outputTokens Int
+  latencyMs    Int
+  outcome      String
+  inputHash    String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([createdAt])
+}
+
+model UsageRecord {
+  id             String   @id @default(cuid())
+  userId         String
+  /// Calendar day in India Standard Time.
+  day            DateTime @db.Date
+  aiCalls        Int      @default(0)
+  aiInputTokens  Int      @default(0)
+  aiOutputTokens Int      @default(0)
+  pdfs           Int      @default(0)
+  searches       Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, day])
+}
+
+enum AuditAction {
+  SIGN_IN
+  SIGN_OUT
+  RESUME_IMPORT
+  PROFILE_UPDATE
+  EXPORT
+  DELETE
+}
+
+model AuditLog {
+  id        String      @id @default(cuid())
+  userId    String
+  action    AuditAction
+  at        DateTime    @default(now())
+  ipHash    String?
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, at])
+}

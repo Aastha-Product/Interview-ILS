@@ -1,0 +1,48 @@
+{
+  "name": "pathfinder",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "packageManager": "pnpm@10.34.9",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @pathfinder/web dev",
+    "build": "pnpm --filter @pathfinder/web build",
+    "services:up": "node scripts/services.mjs up",
+    "services:down": "node scripts/services.mjs down",
+    "db:generate": "pnpm --filter @pathfinder/db generate",
+    "db:migrate": "pnpm --filter @pathfinder/db migrate:dev",
+    "db:deploy": "pnpm --filter @pathfinder/db migrate:deploy",
+    "fixtures": "node scripts/make-fixtures.mjs",
+    "lint": "eslint .",
+    "typecheck": "pnpm -r --parallel typecheck",
+    "test": "vitest run --project unit",
+    "test:integration": "vitest run --project integration",
+    "e2e": "pnpm --filter @pathfinder/e2e test",
+    "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm test:integration",
+    "format": "prettier --write .",
+    "services:status": "node scripts/services.mjs status",
+    "services:reset": "node scripts/services.mjs reset"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.1",
+    "@types/node": "^24.10.0",
+    "eslint": "^9.39.1",
+    "eslint-config-next": "16.4.5",
+    "globals": "^16.4.0",
+    "prettier": "^3.6.2",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.72.1",
+    "vitest": "^5.1.0",
+    "pg": "^8.23.1",
+    "dotenv": "^17.2.3"
+  },
+  "optionalDependencies": {
+    "@embedded-postgres/windows-x64": "17.11.0-beta.19",
+    "@embedded-postgres/linux-x64": "17.11.0-beta.19",
+    "@embedded-postgres/darwin-arm64": "17.11.0-beta.19",
+    "@embedded-postgres/darwin-x64": "17.11.0-beta.19"
+  }
+}
