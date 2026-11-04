@@ -27,7 +27,11 @@ export function withUser<C = unknown>(handler: Handler<C>) {
     try {
       return await handler({ request, user, db: scopedDb(user.id), params: await context.params });
     } catch (error) {
-      if (error instanceof UserFacingError) return apiError(error.status, error.code, error.message);
+      if (error instanceof UserFacingError) {
+        const response = apiError(error.status, error.code, error.message);
+        if (error.retryAfterSeconds !== undefined) response.headers.set("Retry-After", String(error.retryAfterSeconds));
+        return response;
+      }
       if (error instanceof ZodError) {
         return apiError(400, "INVALID_INPUT", "Some fields need fixing.", {
           fields: error.issues.map((i) => ({ path: i.path.join("."), message: i.message })),

@@ -72,6 +72,9 @@ importers:
       '@pathfinder/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@pathfinder/feeds':
+        specifier: workspace:*
+        version: link:../../packages/feeds
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -151,6 +154,9 @@ importers:
       '@pathfinder/db':
         specifier: workspace:*
         version: link:../db
+      '@pathfinder/feeds':
+        specifier: workspace:*
+        version: link:../feeds
       mammoth:
         specifier: ^1.13.0
         version: 1.13.0
@@ -179,6 +185,12 @@ importers:
       prisma:
         specifier: 7.10.1
         version: 7.10.1(@types/node@24.19.2)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(typescript@6.0.3)
+
+  packages/feeds:
+    dependencies:
+      zod:
+        specifier: ^4.6.7
+        version: 4.6.7
 
 packages:
 

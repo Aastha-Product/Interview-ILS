@@ -18,7 +18,7 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   agentRules: false,
-  transpilePackages: ["@pathfinder/core", "@pathfinder/ai", "@pathfinder/db"],
+  transpilePackages: ["@pathfinder/core", "@pathfinder/ai", "@pathfinder/db", "@pathfinder/feeds"],
   serverExternalPackages: ["pino", "mammoth", "unpdf", "pg", "@prisma/client", "@prisma/adapter-pg"],
   turbopack: { root: repoRoot },
   async headers() {

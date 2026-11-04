@@ -21,10 +21,11 @@ export const USER_OWNED_MODELS = new Set([
   "AiRun",
   "UsageRecord",
   "AuditLog",
+  "FeedSearch",
 ]);
 
 /** Shared models any signed-in user may read, minus their user-owned relations. */
-export const SHARED_MODELS = new Set(["JobListing", "JobExtraction"]);
+export const SHARED_MODELS = new Set(["JobListing", "JobExtraction", "FeedCache", "FeedBudget"]);
 
 /**
  * Relations on shared models that point at user-owned rows (JobListing.matches and

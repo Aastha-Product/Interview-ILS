@@ -40,6 +40,7 @@ model User {
   aiRuns            AiRun[]
   usageRecords      UsageRecord[]
   auditLogs         AuditLog[]
+  feedSearches      FeedSearch[]
 }
 
 // Auth.js adapter tables (field names follow @auth/prisma-adapter).
@@ -237,19 +238,25 @@ enum JobSource {
 }
 
 model JobListing {
-  id            String    @id @default(cuid())
-  source        JobSource
-  sourceId      String
-  urlNormalised String?
-  company       String
-  title         String
-  location      String    @default("")
-  description   String
-  postedAt      DateTime?
-  closedAt      DateTime?
-  raw           Json?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id             String    @id @default(cuid())
+  source         JobSource
+  sourceId       String
+  urlNormalised  String?
+  /// Where the student goes to apply. For Adzuna this must be its redirect_url.
+  applyUrl       String?
+  company        String
+  title          String
+  location       String    @default("")
+  remote         Boolean   @default(false)
+  employmentType String    @default("")
+  description    String
+  /// Normalised company|title|location, used to collapse the same job seen on two sources.
+  dedupeKey      String
+  postedAt       DateTime?
+  closedAt       DateTime?
+  raw            Json?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   extraction   JobExtraction?
   // User-owned back-relations. The scoped client refuses to include these from a shared model.
@@ -258,17 +265,19 @@ model JobListing {
 
   @@unique([source, sourceId])
   @@index([urlNormalised])
+  @@index([dedupeKey, createdAt])
 }
 
 model JobExtraction {
-  id           String   @id @default(cuid())
-  jobListingId String   @unique
-  requirements Json
-  skills       String[]
-  seniority    String
-  modelUsed    String
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id            String   @id @default(cuid())
+  jobListingId  String   @unique
+  requirements  Json
+  skills        String[]
+  seniority     String
+  modelUsed     String
+  promptVersion String   @default("")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   jobListing JobListing @relation(fields: [jobListingId], references: [id], onDelete: Cascade)
 }
@@ -278,9 +287,15 @@ model JobMatch {
   userId         String
   jobListingId   String
   score          Int
+  /// Points per factor (skills, keywords, seniority, location), so the score can be explained.
+  breakdown      Json     @default("{}")
   reasons        Json
   gaps           Json
+  /// Short AI-written explanation. Empty until generated.
+  explanation    String   @default("")
   profileVersion Int
+  /// Hash of everything the score depends on; a different hash means recompute.
+  inputHash      String   @default("")
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -288,6 +303,49 @@ model JobMatch {
   jobListing JobListing @relation(fields: [jobListingId], references: [id], onDelete: Cascade)
 
   @@unique([userId, jobListingId])
+  @@index([userId, score])
+}
+
+/// Cached feed search results (shared): the listing ids a search returned, kept 24 hours.
+model FeedCache {
+  id         String    @id @default(cuid())
+  /// source|normalised query|normalised location|page
+  cacheKey   String    @unique
+  source     JobSource
+  listingIds String[]
+  expiresAt  DateTime
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([expiresAt])
+}
+
+/// Live requests made to each feed per day (India time), to stay inside the global budget.
+model FeedBudget {
+  id        String    @id @default(cuid())
+  source    JobSource
+  day       DateTime  @db.Date
+  requests  Int       @default(0)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@unique([source, day])
+}
+
+/// One row per search a student runs (for the per-user rate limit and usage analytics).
+model FeedSearch {
+  id          String   @id @default(cuid())
+  userId      String
+  query       String
+  location    String   @default("")
+  liveCalls   Int      @default(0)
+  resultCount Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
 }
 
 // ---------- Applications ----------

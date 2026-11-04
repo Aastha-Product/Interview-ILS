@@ -7,6 +7,8 @@ const RAW_DB_ALLOWED = [
   "packages/db/**",
   "apps/web/server/auth.ts",
   "apps/web/server/dev-sign-in.ts",
+  // Shared job data (listings, extractions, feed cache and budget) is written outside any one user's scope.
+  "packages/core/src/jobs/**",
   "**/*.int.test.ts",
   "**/test/**",
 ];
