@@ -35,10 +35,11 @@ test("a new student signs in, imports a resume, confirms it, sets preferences an
   await page.getByLabel("Cities").fill("Indore, Pune");
   await page.getByRole("button", { name: "Finish setup" }).click();
 
-  await expect(page).toHaveURL(/\/profile\?welcome=1$/);
+  await expect(page).toHaveURL(/\/jobs\?welcome=1$/);
   await expect(page.getByText("You're all set")).toBeVisible();
 
   // Edit and save; the change survives a reload.
+  await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Profile" }).click();
   await page.getByLabel("Headline").fill("Final-year B.Tech CSE student aiming for QA roles");
   await page.getByRole("button", { name: "Save profile" }).click();
   await expect(page.getByText("Saved.")).toBeVisible();

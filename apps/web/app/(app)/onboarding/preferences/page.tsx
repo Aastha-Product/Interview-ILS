@@ -15,7 +15,7 @@ export default async function OnboardingPreferencesPage() {
         <h1 className="text-2xl font-semibold">What kind of job are you looking for?</h1>
         <p className="mt-1 text-slate-600">We use this to find and rank jobs for you. You can change it any time.</p>
       </div>
-      <PreferencesForm initial={preferences} redirectTo="/profile?welcome=1" submitLabel="Finish setup" />
+      <PreferencesForm initial={preferences} redirectTo="/jobs?welcome=1" submitLabel="Finish setup" />
     </div>
   );
 }

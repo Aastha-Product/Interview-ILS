@@ -3,16 +3,14 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ProfileEditor } from "@/components/profile-editor";
-import { Alert } from "@/components/ui/card";
 import { requireUser } from "@/server/session";
 
 export const metadata: Metadata = { title: "Your profile" };
 
-export default async function ProfilePage({ searchParams }: { searchParams: Promise<{ welcome?: string }> }) {
+export default async function ProfilePage() {
   const { db } = await requireUser();
   const profile = await getProfile(db);
   if (profile.version === 0) redirect("/onboarding");
-  const { welcome } = await searchParams;
   const { version, updatedAt, ...fields } = profile;
   void updatedAt;
 
@@ -27,12 +25,6 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
           </Link>
         </p>
       </div>
-      {welcome && (
-        <Alert tone="success">
-          You&apos;re all set. Job search and tailored applications arrive in the next update; for now, make your profile as
-          strong as you can.
-        </Alert>
-      )}
       <ProfileEditor initial={fields} initialVersion={version} />
     </div>
   );

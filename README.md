@@ -88,6 +88,16 @@ To use Gemini, set `GEMINI_API_KEY`. `GEMINI_MODEL` defaults to the alias `gemin
 | `local` (default) | `.local/storage` (or `STORAGE_LOCAL_DIR`) | Development only |
 | `s3` | Any S3-compatible bucket (Cloudflare R2, AWS S3, MinIO), using the `S3_*` settings | Staging and production (required in production) |
 
+### Jobs: feeds and pasted jobs
+
+- **Feeds.** With `JSEARCH_API_KEY` or `ADZUNA_APP_ID`/`ADZUNA_APP_KEY` empty, searches use the recorded fixtures in `packages/feeds/fixtures/`, so no live calls are made in development or tests.
+  - JSearch v5: `GET https://jsearch.p.rapidapi.com/search-v2` with `x-rapidapi-key` and `x-rapidapi-host` headers, `country=in`, cursor paging. Each page of up to 10 jobs costs one request; the free plan is about 200 a month.
+  - Adzuna: `GET https://api.adzuna.com/v1/api/jobs/{ADZUNA_COUNTRY}/search/1`. Its public docs don't confirm India (`in`), so check in your Adzuna account. Its descriptions are short snippets.
+- **Limits.** Each search is cached for `SEARCH_CACHE_HOURS` (24). A student can make one live search every `SEARCH_COOLDOWN_SECONDS` (300); cached searches are always allowed. Live calls also count against the global daily budgets `JSEARCH_DAILY_BUDGET` and `ADZUNA_DAILY_BUDGET`.
+- **Duplicates.** The same job from two sources, or the same link with different tracking parameters, is stored once (same company, title and city within 30 days).
+- **Pasted links.** Pathfinder fetches only the one page a student pasted, as `PathfinderBot`, after checking that site's robots.txt. It refuses private network addresses, follows at most 3 redirects, and reads at most 2 MB. If a page can't be read (robots.txt, sign-in wall, script-only page), the student is asked to paste the description instead. It never signs in to job sites.
+- **Adzuna terms.** Every Adzuna job shown must be labelled and linked "Adzuna", and students apply through Adzuna's `redirect_url`. The app does both. Using Adzuna in a product that earns revenue needs a licence from them.
+
 ### Local services
 
 | Command | What it does |

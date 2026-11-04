@@ -13,6 +13,9 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
           <Link href="/" className="text-lg font-bold text-brand-700">
             Pathfinder
           </Link>
+          <Link href="/jobs" className="text-sm text-slate-700 hover:text-slate-900">
+            Jobs
+          </Link>
           <Link href="/profile" className="text-sm text-slate-700 hover:text-slate-900">
             Profile
           </Link>
