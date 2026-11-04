@@ -109,7 +109,7 @@ The first start downloads the image (about 1.7 GB) and sets up the database. Ope
 docker run -d --name dossier --env-file .env -v dossier-data:/data -p 127.0.0.1:3000:3000 ghcr.io/aientech/dossier
 ```
 
-PostgreSQL stays the better choice on a shared server; to move between the two, export your data in Settings → Your data and import it on the other. It's only reachable from your own computer. The [installation guide's Docker Compose page](https://github.com/AienTech/dossier/wiki/Run-locally-with-Docker-Compose) has more: another port, your time zone, upgrades and removing it.
+Without that volume, the next upgrade deletes the data, and the container warns about it when it starts. To back up the file, stop the container and copy `dossier.db` out of the volume. PostgreSQL stays the better choice on a shared server; to move between the two, export your data in Settings → Your data and import it on the other. It's only reachable from your own computer. The [installation guide's Docker Compose page](https://github.com/AienTech/dossier/wiki/Run-locally-with-Docker-Compose) has more: another port, your time zone, upgrades and removing it.
 
 ## Self-hosting
 

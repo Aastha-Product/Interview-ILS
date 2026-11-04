@@ -62,6 +62,8 @@ docker compose exec -e DATABASE_URL=file:/app/data/dev.db app yarn prisma migrat
 - Inside `prisma.$transaction(async (tx) => …)`, query through `tx` only. SQLite has one connection, so a query through `prisma` waits until the transaction ends, and the transaction times out.
 - SQLite sorts enums by name, PostgreSQL in the order they're declared.
 - What Prisma doesn't manage is added to both migrations by hand: the built-in themes' delete trigger, and `COLLATE NOCASE` for the unique Skill and Language names (citext in PostgreSQL). SQLite's NOCASE only ignores the case of ASCII letters.
+- SQLite can't change most columns in place, so for those Prisma's migration rebuilds the table: it creates `new_<Table>`, copies the rows, drops the old table and renames the new one. That drops the trigger (on Theme) and `COLLATE NOCASE` (on Skill and Language) too. When a migration rebuilds one of these tables, add them back by hand: `COLLATE NOCASE` in its `CREATE TABLE`, and the trigger after the rename, as in `prisma/sqlite/migrations/20261102120000_init/migration.sql`. The database tests on SQLite fail when one is missing.
+- `yarn lint` refuses `skipDuplicates`, and a test checks that the SQLite migrations make exactly the SQLite schema.
 
 To browse and edit rows in Prisma Studio, start it on demand (plain `docker compose up` leaves it off) and open [http://localhost:5555](http://localhost:5555):
 
@@ -214,7 +216,7 @@ docker compose exec -e JEV_LIVE=compare app yarn vitest run src/lib/scoring/jev.
 
 Settings → Your data exports everything (profile, custom themes, settings, applications with their history, documents, chat and notes, and the postings kept from Find jobs) as one JSON file, and imports such a file to restore it. An import replaces all data in one transaction, after writing a backup of the current data to `DOSSIER_DATA_DIR/backups` (default `/data`; `./data` in development, which git ignores). "Download all PDFs" zips every tailored document there too, in `downloads`, and removes the zip once it's downloaded.
 
-With "Nightly backups" on (the default), the app writes the same export to `backups` every night at 03:00 server time and deletes backups older than `DOSSIER_BACKUP_RETENTION_DAYS` (14 by default). The timer runs inside the app process, so run a single instance of the app. These are the app's own backups: back up the PostgreSQL database itself too, the way your host does it (for example `pg_dump` on a schedule), or the SQLite file: stop the app and copy it, or copy it while the app runs with `sqlite3 dossier.db ".backup copy.db"`.
+With "Nightly backups" on (the default), the app writes the same export to `backups` every night at 03:00 server time and deletes backups older than `DOSSIER_BACKUP_RETENTION_DAYS` (14 by default). The timer runs inside the app process, so run a single instance of the app. These are the app's own backups: back up the PostgreSQL database itself too, the way your host does it (for example `pg_dump` on a schedule), or the SQLite file: stop the app and copy the file.
 
 ### Import size limit
 
