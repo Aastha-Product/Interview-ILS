@@ -3,6 +3,7 @@ import { ExternalLink } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { StartApplicationButton } from "@/components/applications/start-application-button";
 import { ScoreBadge, SourceLabel } from "@/components/jobs/job-card";
 import { Button } from "@/components/ui/button";
 import { Alert, Card, CardHeader } from "@/components/ui/card";
@@ -59,9 +60,7 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
             </a>
           </Button>
         )}
-        <Button disabled title="Tailored applications arrive in the next update">
-          Start application
-        </Button>
+        <StartApplicationButton jobListingId={listing.id} size="md" />
       </div>
 
       {matchError && <Alert tone="error">{matchError}</Alert>}

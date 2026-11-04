@@ -24,6 +24,8 @@ const schema = z
     ADZUNA_DAILY_BUDGET: z.coerce.number().int().min(0).default(50),
     SEARCH_COOLDOWN_SECONDS: z.coerce.number().int().min(0).default(300),
     SEARCH_CACHE_HOURS: z.coerce.number().int().min(1).default(24),
+    TAILOR_DAILY_LIMIT: z.coerce.number().int().min(0).default(20),
+    AI_CONCURRENT_PER_USER: z.coerce.number().int().min(1).default(2),
     STORAGE_DRIVER: z.enum(["local", "s3"]).default("local"),
     STORAGE_LOCAL_DIR: optional,
     S3_ENDPOINT: optional,

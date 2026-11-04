@@ -9,6 +9,8 @@ const RAW_DB_ALLOWED = [
   "apps/web/server/dev-sign-in.ts",
   // Shared job data (listings, extractions, feed cache and budget) is written outside any one user's scope.
   "packages/core/src/jobs/**",
+  // The worker entry point only disconnects the shared client at shutdown.
+  "apps/worker/src/index.ts",
   "**/*.int.test.ts",
   "**/test/**",
 ];

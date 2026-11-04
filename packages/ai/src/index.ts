@@ -23,6 +23,32 @@ export type { JobRequirements, JobExtractInput } from "./tasks/job-extract";
 export { matchExplainTask, matchExplanationSchema, validateGaps, templateExplanation } from "./tasks/match-explain";
 export type { MatchExplanation, MatchExplainInput } from "./tasks/match-explain";
 export type { AiProvider, AiRecorder, AiRunRecord, AiOutcome, TaskDefinition } from "./types";
+// Drafting track
+export {
+  resumeTailorTask,
+  resumeTailorSchema,
+  heuristicTailor,
+  MAX_BULLETS_PER_ITEM,
+} from "./tasks/resume-tailor";
+export type {
+  ResumeTailorInput,
+  ResumeTailorOutput,
+  DraftingJob,
+  DraftingRequirements,
+} from "./tasks/resume-tailor";
+export {
+  answersDraftTask,
+  answersDraftSchema,
+  heuristicAnswers,
+  DEFAULT_QUESTIONS,
+  roleQuestions,
+  NEEDS_STUDENT,
+} from "./tasks/answers-draft";
+export type { AnswersDraftInput, AnswersDraftOutput } from "./tasks/answers-draft";
+export { factVerifyTask, factVerifySchema, heuristicVerify, MOCK_SUPPORT_THRESHOLD } from "./tasks/fact-verify";
+export type { FactVerifyInput, FactVerifyOutput } from "./tasks/fact-verify";
+export { contentWords, supportRatio, stem, tidyBullet } from "./tasks/drafting-text";
+export type { PromptFact } from "./tasks/drafting-text";
 
 export interface AiEnv {
   GEMINI_API_KEY?: string;
