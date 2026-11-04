@@ -35,3 +35,17 @@ export function createAiRecorder(db: ScopedDb): AiRecorder {
     },
   };
 }
+
+/** Adds one search or PDF render to today's UsageRecord. Never throws. */
+export async function incrementUsage(db: ScopedDb, field: "searches" | "pdfs", now: Date = new Date()): Promise<void> {
+  const day = istDay(now);
+  try {
+    await db.usageRecord.upsert({
+      where: { userId_day: { userId: db.userId, day } },
+      create: field === "searches" ? { userId: db.userId, day, searches: 1 } : { userId: db.userId, day, pdfs: 1 },
+      update: field === "searches" ? { searches: { increment: 1 } } : { pdfs: { increment: 1 } },
+    });
+  } catch (error) {
+    getLogger().warn({ err: (error as Error).name, field }, "failed to record usage");
+  }
+}

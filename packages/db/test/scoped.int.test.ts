@@ -109,7 +109,7 @@ describe("scopedDb: shared job data does not leak user rows", () => {
   it("refuses to include other users' applications through a job listing", async () => {
     const prisma = getPrisma();
     const job = await prisma.jobListing.create({
-      data: { source: "manual", sourceId: "j1", company: "Acme", title: "QA", description: "d" },
+      data: { source: "manual", sourceId: "j1", company: "Acme", title: "QA", description: "d", dedupeKey: "acme|qa|" },
     });
     await scopedDb(aliceId).application.create({ data: { userId: aliceId, jobListingId: job.id } });
 
