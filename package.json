@@ -37,7 +37,8 @@
     "typescript-eslint": "^8.72.1",
     "vitest": "^5.1.0",
     "pg": "^8.23.1",
-    "dotenv": "^17.2.3"
+    "dotenv": "^17.2.3",
+    "next": "16.4.5"
   },
   "optionalDependencies": {
     "@embedded-postgres/windows-x64": "17.11.0-beta.19",
