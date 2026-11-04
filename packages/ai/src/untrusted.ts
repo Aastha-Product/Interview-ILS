@@ -9,7 +9,7 @@ export function wrapUntrusted(label: string, text: string): string {
   const tag = label.toUpperCase().replace(/[^A-Z_]/g, "_");
   const cleaned = text
     .replace(/<<<\s*(BEGIN|END)[^>]*>>>/gi, "")
-    .replace(/\u0000/g, "")
+    .replaceAll("\u0000", "")
     .slice(0, MAX_UNTRUSTED_CHARS);
   return `<<<BEGIN_UNTRUSTED_${tag}>>>\n${cleaned}\n<<<END_UNTRUSTED_${tag}>>>`;
 }

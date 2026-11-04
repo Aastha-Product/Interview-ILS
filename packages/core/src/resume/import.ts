@@ -46,7 +46,7 @@ export async function importResume(
   const storageKey = `users/${db.userId}/resumes/${randomUUID()}.${kind}`;
   await storage.put(storageKey, bytes, RESUME_MIME[kind]);
   const resumeFile = await db.resumeFile.create({
-    data: { storageKey, mime: RESUME_MIME[kind], size: bytes.byteLength } as never,
+    data: { userId: db.userId, storageKey, mime: RESUME_MIME[kind], size: bytes.byteLength },
   });
 
   let text: string;

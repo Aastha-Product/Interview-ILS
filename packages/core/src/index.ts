@@ -14,7 +14,6 @@ export {
   createLocalStorage,
   createMemoryStorage,
   createS3Storage,
-  findRepoRoot,
 } from "./storage";
 export type { FileStorage } from "./storage";
 export { importResume } from "./resume/import";

@@ -70,6 +70,7 @@ export async function saveProfile(
   expectedVersion: number,
 ): Promise<ProfileView> {
   const data = profileInputSchema.parse(input);
+  const userId = db.userId;
 
   await db.$transaction(async (tx) => {
     const existing = await tx.profile.findFirst({ select: { id: true, version: true } });
@@ -107,16 +108,16 @@ export async function saveProfile(
         tx.skill.deleteMany({ where: { profileId } }),
       ]);
     } else {
-      profileId = (await tx.profile.create({ data: { ...fields, version: 1 } as never })).id;
+      profileId = (await tx.profile.create({ data: { ...fields, userId, version: 1 } })).id;
     }
 
-    const withOrder = <T>(items: T[]) => items.map((item, order) => ({ ...item, order, profileId }));
-    // userId is filled in by the scoped client.
-    if (data.experiences.length) await tx.experience.createMany({ data: withOrder(data.experiences) as never });
-    if (data.projects.length) await tx.project.createMany({ data: withOrder(data.projects) as never });
-    if (data.education.length) await tx.education.createMany({ data: withOrder(data.education) as never });
-    if (data.skills.length) await tx.skill.createMany({ data: withOrder(data.skills) as never });
-    await tx.auditLog.create({ data: { action: "PROFILE_UPDATE" } as never });
+    // The scoped client enforces userId as well; passing it keeps the Prisma types honest.
+    const withOrder = <T>(items: T[]) => items.map((item, order) => ({ ...item, order, profileId, userId }));
+    if (data.experiences.length) await tx.experience.createMany({ data: withOrder(data.experiences) });
+    if (data.projects.length) await tx.project.createMany({ data: withOrder(data.projects) });
+    if (data.education.length) await tx.education.createMany({ data: withOrder(data.education) });
+    if (data.skills.length) await tx.skill.createMany({ data: withOrder(data.skills) });
+    await tx.auditLog.create({ data: { userId, action: "PROFILE_UPDATE" } });
   });
 
   return getProfile(db);
@@ -138,7 +139,7 @@ export async function savePreferences(db: ScopedDb, input: unknown): Promise<Pre
   const data = preferencesSchema.parse(input);
   await db.jobPreference.upsert({
     where: { userId: db.userId },
-    create: data as never,
+    create: { ...data, userId: db.userId },
     update: data,
   });
   return data;

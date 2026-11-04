@@ -17,10 +17,10 @@ export function createAiRecorder(db: ScopedDb): AiRecorder {
       const day = istDay();
       try {
         await db.$transaction([
-          db.aiRun.create({ data: run as never }),
+          db.aiRun.create({ data: { ...run, userId: db.userId } }),
           db.usageRecord.upsert({
             where: { userId_day: { userId: db.userId, day } },
-            create: { day, aiCalls: 1, aiInputTokens: run.inputTokens, aiOutputTokens: run.outputTokens } as never,
+            create: { userId: db.userId, day, aiCalls: 1, aiInputTokens: run.inputTokens, aiOutputTokens: run.outputTokens },
             update: {
               aiCalls: { increment: 1 },
               aiInputTokens: { increment: run.inputTokens },

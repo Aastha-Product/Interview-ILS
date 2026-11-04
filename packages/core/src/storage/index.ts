@@ -1,4 +1,3 @@
-import { existsSync } from "node:fs";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import {
@@ -105,17 +104,6 @@ export function createMemoryStorage(): FileStorage & { files: Map<string, Uint8A
   };
 }
 
-/** The repository root: the nearest folder above `start` that has pnpm-workspace.yaml. */
-export function findRepoRoot(start: string = process.cwd()): string {
-  let dir = path.resolve(start);
-  for (;;) {
-    if (existsSync(path.join(dir, "pnpm-workspace.yaml"))) return dir;
-    const parent = path.dirname(dir);
-    if (parent === dir) return path.resolve(start);
-    dir = parent;
-  }
-}
-
 let cached: FileStorage | undefined;
 
 export function getStorage(config: ServerConfig): FileStorage {
@@ -129,7 +117,9 @@ export function getStorage(config: ServerConfig): FileStorage {
       secretAccessKey: config.S3_SECRET_KEY!,
     });
   } else {
-    cached = createLocalStorage(config.STORAGE_LOCAL_DIR ?? path.join(findRepoRoot(), ".local", "storage"));
+    // The web app's next.config.ts defaults this to <repo>/.local/storage.
+    if (!config.STORAGE_LOCAL_DIR) throw new Error("STORAGE_LOCAL_DIR must be set when STORAGE_DRIVER=local");
+    cached = createLocalStorage(config.STORAGE_LOCAL_DIR);
   }
   return cached;
 }

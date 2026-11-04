@@ -41,7 +41,7 @@ export async function extractResumeText(bytes: Uint8Array, kind: ResumeKind): Pr
   }
   return raw
     .replace(/\r\n?/g, "\n")
-    .replace(/[ \t ]+/g, " ")
+    .replace(/[^\S\n]+/g, " ") // any whitespace except newlines (includes tabs and non-breaking spaces)
     .split("\n")
     .map((l) => l.trim())
     .join("\n")

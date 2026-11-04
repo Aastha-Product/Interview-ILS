@@ -6,6 +6,8 @@ const cut = (value: string | undefined, max: number) => (value ?? "").replace(/\
 function toUrl(value: string): string | null {
   const v = value.trim();
   if (!v) return null;
+  // Another scheme (ftp:, javascript:, mailto:) is not a web link; don't prefix it with https://.
+  if (/^[a-z][a-z0-9+.-]*:/i.test(v) && !/^https?:\/\//i.test(v)) return null;
   const withScheme = /^https?:\/\//i.test(v) ? v : `https://${v}`;
   try {
     const url = new URL(withScheme);

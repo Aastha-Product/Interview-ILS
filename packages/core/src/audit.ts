@@ -8,9 +8,9 @@ export function hashIp(ip: string | null | undefined, secret: string): string | 
 }
 
 export async function recordAudit(
-  db: Pick<ScopedDb, "auditLog">,
+  db: Pick<ScopedDb, "auditLog" | "userId">,
   action: AuditAction,
   ipHash: string | null = null,
 ): Promise<void> {
-  await db.auditLog.create({ data: { action, ipHash } as never });
+  await db.auditLog.create({ data: { userId: db.userId, action, ipHash } });
 }

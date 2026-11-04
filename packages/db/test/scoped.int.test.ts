@@ -14,11 +14,11 @@ beforeEach(async () => {
   aliceId = (await createUser("alice@example.test")).id;
   bobId = (await createUser("bob@example.test")).id;
   const alice = scopedDb(aliceId);
-  const profile = await alice.profile.create({ data: { headline: "Alice's headline" } });
+  const profile = await alice.profile.create({ data: { userId: aliceId, headline: "Alice's headline" } });
   aliceProfileId = profile.id;
-  await alice.skill.create({ data: { profileId: profile.id, order: 0, name: "Python" } });
+  await alice.skill.create({ data: { userId: aliceId, profileId: profile.id, order: 0, name: "Python" } });
   await alice.resumeFile.create({
-    data: { storageKey: "users/alice/resume.pdf", mime: "application/pdf", size: 10 },
+    data: { userId: aliceId, storageKey: "users/alice/resume.pdf", mime: "application/pdf", size: 10 },
   });
 });
 
@@ -47,7 +47,7 @@ describe("scopedDb: user B cannot read user A's data", () => {
 
   it("cannot see A's rows even when asking for A's userId explicitly", async () => {
     const bob = scopedDb(bobId);
-    await bob.profile.create({ data: { headline: "Bob's headline" } });
+    await bob.profile.create({ data: { userId: bobId, headline: "Bob's headline" } });
     expect(await bob.profile.findMany({ where: { userId: aliceId } })).toEqual([]);
     expect(await bob.profile.findUnique({ where: { userId: aliceId } })).toBeNull();
     expect((await bob.profile.findMany()).map((p) => p.headline)).toEqual(["Bob's headline"]);
@@ -111,7 +111,7 @@ describe("scopedDb: shared job data does not leak user rows", () => {
     const job = await prisma.jobListing.create({
       data: { source: "manual", sourceId: "j1", company: "Acme", title: "QA", description: "d" },
     });
-    await scopedDb(aliceId).application.create({ data: { jobListingId: job.id } });
+    await scopedDb(aliceId).application.create({ data: { userId: aliceId, jobListingId: job.id } });
 
     const bob = scopedDb(bobId);
     expect((await bob.jobListing.findMany()).length).toBe(1);
