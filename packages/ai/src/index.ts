@@ -11,6 +11,17 @@ export { resumeParseTask, resumeDraftSchema } from "./tasks/resume-parse";
 export type { ResumeDraft } from "./tasks/resume-parse";
 export { heuristicResumeParse } from "./tasks/resume-heuristic";
 export { wrapUntrusted, UNTRUSTED_DATA_RULES } from "./untrusted";
+export { canonicalSkill, findSkillsInText, isKnownSkill } from "./skills";
+export {
+  jobExtractTask,
+  jobRequirementsSchema,
+  heuristicJobExtract,
+  WORK_MODES,
+  SENIORITIES,
+} from "./tasks/job-extract";
+export type { JobRequirements, JobExtractInput } from "./tasks/job-extract";
+export { matchExplainTask, matchExplanationSchema, validateGaps, templateExplanation } from "./tasks/match-explain";
+export type { MatchExplanation, MatchExplainInput } from "./tasks/match-explain";
 export type { AiProvider, AiRecorder, AiRunRecord, AiOutcome, TaskDefinition } from "./types";
 
 export interface AiEnv {
