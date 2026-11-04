@@ -1,0 +1,73 @@
+import { z } from "zod";
+
+/** Empty strings in .env mean "not set". */
+const optional = z
+  .string()
+  .trim()
+  .optional()
+  .transform((v) => (v ? v : undefined));
+
+const schema = z
+  .object({
+    NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
+    DATABASE_URL: z.string().trim().min(1, "is required"),
+    AUTH_SECRET: z.string().trim().min(16, "must be at least 16 characters"),
+    AUTH_GOOGLE_ID: optional,
+    AUTH_GOOGLE_SECRET: optional,
+    GEMINI_API_KEY: optional,
+    GEMINI_MODEL: z.string().trim().default("gemini-flash-latest"),
+    STORAGE_DRIVER: z.enum(["local", "s3"]).default("local"),
+    STORAGE_LOCAL_DIR: optional,
+    S3_ENDPOINT: optional,
+    S3_REGION: z.string().trim().default("us-east-1"),
+    S3_BUCKET: optional,
+    S3_ACCESS_KEY: optional,
+    S3_SECRET_KEY: optional,
+    SENTRY_DSN: optional,
+    APP_URL: z.url().default("http://localhost:3000"),
+    LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]).default("info"),
+  })
+  .superRefine((env, ctx) => {
+    const fail = (path: string, message: string) => ctx.addIssue({ code: "custom", path: [path], message });
+    if (env.STORAGE_DRIVER === "s3") {
+      for (const key of ["S3_BUCKET", "S3_ACCESS_KEY", "S3_SECRET_KEY"] as const) {
+        if (!env[key]) fail(key, "is required when STORAGE_DRIVER=s3");
+      }
+    }
+    if (env.NODE_ENV === "production") {
+      if (env.AUTH_SECRET === "change-me") fail("AUTH_SECRET", "must be changed from the example value");
+      if (!env.AUTH_GOOGLE_ID || !env.AUTH_GOOGLE_SECRET) fail("AUTH_GOOGLE_ID", "Google sign-in must be configured in production");
+      if (env.STORAGE_DRIVER !== "s3") fail("STORAGE_DRIVER", "must be s3 in production");
+    }
+  });
+
+export type ServerConfig = z.infer<typeof schema>;
+
+export class ConfigError extends Error {
+  constructor(problems: string[]) {
+    super(`Invalid configuration:\n  - ${problems.join("\n  - ")}`);
+    this.name = "ConfigError";
+  }
+}
+
+/** Parses configuration. Error messages name the variable, never its value. */
+export function parseConfig(env: Record<string, string | undefined>): ServerConfig {
+  const result = schema.safeParse(env);
+  if (!result.success) {
+    throw new ConfigError(result.error.issues.map((i) => `${i.path.join(".")} ${i.message}`));
+  }
+  return result.data;
+}
+
+let cached: ServerConfig | undefined;
+
+/** The validated server configuration. Refuses to start if anything required is missing. */
+export function getConfig(): ServerConfig {
+  cached ??= parseConfig(process.env);
+  return cached;
+}
+
+/** Dev sign-in is offered only outside production and only while Google sign-in is not set up. */
+export function isDevSignInEnabled(config: ServerConfig = getConfig()): boolean {
+  return config.NODE_ENV !== "production" && !config.AUTH_GOOGLE_ID;
+}
