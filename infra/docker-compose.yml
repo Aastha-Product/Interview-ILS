@@ -1,4 +1,18 @@
-# Local development services. Not for production.
+# OPTIONAL local services for people who prefer Docker. Not for production.
+#
+# The default setup needs no Docker: `pnpm services:up` runs an embedded Postgres and files are
+# stored in .local/storage (STORAGE_DRIVER=local). Use this file only if you want Docker instead:
+#
+#   docker compose -f infra/docker-compose.yml up -d --wait
+#
+# Postgres listens on 5432 with the same user, password and databases as .env.example, so do not
+# run it at the same time as `pnpm services:up`.
+# MinIO is S3-compatible. To use it, set in .env:
+#   STORAGE_DRIVER=s3
+#   S3_ENDPOINT=http://localhost:9000
+#   S3_BUCKET=pathfinder
+#   S3_ACCESS_KEY=minio
+#   S3_SECRET_KEY=minio123
 name: pathfinder
 
 services:
