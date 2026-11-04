@@ -1,5 +1,6 @@
-// Dossier's website: theme switch, tabs, copy buttons, scroll effects, and
-// the star count and latest version from GitHub. The page works without it.
+// Dossier's website: theme switch, tabs, copy buttons, scroll effects, the tour
+// video, and the star count and latest version from GitHub. The page works
+// without it.
 
 const root = document.documentElement;
 const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -134,6 +135,40 @@ if (floats.length && stage) {
     { passive: true },
   );
   drift();
+}
+
+// The tour video. Nothing comes from YouTube until someone presses play; without
+// scripts, or with a modifier key, these are plain links to the video.
+const player = document.querySelector("[data-player]");
+const theatre = document.querySelector("[data-theatre]");
+const playLinks = [...document.querySelectorAll("[data-video-play]")];
+const showVideo = (start) => {
+  let video = player.querySelector("iframe");
+  if (!video) {
+    video = document.createElement("iframe");
+    video.title = "Dossier: tailored resumes and cover letters, self-hosted (install + tour)";
+    video.allow = "autoplay; encrypted-media; picture-in-picture; web-share";
+    video.allowFullscreen = true;
+    // YouTube refuses to play an embed that sends no referrer.
+    video.referrerPolicy = "strict-origin-when-cross-origin";
+    player.append(video);
+  }
+  video.src = `https://www.youtube-nocookie.com/embed/kygD5cApjqA?autoplay=1&rel=0&playsinline=1&start=${start}`;
+  theatre.classList.add("is-playing");
+  video.focus({ preventScroll: true });
+  const box = player.getBoundingClientRect();
+  if (box.top < 88 || box.bottom > window.innerHeight) {
+    player.scrollIntoView({ block: "center", behavior: reducedMotion.matches ? "auto" : "smooth" });
+  }
+};
+for (const link of playLinks) {
+  link.addEventListener("click", (event) => {
+    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
+    showVideo(Number(link.dataset.start ?? 0));
+    for (const other of playLinks) other.removeAttribute("aria-current");
+    if (link.dataset.start) link.setAttribute("aria-current", "true");
+  });
 }
 
 // Stars and the latest release, from GitHub's API. Left out if it doesn't answer.
