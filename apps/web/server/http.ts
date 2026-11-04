@@ -6,7 +6,12 @@ import { ZodError } from "zod";
 import { getCurrentUser, type CurrentUser } from "./session";
 
 export interface ApiErrorBody {
-  error: { code: string; message: string; fields?: Array<{ path: string; message: string }> };
+  error: {
+    code: string;
+    message: string;
+    fields?: Array<{ path: string; message: string }>;
+    details?: Record<string, string | number | boolean | null>;
+  };
 }
 
 export function apiError(status: number, code: string, message: string, extra?: Partial<ApiErrorBody["error"]>) {
@@ -28,7 +33,7 @@ export function withUser<C = unknown>(handler: Handler<C>) {
       return await handler({ request, user, db: scopedDb(user.id), params: await context.params });
     } catch (error) {
       if (error instanceof UserFacingError) {
-        const response = apiError(error.status, error.code, error.message);
+        const response = apiError(error.status, error.code, error.message, error.details ? { details: error.details } : undefined);
         if (error.retryAfterSeconds !== undefined) response.headers.set("Retry-After", String(error.retryAfterSeconds));
         return response;
       }

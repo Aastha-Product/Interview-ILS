@@ -66,11 +66,15 @@ test("searching uses the feeds, collapses cross-source duplicates and caches rep
   await studentWithProfile(page, "search");
   await page.goto("/jobs");
   const search = page.getByRole("search");
-  await search.getByLabel("Role").fill("QA engineer");
+  // A unique word keeps this run's cache key fresh (the 24-hour cache survives between runs);
+  // the fixture feeds match on any query word, so results are unchanged.
+  await search.getByLabel("Role").fill(`QA engineer run${Date.now()}`);
   await search.getByLabel("City").fill("Bengaluru");
   await search.getByRole("button", { name: "Search" }).click();
   await expect(page.getByText(/\d+ jobs? found/)).toBeVisible({ timeout: 60_000 });
-  const firstCount = await page.getByText(/\d+ jobs? found/).textContent();
+  const firstText = (await page.getByText(/\d+ jobs? found/).textContent())!;
+  expect(firstText).not.toContain("saved results");
+  const count = firstText.match(/^(\d+) jobs? found/)![1];
 
   // Example Softech's QA Engineer job is in both fixture feeds (JSearch: "Pvt Ltd", "Bangalore";
   // Adzuna: "Bengaluru, Karnataka") but appears once.
@@ -81,5 +85,5 @@ test("searching uses the feeds, collapses cross-source duplicates and caches rep
   // Same search again is served from the 24-hour cache.
   await search.getByRole("button", { name: "Search" }).click();
   await expect(page.getByText(/saved results from an earlier search/)).toBeVisible({ timeout: 60_000 });
-  await expect(page.getByText(/\d+ jobs? found/)).toHaveText(firstCount!.replace(".", " (saved results from an earlier search)."));
+  await expect(page.getByText(/\d+ jobs? found/)).toHaveText(`${count} jobs found (saved results from an earlier search).`.replace(/^1 jobs/, "1 job"));
 });

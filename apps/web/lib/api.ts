@@ -5,6 +5,7 @@ export class ApiRequestError extends Error {
     readonly code: string,
     message: string,
     readonly fields: Array<{ path: string; message: string }> = [],
+    readonly details: Record<string, string | number | boolean | null> = {},
   ) {
     super(message);
   }
@@ -37,6 +38,7 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
       error?.code ?? "SERVER_ERROR",
       error?.message ?? "Something went wrong. Please try again.",
       error?.fields ?? [],
+      error?.details ?? {},
     );
   }
   return body as T;

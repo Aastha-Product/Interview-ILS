@@ -46,3 +46,52 @@ export { incrementUsage } from "./usage";
 export type * from "./applications/types";
 export { QUEUE, QUEUE_SETTINGS, deadLetterQueue } from "./queue/names";
 export type { QueueName, QueueSettings, TailorJobData, PdfJobData } from "./queue/names";
+// Applications domain
+export {
+  APPLICATION_STATUSES,
+  createApplication,
+  getApplication,
+  listApplications,
+  updateApplication,
+  saveDraftEdits,
+  getLatestResumePdf,
+} from "./applications/service";
+export type { ApplicationView, ApplicationSummary, DocumentView, ApplicationJobView } from "./applications/service";
+export { computeDashboard, getDashboard, istWeekStart } from "./applications/dashboard";
+export type { Dashboard, WeekStats, DashboardRow } from "./applications/dashboard";
+export { resumeContentSchema, answersContentSchema } from "./applications/draft-schema";
+// Queue track
+export { getBoss, ensureQueues, stopBoss } from "./queue/boss";
+export type { BossOptions } from "./queue/boss";
+export {
+  enqueueTailor,
+  enqueuePdf,
+  getTasks,
+  toTaskView,
+  markTaskWorking,
+  markTaskDone,
+  markTaskFailed,
+} from "./applications/tasks";
+export type { TaskView, TaskLimits } from "./applications/tasks";
+export { resumeToHtml, escapeHtml, safeHref } from "./pdf/resume-html";
+export {
+  authorizeLocalFileRequest,
+  contentTypeForKey,
+  safeFilename,
+  signLocalFileUrl,
+  verifyLocalFileUrl,
+} from "./storage";
+export type { LocalFileUrlCheck, LocalSigning, SignedUrlOptions } from "./storage";
+// Drafting track
+export { buildProfileFacts, dateRange } from "./applications/facts";
+export { codeCheckBullet, factCheckResume, factCheckAnswers } from "./applications/fact-check";
+export type {
+  CheckResult,
+  RemovedItem,
+  FactCheckDeps,
+  CodeCheckOptions,
+  CheckedResume,
+  CheckedAnswer,
+} from "./applications/fact-check";
+export { generateDrafts } from "./applications/tailor";
+export type { GenerateDraftsDeps, GenerateDraftsResult } from "./applications/tailor";
