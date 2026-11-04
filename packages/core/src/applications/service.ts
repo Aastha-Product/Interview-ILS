@@ -6,6 +6,15 @@ import { answersContentSchema, resumeContentSchema } from "./draft-schema";
 import { getTasks, type TaskView } from "./tasks";
 import type { AnswersContent, FactCheckReport, ResumeContent } from "./types";
 
+/** JSON with object keys sorted at every level, for order-independent comparison. */
+function stableJson(value: unknown): string {
+  return JSON.stringify(value, (_key, v: unknown) =>
+    v && typeof v === "object" && !Array.isArray(v)
+      ? Object.fromEntries(Object.entries(v as Record<string, unknown>).sort(([a], [b]) => a.localeCompare(b)))
+      : v,
+  );
+}
+
 export const APPLICATION_STATUSES = ["DRAFT", "APPLIED", "RESPONSE", "INTERVIEW", "OFFER", "REJECTED", "WITHDRAWN"] as const;
 /** Statuses that mean the employer replied. Moving into one sets responseAt (once). */
 const RESPONSE_STATUSES = new Set<ApplicationStatus>(["RESPONSE", "INTERVIEW", "OFFER", "REJECTED"]);
@@ -297,7 +306,8 @@ export async function saveDraftEdits(
       }
       content = next;
     }
-    if (JSON.stringify(content) === JSON.stringify(previous.content)) continue;
+    // JSONB doesn't keep key order, so compare with keys sorted.
+    if (stableJson(content) === stableJson(previous.content)) continue;
 
     const doc = await db.generatedDocument.create({
       data: {

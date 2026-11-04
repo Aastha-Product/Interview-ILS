@@ -63,7 +63,23 @@ This repository is the MVP, built in phases. **Phase 1 (foundation)** covers Goo
    pnpm dev
    ```
 
+7. In a second terminal, start the queue worker. It writes tailored drafts and renders PDFs; without it, "Start application" stays at "in the queue".
+
+   ```bash
+   pnpm worker
+   ```
+
+   The worker renders PDFs with Chromium. Install it once with `pnpm --filter @pathfinder/e2e install-browsers` (it goes into `node_modules`).
+
 The app starts and every test passes with all AI and job-feed keys left empty.
+
+### Applications, drafts and the worker
+
+- **Queues.** pg-boss stores its queues in the same Postgres (schema `pgboss`). Queues: `ai.tailor` (drafting) and `pdf.render`. Jobs that fail every retry go to a `.dead` queue, and the student sees "failed" with a reason and a "Try again" button.
+- **Limits.** A student can have at most `AI_CONCURRENT_PER_USER` (2) drafts or PDFs in progress and `TAILOR_DAILY_LIMIT` (20) drafts a day. Requesting the same draft twice (same job and profile version) returns the existing one.
+- **No invented experience.** The resume and answers are written only from numbered facts in the profile. Code rejects any point that cites no facts, cites unknown facts or facts from another item, or adds a number or skill the facts don't contain. A second, cheaper AI check confirms each remaining point. Failing drafts are regenerated once; anything still unsupported is left out and listed for the student. What the job asks for but the profile lacks is shown as a gap.
+- **PDFs** are rendered from fixed HTML with scripts and network access disabled. They are downloaded through a link that expires after 5 minutes and only works for the student who owns the file.
+- **Response rate** = responses ÷ applications sent. "Sent" is set when the student presses "I've applied"; a response is any employer reply (response, interview, offer or rejection). Weeks run Monday to Sunday, India time.
 
 ### Signing in locally
 

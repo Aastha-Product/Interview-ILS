@@ -9,6 +9,7 @@
   },
   "scripts": {
     "dev": "pnpm --filter @pathfinder/web dev",
+    "worker": "pnpm --filter @pathfinder/worker dev",
     "build": "pnpm --filter @pathfinder/web build",
     "services:up": "node scripts/services.mjs up",
     "services:down": "node scripts/services.mjs down",

@@ -12,12 +12,18 @@ export interface WeekBar {
 const weekLabel = (iso: string) =>
   new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-IN", { day: "numeric", month: "short", timeZone: "UTC" });
 
+const FORMATS = {
+  count: (v: number) => String(v),
+  percent: (v: number) => `${Math.round(v * 100)}%`,
+};
+
 /**
  * A single-series weekly bar chart: thin bars anchored to the baseline with 4px rounded tops,
  * a recessive baseline, the latest value labelled directly, and a tooltip on hover or focus.
  * The weekly table below the charts is the accessible alternative.
  */
-export function WeekBars({ title, bars, max, format }: { title: string; bars: WeekBar[]; max: number; format: (v: number) => string }) {
+export function WeekBars({ title, bars, max, format: formatName }: { title: string; bars: WeekBar[]; max: number; format: keyof typeof FORMATS }) {
+  const format = FORMATS[formatName];
   const [active, setActive] = useState<number | null>(null);
   const top = Math.max(max, 1);
   const lastIndex = bars.length - 1;

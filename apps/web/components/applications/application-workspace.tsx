@@ -108,6 +108,8 @@ export function ApplicationWorkspace({ initial }: { initial: ApplicationView }) 
     });
 
   const pdfBusy = pdfTask && ACTIVE.includes(pdfTask.state);
+  // The drafting task stays "needs input" in the history; the notice only matters while an answer is still empty.
+  const answersStillNeeded = (view.answers?.content.answers ?? []).some((a) => a.needsInput && !a.answer.trim());
   const canDownload = Boolean(view.resume?.pdfReady) && !pdfBusy && !dirty;
 
   return (
@@ -169,7 +171,12 @@ export function ApplicationWorkspace({ initial }: { initial: ApplicationView }) 
       )}
 
       {message && <Alert tone={message.tone}>{message.text}</Alert>}
-      <TaskBanner state={tailorTask?.state} reason={tailorTask?.reason ?? ""} onRetry={redraft} busy={busy === "redraft"} />
+      <TaskBanner
+        state={tailorTask?.state === "needs_input" && !answersStillNeeded ? "done" : tailorTask?.state}
+        reason={tailorTask?.reason ?? ""}
+        onRetry={redraft}
+        busy={busy === "redraft"}
+      />
 
       {resume && (
         <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">

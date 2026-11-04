@@ -26,7 +26,7 @@ export default defineConfig({
       command: "pnpm --filter @pathfinder/web dev",
       cwd: "..",
       url: "http://localhost:3000/signin",
-      reuseExistingServer: !process.env.CI,
+      reuseExistingServer: false,
       timeout: 180_000,
     },
     {
@@ -34,7 +34,7 @@ export default defineConfig({
       command: "pnpm --filter @pathfinder/worker start",
       cwd: "..",
       wait: { stdout: /Worker ready/ },
-      reuseExistingServer: !process.env.CI,
+      reuseExistingServer: false,
       timeout: 120_000,
     },
   ],

@@ -60,13 +60,13 @@ export default async function DashboardPage() {
             <WeekBars
               title="Applications sent per week"
               max={maxSent}
-              format={(v) => String(v)}
+              format="count"
               bars={d.weeks.map((w) => ({ weekStart: w.weekStart, value: w.sent, detail: `${w.sent} sent` }))}
             />
             <WeekBars
               title="Response rate of each week's applications"
               max={1}
-              format={(v) => pct(v)}
+              format="percent"
               bars={d.weeks.map((w) => ({
                 weekStart: w.weekStart,
                 value: w.responseRate,
