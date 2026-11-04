@@ -234,7 +234,7 @@ export const setExperienceSkill = action(
   z.object({ experienceId: id, skillId: id, attached: z.boolean() }),
   async ({ experienceId, skillId, attached }) => {
     if (attached) {
-      await prisma.experienceSkill.createMany({ data: [{ experienceId, skillId }], skipDuplicates: true });
+      await prisma.experienceSkill.upsert({ where: { experienceId_skillId: { experienceId, skillId } }, create: { experienceId, skillId }, update: {} });
     } else {
       await prisma.experienceSkill.deleteMany({ where: { experienceId, skillId } });
     }
@@ -247,10 +247,8 @@ export const attachNewSkill = action(
   z.object({ experienceId: id, name: skillName }),
   async ({ experienceId, name }) => {
     const result = await findOrCreateSkill(name);
-    await prisma.experienceSkill.createMany({
-      data: [{ experienceId, skillId: result.skill.id }],
-      skipDuplicates: true,
-    });
+    const skillId = result.skill.id;
+    await prisma.experienceSkill.upsert({ where: { experienceId_skillId: { experienceId, skillId } }, create: { experienceId, skillId }, update: {} });
     return result;
   },
 );
@@ -317,7 +315,7 @@ export const setProjectSkill = action(
   z.object({ projectId: id, skillId: id, attached: z.boolean() }),
   async ({ projectId, skillId, attached }) => {
     if (attached) {
-      await prisma.projectSkill.createMany({ data: [{ projectId, skillId }], skipDuplicates: true });
+      await prisma.projectSkill.upsert({ where: { projectId_skillId: { projectId, skillId } }, create: { projectId, skillId }, update: {} });
     } else {
       await prisma.projectSkill.deleteMany({ where: { projectId, skillId } });
     }
@@ -328,7 +326,8 @@ export const setProjectSkill = action(
 /** "New skill? Type it and press Enter" on a project: adds it to the profile if it's new and attaches it. */
 export const attachNewProjectSkill = action(z.object({ projectId: id, name: skillName }), async ({ projectId, name }) => {
   const result = await findOrCreateSkill(name);
-  await prisma.projectSkill.createMany({ data: [{ projectId, skillId: result.skill.id }], skipDuplicates: true });
+  const skillId = result.skill.id;
+  await prisma.projectSkill.upsert({ where: { projectId_skillId: { projectId, skillId } }, create: { projectId, skillId }, update: {} });
   return result;
 });
 

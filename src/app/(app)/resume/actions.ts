@@ -74,8 +74,9 @@ export const deleteTheme = action(z.object({ id: z.string().min(1) }), async ({ 
   const theme = await prisma.theme.findUnique({ where: { id }, select: { name: true, builtIn: true } });
   if (!theme) throw new ActionError(THEME_GONE);
   if (theme.builtIn) throw new ActionError("Built-in themes can't be deleted.");
+  const { baseThemeId: current } = await loadSettings();
   const baseThemeId = await prisma.$transaction(async (tx) => {
-    let base = (await loadSettings()).baseThemeId;
+    let base = current;
     if (base === id) {
       base = DEFAULT_BASE_THEME;
       await saveSettings({ baseThemeId: base }, tx);
