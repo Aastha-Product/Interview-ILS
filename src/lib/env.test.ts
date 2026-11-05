@@ -90,10 +90,9 @@ describe("parseEnv", () => {
     ]);
   });
 
-  it("takes an SQLite file as the database, by its full path", () => {
-    expect(parseEnv({ ...valid, DATABASE_URL: "file:/data/dossier.db" }).DATABASE_URL).toBe("file:/data/dossier.db");
-    expect(problems({ ...valid, DATABASE_URL: "file:./dossier.db" })).toEqual([
-      "DATABASE_URL must give the SQLite file's full path, e.g. file:/data/dossier.db.",
+  it("needs PostgreSQL: this fork doesn't support an SQLite file", () => {
+    expect(problems({ ...valid, DATABASE_URL: "file:/data/dossier.db" })).toEqual([
+      "DATABASE_URL must be a PostgreSQL connection string starting with postgresql://.",
     ]);
   });
 

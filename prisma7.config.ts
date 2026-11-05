@@ -3,14 +3,11 @@
 import "dotenv/config";
 import { defineConfig } from "prisma/config";
 
-// DATABASE_URL picks the database: a PostgreSQL server, or an SQLite file
-// ("file:/data/dossier.db"), whose schema and migrations are in prisma/sqlite.
-const sqlite = process.env["DATABASE_URL"]?.startsWith("file:");
-
+// Pathfinder's fork runs on PostgreSQL only (the multi-user service needs a database server).
 export default defineConfig({
-  schema: sqlite ? "prisma/sqlite/schema.prisma" : "prisma/schema.prisma",
+  schema: "prisma/schema.prisma",
   migrations: {
-    path: sqlite ? "prisma/sqlite/migrations" : "prisma/migrations",
+    path: "prisma/migrations",
     // `prisma db seed` (pass `-- --demo` for sample data); see prisma/seed.ts.
     seed: "tsx prisma/seed.ts",
   },
