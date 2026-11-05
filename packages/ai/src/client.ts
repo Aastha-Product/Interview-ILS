@@ -3,8 +3,22 @@ import { z } from "zod";
 import { AiError, classifyError } from "./errors";
 import type { AiOutcome, AiProvider, AiRecorder, TaskDefinition } from "./types";
 
+export interface CircuitBreakerOptions {
+  /** Outage failures (timeouts, 429s, 5xx, network) within `windowMs` that open the circuit. */
+  failureThreshold: number;
+  windowMs: number;
+  /** How long the circuit stays open: calls use the fallback, or fail fast without one. */
+  openMs: number;
+}
+
+/** Brief §6: after 5 failures in a minute, use the fallback model for 2 minutes. */
+export const DEFAULT_BREAKER: CircuitBreakerOptions = { failureThreshold: 5, windowMs: 60_000, openMs: 120_000 };
+
 export interface AiClientOptions {
   provider: AiProvider;
+  /** Used while the primary's circuit is open, and once after the primary used up its retries. */
+  fallback?: AiProvider;
+  breaker?: CircuitBreakerOptions;
   /** Default per-call timeout. */
   timeoutMs?: number;
   /** Total attempts including the first one. */
@@ -38,7 +52,10 @@ export function withDeadline(client: AiClient, deadline: number): AiClient {
   };
 }
 
-const defaultSleep =(ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+const defaultSleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+/** Failures that say the provider is down or overloaded (not that one answer was bad). */
+const OUTAGE_KINDS = new Set<AiOutcome>(["timeout", "rate_limited", "server_error", "network_error"]);
 
 /** Converts a Zod schema to the JSON Schema sent to the model. */
 export function toModelJsonSchema(schema: z.ZodType): Record<string, unknown> {
@@ -52,12 +69,15 @@ export function hashInput(system: string, user: string): string {
 }
 
 /**
- * The single entry point for model calls: timeout, retries with backoff and jitter, Zod
- * validation, and a usage record per attempt. Circuit breaker and fallback model come in Phase 4.
+ * The single entry point for model calls: timeout, retries with backoff and jitter, a circuit
+ * breaker with an optional fallback provider, Zod validation, and a usage record per attempt.
+ * The breaker's state lives in this client, so it is per process (web and worker each keep one).
  */
 export function createAiClient(options: AiClientOptions): AiClient {
   const {
-    provider,
+    provider: primary,
+    fallback,
+    breaker = DEFAULT_BREAKER,
     timeoutMs = 60_000,
     maxAttempts = 3,
     backoffMs = [1_000, 2_000, 4_000],
@@ -66,19 +86,33 @@ export function createAiClient(options: AiClientOptions): AiClient {
     now = Date.now,
   } = options;
 
+  let recentFailures: number[] = [];
+  let openUntil = 0;
+
+  const circuitOpen = () => now() < openUntil;
+  const recordPrimaryFailure = () => {
+    const t = now();
+    recentFailures = recentFailures.filter((at) => at > t - breaker.windowMs);
+    recentFailures.push(t);
+    if (recentFailures.length >= breaker.failureThreshold) {
+      openUntil = t + breaker.openMs;
+      recentFailures = [];
+    }
+  };
+
   return {
-    providerName: provider.name,
+    providerName: primary.name,
     async run(task, input, context = {}) {
       const { system, user } = task.buildPrompt(input);
       const jsonSchema = toModelJsonSchema(task.outputSchema);
       const inputHash = hashInput(system, user);
       const taskName = `${task.name}@${task.promptVersion}`;
-      let lastError: AiError | undefined;
 
-      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      /** One call to one provider: timeout, parse, validate, record. */
+      const attempt = async (provider: AiProvider) => {
         const started = now();
         const remaining = context.deadline === undefined ? Infinity : context.deadline - started;
-        if (remaining <= 0) throw lastError ?? new AiError("timeout", "No time left for the AI call");
+        if (remaining <= 0) throw new AiError("timeout", "No time left for the AI call");
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), Math.min(task.timeoutMs ?? timeoutMs, remaining));
         let model = provider.name;
@@ -96,9 +130,7 @@ export function createAiClient(options: AiClientOptions): AiClient {
               mock: () => task.mock(input),
             }),
             new Promise<never>((_, reject) => {
-              controller.signal.addEventListener("abort", () =>
-                reject(new AiError("timeout", "The AI call timed out")),
-              );
+              controller.signal.addEventListener("abort", () => reject(new AiError("timeout", "The AI call timed out")));
             }),
           ]);
           model = response.model;
@@ -117,26 +149,45 @@ export function createAiClient(options: AiClientOptions): AiClient {
           }
           return result.data;
         } catch (error) {
-          lastError = classifyError(error);
-          outcome = lastError.kind;
-          if (!lastError.retryable || attempt === maxAttempts) throw lastError;
+          const aiError = classifyError(error);
+          outcome = aiError.kind;
+          throw aiError;
         } finally {
           clearTimeout(timer);
-          await context.recorder?.record({
-            task: taskName,
-            model,
-            inputTokens,
-            outputTokens,
-            latencyMs: now() - started,
-            outcome,
-            inputHash,
-          });
+          await context.recorder?.record({ task: taskName, model, inputTokens, outputTokens, latencyMs: now() - started, outcome, inputHash });
         }
-        const base = backoffMs[Math.min(attempt - 1, backoffMs.length - 1)] ?? 1_000;
+      };
+
+      let lastError: AiError | undefined;
+      let usedFallback = false;
+      for (let n = 1; n <= maxAttempts; n++) {
+        const provider = circuitOpen() ? fallback : primary;
+        if (!provider) {
+          // Fail fast while the primary is known to be down and there's nothing to fall back to.
+          throw new AiError("circuit_open", "The AI service is unavailable right now");
+        }
+        if (provider === fallback) usedFallback = true;
+        try {
+          return await attempt(provider);
+        } catch (error) {
+          lastError = error as AiError;
+          if (provider === primary && OUTAGE_KINDS.has(lastError.kind)) recordPrimaryFailure();
+          if (!lastError.retryable || n === maxAttempts) break;
+        }
+        const base = backoffMs[Math.min(n - 1, backoffMs.length - 1)] ?? 1_000;
         const wait = base + Math.floor(random() * base * 0.25);
         // Don't sleep into a deadline only to give up afterwards.
-        if (context.deadline !== undefined && now() + wait >= context.deadline) throw lastError;
+        if (context.deadline !== undefined && now() + wait >= context.deadline) break;
         await sleep(wait);
+      }
+
+      // The primary used up its retries on an outage: give the fallback one try before failing.
+      if (fallback && !usedFallback && lastError && OUTAGE_KINDS.has(lastError.kind)) {
+        try {
+          return await attempt(fallback);
+        } catch (error) {
+          lastError = error as AiError;
+        }
       }
       throw lastError ?? new AiError("server_error", "The AI call failed");
     },

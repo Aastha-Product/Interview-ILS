@@ -22,6 +22,19 @@ describe("parseConfig", () => {
     expect(() => parseConfig({ ...base, AUTH_SECRET: "short" })).toThrow(/AUTH_SECRET/);
   });
 
+  it("takes the fallback model only as a complete set, and the rate limits with brief §7 defaults", () => {
+    expect(() => parseConfig({ ...base, FALLBACK_AI_API_KEY: "k" })).toThrow(/set all three FALLBACK_AI_\* values/);
+    expect(() =>
+      parseConfig({ ...base, FALLBACK_AI_BASE_URL: "not a url", FALLBACK_AI_API_KEY: "k", FALLBACK_AI_MODEL: "m" }),
+    ).toThrow(/FALLBACK_AI_BASE_URL/);
+    const full = parseConfig({ ...base, FALLBACK_AI_BASE_URL: "https://ai.example/v1", FALLBACK_AI_API_KEY: "k", FALLBACK_AI_MODEL: "m" });
+    expect(full.FALLBACK_AI_MODEL).toBe("m");
+    const defaults = parseConfig(base);
+    expect(defaults.FALLBACK_AI_BASE_URL).toBeUndefined();
+    expect(defaults.RATE_LIMIT_API_PER_MINUTE).toBe(60);
+    expect(defaults.RATE_LIMIT_SIGNIN_PER_MINUTE).toBe(10);
+  });
+
   it("requires bucket and keys when storage is S3", () => {
     expect(() => parseConfig({ ...base, STORAGE_DRIVER: "s3" })).toThrow(/S3_BUCKET[\s\S]*S3_ACCESS_KEY[\s\S]*S3_SECRET_KEY/);
   });

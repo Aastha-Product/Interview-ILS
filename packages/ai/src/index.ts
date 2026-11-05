@@ -1,9 +1,11 @@
 import { createAiClient, type AiClient } from "./client";
 import { createGeminiProvider } from "./providers/gemini";
 import { createMockProvider } from "./providers/mock";
+import { createOpenAiCompatibleProvider } from "./providers/openai-compatible";
 
-export { createAiClient, hashInput, toModelJsonSchema, withDeadline } from "./client";
-export type { AiClient, AiClientOptions, RunContext } from "./client";
+export { createAiClient, DEFAULT_BREAKER, hashInput, toModelJsonSchema, withDeadline } from "./client";
+export type { AiClient, AiClientOptions, CircuitBreakerOptions, RunContext } from "./client";
+export { createOpenAiCompatibleProvider } from "./providers/openai-compatible";
 export { AiError } from "./errors";
 export { createGeminiProvider } from "./providers/gemini";
 export { createMockProvider } from "./providers/mock";
@@ -53,12 +55,26 @@ export type { PromptFact } from "./tasks/drafting-text";
 export interface AiEnv {
   GEMINI_API_KEY?: string;
   GEMINI_MODEL?: string;
+  FALLBACK_AI_BASE_URL?: string;
+  FALLBACK_AI_API_KEY?: string;
+  FALLBACK_AI_MODEL?: string;
 }
 
-/** Gemini when a key is configured, otherwise the keyless mock. */
+/**
+ * Gemini when a key is configured, otherwise the keyless mock. The OpenAI-compatible fallback is
+ * attached only when all three FALLBACK_AI_* values are set (config refuses a partial set).
+ */
 export function createAiClientFromEnv(env: AiEnv): AiClient {
   const provider = env.GEMINI_API_KEY
     ? createGeminiProvider({ apiKey: env.GEMINI_API_KEY, model: env.GEMINI_MODEL || "gemini-flash-latest" })
     : createMockProvider();
-  return createAiClient({ provider });
+  const fallback =
+    env.FALLBACK_AI_BASE_URL && env.FALLBACK_AI_API_KEY && env.FALLBACK_AI_MODEL
+      ? createOpenAiCompatibleProvider({
+          baseUrl: env.FALLBACK_AI_BASE_URL,
+          apiKey: env.FALLBACK_AI_API_KEY,
+          model: env.FALLBACK_AI_MODEL,
+        })
+      : undefined;
+  return createAiClient({ provider, fallback });
 }

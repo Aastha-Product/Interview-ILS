@@ -52,7 +52,9 @@ export type AiOutcome =
   | "server_error"
   | "invalid_output"
   | "bad_request"
-  | "network_error";
+  | "network_error"
+  /** The primary provider's circuit is open and no fallback is configured. */
+  | "circuit_open";
 
 export interface AiRecorder {
   record(run: AiRunRecord): Promise<void>;

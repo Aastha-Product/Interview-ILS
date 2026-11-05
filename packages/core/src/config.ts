@@ -16,6 +16,9 @@ const schema = z
     AUTH_GOOGLE_SECRET: optional,
     GEMINI_API_KEY: optional,
     GEMINI_MODEL: z.string().trim().default("gemini-flash-latest"),
+    FALLBACK_AI_BASE_URL: optional.pipe(z.url().optional()),
+    FALLBACK_AI_API_KEY: optional,
+    FALLBACK_AI_MODEL: optional,
     JSEARCH_API_KEY: optional,
     JSEARCH_DAILY_BUDGET: z.coerce.number().int().min(0).default(6),
     ADZUNA_APP_ID: optional,
@@ -41,6 +44,10 @@ const schema = z
   })
   .superRefine((env, ctx) => {
     const fail = (path: string, message: string) => ctx.addIssue({ code: "custom", path: [path], message });
+    const fallback = [env.FALLBACK_AI_BASE_URL, env.FALLBACK_AI_API_KEY, env.FALLBACK_AI_MODEL].filter(Boolean).length;
+    if (fallback !== 0 && fallback !== 3) {
+      fail("FALLBACK_AI_BASE_URL", "set all three FALLBACK_AI_* values, or none of them");
+    }
     if (env.STORAGE_DRIVER === "s3") {
       for (const key of ["S3_BUCKET", "S3_ACCESS_KEY", "S3_SECRET_KEY"] as const) {
         if (!env[key]) fail(key, "is required when STORAGE_DRIVER=s3");
