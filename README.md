@@ -174,10 +174,11 @@ GitHub Actions (`.github/workflows/ci.yml`) runs the same steps on every push an
 
 ## Deploying
 
-Nothing deploys automatically. To run Pathfinder on a server, follow these guides in order:
+Pushes to `main` redeploy wherever the repository is connected (Vercel, Render). To run Pathfinder on a server, follow these guides in order:
 
 | Guide | What it covers |
 | --- | --- |
+| [docs/deploy-vercel.md](docs/deploy-vercel.md) | Quickest staging setup, step by step: website on Vercel, Neon, AWS S3 (Mumbai), Google sign-in, worker on Render |
 | [docs/deploy.md](docs/deploy.md) | Staging, then production: managed Postgres, S3/R2 storage, Google sign-in, settings (`.env.staging.example`), the two container images (`infra/Dockerfile.web`, `infra/Dockerfile.worker`), first-deploy checks, rollback |
 | [docs/backup-restore.md](docs/backup-restore.md) | Backups, the monthly restore drill (`scripts/backup-drill.sh`), restoring after an incident, breaches |
 | [docs/privacy-notice-draft.md](docs/privacy-notice-draft.md) | The privacy notice, **draft for legal review** |

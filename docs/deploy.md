@@ -79,7 +79,7 @@ The app refuses to start in production without Google sign-in configured and wit
 
 ## 5. Services on the container host
 
-Any host that builds from a Dockerfile and runs long-lived containers works (for example Render, Railway, Fly.io or a VM with Docker). Vercel-style serverless hosting doesn't suit the worker, because Chromium needs a long-running container.
+Any host that builds from a Dockerfile and runs long-lived containers works (for example Render, Railway, Fly.io or a VM with Docker). Vercel-style serverless hosting doesn't suit the worker, because Chromium needs a long-running container. (The website itself runs fine on Vercel with the worker elsewhere: see [deploy-vercel.md](deploy-vercel.md).)
 
 Create two services from this repository, both with the same settings from step 4.
 
