@@ -48,6 +48,10 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
+      # The worker's PDF tests (apps/worker/test/pdf.test.ts) render with a real Chromium.
+      - name: Install Playwright Chromium
+        run: pnpm --filter @pathfinder/e2e install-browsers --with-deps
+
       - name: Unit tests
         run: pnpm test
 
