@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { JobsWorkspace } from "@/components/jobs/jobs-workspace";
 import { Alert } from "@/components/ui/card";
 import type { JobCardData } from "@/lib/jobs";
-import { toJobSummary, toMatchSummary } from "@/server/jobs";
+import { applicationsForJobs, toJobSummary, toMatchSummary } from "@/server/jobs";
 import { requireUser } from "@/server/session";
 
 export const metadata: Metadata = { title: "Jobs" };
@@ -14,7 +14,12 @@ export default async function JobsPage({ searchParams }: { searchParams: Promise
   if ((await getProfile(db)).version === 0) redirect("/onboarding");
   const [preferences, matches] = await Promise.all([getPreferences(db), listMatches(db)]);
   const { welcome } = await searchParams;
-  const myJobs: JobCardData[] = matches.map((m) => ({ job: toJobSummary(m.job), match: toMatchSummary(m) }));
+  const applications = await applicationsForJobs(db, matches.map((m) => m.job.id));
+  const myJobs: JobCardData[] = matches.map((m) => ({
+    job: toJobSummary(m.job),
+    match: toMatchSummary(m),
+    application: applications.get(m.job.id) ?? null,
+  }));
 
   return (
     <div className="flex flex-col gap-4">

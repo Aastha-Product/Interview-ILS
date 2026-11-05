@@ -76,17 +76,32 @@ test("a pasted posting becomes a reviewed, downloadable PDF in under 2 minutes, 
   await expect(page.getByText("1 response from 1 application sent.", { exact: false })).toBeVisible();
 });
 
-test("a second application for the same job is blocked and links to the first", async ({ page }) => {
+test("a job already applied to offers its application instead, and a second one is blocked", async ({ page }) => {
   await studentWithProfile(page, "dup");
   await pasteJob(page);
   const jobUrl = page.url();
+  const jobListingId = jobUrl.split("/").pop()!;
   await page.getByRole("button", { name: "Start application" }).click();
   await expect(page).toHaveURL(/\/applications\/[a-z0-9]+$/);
   const applicationUrl = page.url();
 
+  // The job page now links to the application, with its status, and offers no second one.
   await page.goto(jobUrl);
-  await page.getByRole("button", { name: "Start application" }).click();
-  await expect(page.getByText("You've already started an application for this job.")).toBeVisible();
-  await page.getByRole("link", { name: "Open that application" }).click();
+  await expect(page.getByRole("button", { name: "Start application" })).toHaveCount(0);
+  await expect(page.getByText("Draft", { exact: true })).toBeVisible();
+  await page.getByRole("link", { name: "View application" }).click();
   await expect(page).toHaveURL(applicationUrl);
+
+  // So does the job's card on the Jobs page.
+  await page.goto("/jobs");
+  const card = page.getByRole("article").filter({ hasText: "QA Engineer - Fresher" });
+  await expect(card.getByRole("link", { name: "View application" })).toHaveAttribute("href", new URL(applicationUrl).pathname);
+  await expect(card.getByRole("button", { name: "Start application" })).toHaveCount(0);
+
+  // The server still refuses a second application for the same job, and points to the first.
+  const again = await page.request.post("/api/applications", { data: { jobListingId } });
+  expect(again.status()).toBe(409);
+  const body = await again.json();
+  expect(body.error.code).toBe("ALREADY_STARTED");
+  expect(body.error.details.applicationId).toBe(new URL(applicationUrl).pathname.split("/").pop());
 });

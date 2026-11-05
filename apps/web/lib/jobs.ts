@@ -1,3 +1,5 @@
+import type { Status } from "./applications";
+
 /** Shapes the jobs API sends to the browser. */
 
 export interface JobSummary {
@@ -23,9 +25,16 @@ export interface MatchSummary {
   explanation: string;
 }
 
+/** The student's application for a job, if they already started one. */
+export interface ExistingApplication {
+  id: string;
+  status: Status;
+}
+
 export interface JobCardData {
   job: JobSummary;
   match: MatchSummary | null;
+  application: ExistingApplication | null;
 }
 
 export interface SearchResponse {

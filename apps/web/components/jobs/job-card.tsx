@@ -1,6 +1,6 @@
 import { ExternalLink, MapPin } from "lucide-react";
 import Link from "next/link";
-import { StartApplicationButton } from "@/components/applications/start-application-button";
+import { ApplicationAction } from "@/components/applications/application-action";
 import { Button } from "@/components/ui/button";
 import { scoreLabel, type JobCardData } from "@/lib/jobs";
 
@@ -92,7 +92,7 @@ export function JobCard({ data }: { data: JobCardData }) {
         )}
       </div>
       <div className="mt-2">
-        <StartApplicationButton jobListingId={job.id} />
+        <ApplicationAction jobListingId={job.id} application={data.application} />
       </div>
     </article>
   );

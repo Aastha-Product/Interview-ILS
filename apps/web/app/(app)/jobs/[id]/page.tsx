@@ -3,11 +3,12 @@ import { ExternalLink } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { StartApplicationButton } from "@/components/applications/start-application-button";
+import { ApplicationAction } from "@/components/applications/application-action";
 import { ScoreBadge, SourceLabel } from "@/components/jobs/job-card";
 import { Button } from "@/components/ui/button";
 import { Alert, Card, CardHeader } from "@/components/ui/card";
 import { getAi } from "@/server/services";
+import { applicationsForJobs } from "@/server/jobs";
 import { requireUser } from "@/server/session";
 
 export const metadata: Metadata = { title: "Job match" };
@@ -17,6 +18,7 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
   const { db } = await requireUser();
   const listing = await db.jobListing.findUnique({ where: { id } });
   if (!listing) notFound();
+  const application = (await applicationsForJobs(db, [listing.id])).get(listing.id) ?? null;
 
   let match;
   let matchError: string | null = null;
@@ -60,7 +62,7 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
             </a>
           </Button>
         )}
-        <StartApplicationButton jobListingId={listing.id} size="md" />
+        <ApplicationAction jobListingId={listing.id} application={application} size="md" />
       </div>
 
       {matchError && <Alert tone="error">{matchError}</Alert>}
