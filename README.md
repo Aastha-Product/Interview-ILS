@@ -2,7 +2,7 @@
 
 Pathfinder helps Indian freshers apply to jobs off-campus. A student builds one profile, adds jobs, gets a tailored resume and answers drawn **only from their own profile**, submits each application themselves on the job site, and tracks responses.
 
-This repository is the MVP, built in phases: **1** foundation (sign-in, user-scoped data, profile, resume import), **2** jobs and matching, **3** the application flow (drafting with a fact check, PDFs, tracker, dashboard) and **4** reliability, security and privacy (limits, AI fallback, export and delete, CSP, retention, injection and load tests). Phase 5 (pilot readiness) is next.
+This repository is the MVP, built in phases: **1** foundation (sign-in, user-scoped data, profile, resume import), **2** jobs and matching, **3** the application flow (drafting with a fact check, PDFs, tracker, dashboard) **4** reliability, security and privacy (limits, AI fallback, export and delete, CSP, retention, injection and load tests) and **5** pilot readiness (demo data, staging config, container images, deployment guide, backup runbook, privacy notice draft). Nothing is deployed: see [Deploying](#deploying).
 
 ## Rules the code must keep
 
@@ -72,6 +72,14 @@ This repository is the MVP, built in phases: **1** foundation (sign-in, user-sco
    The worker renders PDFs with Chromium. Install it once with `pnpm --filter @pathfinder/e2e install-browsers` (it goes into `node_modules`).
 
 The app starts and every test passes with all AI and job-feed keys left empty.
+
+8. *Optional:* fill a demo account so every screen has something to show, then sign in with **Dev sign-in** as `demo@example.test`:
+
+   ```bash
+   pnpm db:seed
+   ```
+
+   It adds a fictional student's profile, 8 scored jobs and 8 applications over five weeks (with drafts; their PDFs render while `pnpm worker` runs). It only fills an empty account and is refused when `APP_ENV=production`.
 
 ### Applications, drafts and the worker
 
@@ -164,6 +172,20 @@ GitHub Actions (`.github/workflows/ci.yml`) runs the same steps on every push an
 
 **After pulling new migrations:** run `pnpm db:generate` (Prisma 7's `migrate` no longer regenerates the client) and `pnpm db:deploy`.
 
+## Deploying
+
+Nothing deploys automatically. To run Pathfinder on a server, follow these guides in order:
+
+| Guide | What it covers |
+| --- | --- |
+| [docs/deploy.md](docs/deploy.md) | Staging, then production: managed Postgres, S3/R2 storage, Google sign-in, settings (`.env.staging.example`), the two container images (`infra/Dockerfile.web`, `infra/Dockerfile.worker`), first-deploy checks, rollback |
+| [docs/backup-restore.md](docs/backup-restore.md) | Backups, the monthly restore drill (`scripts/backup-drill.sh`), restoring after an incident, breaches |
+| [docs/privacy-notice-draft.md](docs/privacy-notice-draft.md) | The privacy notice, **draft for legal review** |
+
+`APP_ENV` says which deployment this is: `development` (local), `staging` (a production build with test data, an amber banner and no search indexing) or `production`. `GET /api/health` answers 200 when the app can reach its database, for the host's health check.
+
+The CI job **Container images and restore drill** builds both images on every push and runs them against Postgres 17: migrations, health check, staging banner, PDF rendering in the worker image, and a backup-and-restore drill.
+
 ## Repository layout
 
 ```
@@ -174,8 +196,9 @@ packages/ai/     The single entry point for model calls (retries, circuit breake
 packages/db/     Prisma schema, migrations, the user-scoped data layer, rate limits and cross-user housekeeping
 packages/feeds/  JSearch and Adzuna adapters, URL normalisation and dedupe keys
 e2e/             Playwright tests
-infra/           Optional Docker Compose
-scripts/         services.mjs (local Postgres), fixture generation and the load test
+infra/           Dockerfiles for the web and worker images, optional Docker Compose for local services
+docs/            Deployment guide, backup and restore runbook, privacy notice draft
+scripts/         services.mjs (local Postgres), fixture generation, the load test and the backup drill
 fixtures/        Sample (fictional) resumes and job, and the prompt-injection payloads
 test/            Shared integration-test setup
 .github/         CI workflow
