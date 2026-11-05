@@ -26,8 +26,8 @@ export default function PrivacyPage() {
           you. You always apply yourself.
         </p>
         <p>
-          <strong>Your control:</strong> you can export everything or delete your account and all its data from Settings
-          (coming soon in this pilot).
+          <strong>Your control:</strong> from Settings you can download everything we hold about you, or permanently delete
+          your account with all its data and files.
         </p>
       </div>
       <p className="mt-8">

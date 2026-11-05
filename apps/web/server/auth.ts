@@ -60,6 +60,16 @@ export const { handlers, auth, signIn, signOut } = NextAuth(() => {
           getLogger().warn({ err: (error as Error).name }, "could not write sign-in audit entry");
         }
       },
+      async signOut(message) {
+        // Database sessions: Auth.js passes the session row being deleted.
+        const userId = "session" in message ? message.session?.userId : undefined;
+        if (!userId) return;
+        try {
+          await recordAudit(scopedDb(userId), "SIGN_OUT", ipHashFrom(await headers()));
+        } catch (error) {
+          getLogger().warn({ err: (error as Error).name }, "could not write sign-out audit entry");
+        }
+      },
     },
   };
 });

@@ -10,9 +10,9 @@ import { getCurrentUser } from "@/server/session";
 
 export const metadata: Metadata = { title: "Sign in" };
 
-export default async function SignInPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
+export default async function SignInPage({ searchParams }: { searchParams: Promise<{ error?: string; deleted?: string }> }) {
   if (await getCurrentUser()) redirect("/");
-  const { error } = await searchParams;
+  const { error, deleted } = await searchParams;
   const config = getConfig();
   const googleEnabled = Boolean(config.AUTH_GOOGLE_ID && config.AUTH_GOOGLE_SECRET);
   const devEnabled = isDevSignInEnabled(config);
@@ -23,6 +23,7 @@ export default async function SignInPage({ searchParams }: { searchParams: Promi
         <h1 className="mb-1 text-center text-3xl font-bold text-brand-700">Pathfinder</h1>
         <p className="mb-8 text-center text-slate-600">Apply smarter: a resume tailored to each job, from your own profile.</p>
         <Card className="flex flex-col gap-5">
+          {deleted === "1" && <Alert tone="success">Your account and all its data have been deleted.</Alert>}
           {error && (
             <Alert tone="error">
               {error === "dev-email" ? "Enter a valid email address." : "We couldn't sign you in. Please try again."}

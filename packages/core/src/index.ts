@@ -16,6 +16,8 @@ export {
   createS3Storage,
 } from "./storage";
 export type { FileStorage } from "./storage";
+export { exportAccount, deleteAccount, confirmsEmail, EXPORT_FORMAT } from "./account/service";
+export type { AccountExport } from "./account/service";
 export { importResume } from "./resume/import";
 export type { ImportResumeResult } from "./resume/import";
 export { extractResumeText, sniffResumeKind, MAX_RESUME_BYTES } from "./resume/extract";

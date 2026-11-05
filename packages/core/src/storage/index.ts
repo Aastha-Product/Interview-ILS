@@ -3,7 +3,9 @@ import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import {
   DeleteObjectCommand,
+  DeleteObjectsCommand,
   GetObjectCommand,
+  ListObjectsV2Command,
   PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
@@ -16,6 +18,8 @@ export interface FileStorage {
   put(key: string, body: Uint8Array, contentType: string): Promise<void>;
   get(key: string): Promise<Uint8Array>;
   delete(key: string): Promise<void>;
+  /** Deletes every file under one student's folder (`users/<id>/`). Used by account deletion. */
+  deleteUserFiles(userId: string): Promise<void>;
   /**
    * A short-lived download link (default 5 minutes). S3: a presigned GET. Local and memory: an
    * HMAC-signed link to /api/files, which also checks the file belongs to the signed-in student.
@@ -102,6 +106,13 @@ function requireSigning(signing: LocalSigning | undefined): LocalSigning {
 }
 
 const SAFE_KEY = /^[A-Za-z0-9][A-Za-z0-9/_.-]*$/;
+const SAFE_USER_ID = /^[A-Za-z0-9_-]{1,64}$/;
+
+/** The folder holding all of one student's files. Refuses anything that isn't a plain id. */
+export function userFolder(userId: string): string {
+  if (!SAFE_USER_ID.test(userId)) throw new Error("Unsafe user id");
+  return `users/${userId}/`;
+}
 
 export function assertSafeKey(key: string): void {
   if (!SAFE_KEY.test(key) || key.includes("..") || key.includes("//")) {
@@ -129,6 +140,9 @@ export function createLocalStorage(rootDir: string, signing?: LocalSigning): Fil
     },
     async delete(key) {
       await rm(resolve(key), { force: true });
+    },
+    async deleteUserFiles(userId) {
+      await rm(resolve(userFolder(userId).slice(0, -1)), { recursive: true, force: true });
     },
     async signedUrl(key, options) {
       return signLocalFileUrl(requireSigning(signing), key, options);
@@ -168,6 +182,23 @@ export function createS3Storage(options: {
       assertSafeKey(key);
       await client.send(new DeleteObjectCommand({ Bucket: options.bucket, Key: key }));
     },
+    async deleteUserFiles(userId) {
+      const prefix = userFolder(userId);
+      let token: string | undefined;
+      do {
+        const page = await client.send(
+          new ListObjectsV2Command({ Bucket: options.bucket, Prefix: prefix, ContinuationToken: token }),
+        );
+        const keys = (page.Contents ?? []).flatMap((o) => (o.Key ? [{ Key: o.Key }] : []));
+        if (keys.length) {
+          const result = await client.send(
+            new DeleteObjectsCommand({ Bucket: options.bucket, Delete: { Objects: keys, Quiet: true } }),
+          );
+          if (result.Errors?.length) throw new Error(`Could not delete ${result.Errors.length} files`);
+        }
+        token = page.IsTruncated ? page.NextContinuationToken : undefined;
+      } while (token);
+    },
     async signedUrl(key, { filename, expiresInSeconds }) {
       assertSafeKey(key);
       const command = new GetObjectCommand({
@@ -198,6 +229,10 @@ export function createMemoryStorage(signing?: LocalSigning): FileStorage & { fil
     },
     async delete(key) {
       files.delete(key);
+    },
+    async deleteUserFiles(userId) {
+      const prefix = userFolder(userId);
+      for (const key of [...files.keys()]) if (key.startsWith(prefix)) files.delete(key);
     },
     async signedUrl(key, options) {
       return signLocalFileUrl(requireSigning(signing), key, options);

@@ -28,6 +28,9 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
           <Link href="/preferences" className="text-sm text-slate-700 hover:text-slate-900">
             Job preferences
           </Link>
+          <Link href="/settings" className="text-sm text-slate-700 hover:text-slate-900">
+            Settings
+          </Link>
           <div className="ml-auto flex items-center gap-3">
             <span className="hidden text-sm text-slate-500 sm:inline">{user.email}</span>
             <form
