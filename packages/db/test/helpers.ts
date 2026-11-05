@@ -6,7 +6,7 @@ export async function resetDatabase(): Promise<void> {
   const url = process.env.DATABASE_URL ?? "";
   if (!new URL(url).pathname.endsWith("_test")) throw new Error("Refusing to reset a non-test database");
   await prisma.$executeRawUnsafe(
-    'TRUNCATE TABLE "User", "JobListing", "VerificationToken" RESTART IDENTITY CASCADE',
+    'TRUNCATE TABLE "User", "JobListing", "VerificationToken", "RateLimit" RESTART IDENTITY CASCADE',
   );
 }
 

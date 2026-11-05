@@ -156,6 +156,18 @@ describe("searchJobs with live feeds", () => {
     expect(js.calls()).toBe(2);
   });
 
+  it("lets only one of several searches sent at the same moment call the live feed", async () => {
+    const js = liveFake("jsearch", [job("jsearch", 1)]);
+    const results = await Promise.allSettled(
+      ["tester", "developer", "analyst", "qa engineer"].map((query) => searchJobs(deps(aliceId, [js]), { query, location: "Pune" })),
+    );
+    expect(js.calls()).toBe(1);
+    expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    for (const r of results.filter((r) => r.status === "rejected")) {
+      expect((r as PromiseRejectedResult).reason).toMatchObject({ code: "SEARCH_COOLDOWN", status: 429 });
+    }
+  });
+
   it("stops calling a feed once its global daily budget is used", async () => {
     const js = liveFake("jsearch", [job("jsearch", 1)]);
     await searchJobs(deps(aliceId, [js], { JSEARCH_DAILY_BUDGET: 1 }), { query: "tester", location: "" });

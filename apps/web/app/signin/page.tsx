@@ -26,7 +26,11 @@ export default async function SignInPage({ searchParams }: { searchParams: Promi
           {deleted === "1" && <Alert tone="success">Your account and all its data have been deleted.</Alert>}
           {error && (
             <Alert tone="error">
-              {error === "dev-email" ? "Enter a valid email address." : "We couldn't sign you in. Please try again."}
+              {error === "dev-email"
+                ? "Enter a valid email address."
+                : error === "too-many"
+                  ? "Too many sign-in attempts. Please wait a minute, then try again."
+                  : "We couldn't sign you in. Please try again."}
             </Alert>
           )}
 

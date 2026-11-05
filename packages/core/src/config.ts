@@ -26,6 +26,8 @@ const schema = z
     SEARCH_CACHE_HOURS: z.coerce.number().int().min(1).default(24),
     TAILOR_DAILY_LIMIT: z.coerce.number().int().min(0).default(20),
     AI_CONCURRENT_PER_USER: z.coerce.number().int().min(1).default(2),
+    RATE_LIMIT_API_PER_MINUTE: z.coerce.number().int().min(1).default(60),
+    RATE_LIMIT_SIGNIN_PER_MINUTE: z.coerce.number().int().min(1).default(10),
     STORAGE_DRIVER: z.enum(["local", "s3"]).default("local"),
     STORAGE_LOCAL_DIR: optional,
     S3_ENDPOINT: optional,

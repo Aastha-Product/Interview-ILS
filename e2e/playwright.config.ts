@@ -25,6 +25,9 @@ export default defineConfig({
     {
       command: "pnpm --filter @pathfinder/web dev",
       cwd: "..",
+      // Every test signs in from the same address, far more than 10 times a minute. The sign-in
+      // limit itself is covered by integration tests; the per-student API limit stays at 60.
+      env: { RATE_LIMIT_SIGNIN_PER_MINUTE: "1000" },
       url: "http://localhost:3000/signin",
       reuseExistingServer: false,
       timeout: 180_000,

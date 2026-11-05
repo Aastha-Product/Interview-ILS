@@ -12,7 +12,7 @@ import {
   type PdfJobData,
   type TailorJobData,
 } from "@pathfinder/core";
-import { failStaleTasks, scopedDb } from "@pathfinder/db";
+import { deleteStaleRateLimits, failStaleTasks, scopedDb } from "@pathfinder/db";
 import { getPrisma } from "@pathfinder/db/raw";
 import { handlePdf } from "./handlers/pdf";
 import { handleTailor } from "./handlers/tailor";
@@ -76,8 +76,10 @@ async function main() {
     try {
       const failed = await failStaleTasks({ olderThanMs: STALE_TASK_MS });
       if (failed > 0) log.warn({ failed }, "failed stale tasks");
+      // Rate-limit counters only matter for minutes; drop ones untouched for a day.
+      await deleteStaleRateLimits(new Date(Date.now() - 24 * 60 * 60 * 1000));
     } catch (error) {
-      log.error({ errName: (error as Error).name }, "stale task sweep failed");
+      log.error({ errName: (error as Error).name }, "housekeeping sweep failed");
     }
   };
   await sweep();

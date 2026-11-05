@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createDevSession, sessionCookieName } from "@/server/dev-sign-in";
 import { ipHashFrom } from "@/server/request-ip";
+import { signInLimitResponse } from "@/server/sign-in-limit";
 
 const formSchema = z.object({ email: z.email().max(200) });
 
@@ -15,6 +16,9 @@ export async function POST(request: Request) {
   if (origin && origin !== new URL(getConfig().APP_URL).origin && origin !== new URL(request.url).origin) {
     return new NextResponse("Forbidden", { status: 403 });
   }
+
+  const limited = await signInLimitResponse(request);
+  if (limited) return limited;
 
   const parsed = formSchema.safeParse({ email: (await request.formData()).get("email") });
   if (!parsed.success) {

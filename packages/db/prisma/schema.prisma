@@ -528,3 +528,16 @@ model AuditLog {
 
   @@index([userId, at])
 }
+
+/// Request counters for rate limits and cooldowns, shared by every web instance (no Redis in the MVP).
+/// Keys never hold raw personal data: "api:<userId>", "signin:<ipHash>", "search:<userId>".
+/// Not user-owned on purpose (no userId column): only packages/db touches it, through raw SQL.
+model RateLimit {
+  key         String   @id
+  /// Start of the current fixed window (limits), or of the last claim (cooldowns).
+  windowStart DateTime
+  count       Int      @default(0)
+  updatedAt   DateTime @default(now())
+
+  @@index([updatedAt])
+}

@@ -1,5 +1,5 @@
 import "server-only";
-import { getConfig, getLogger, UserFacingError } from "@pathfinder/core";
+import { enforceApiLimit, getConfig, getLogger, UserFacingError } from "@pathfinder/core";
 import { scopedDb, ScopeViolationError, type ScopedDb } from "@pathfinder/db";
 import { NextResponse } from "next/server";
 import { ZodError } from "zod";
@@ -21,8 +21,8 @@ export function apiError(status: number, code: string, message: string, extra?: 
 type Handler<C> = (ctx: { request: Request; user: CurrentUser; db: ScopedDb; params: C }) => Promise<Response>;
 
 /**
- * Wraps an API route: requires a signed-in user, hands over their scoped database, and turns
- * errors into friendly JSON. Internal error details are logged without personal data, never returned.
+ * Wraps an API route: requires a signed-in user, applies the per-student request limit (429 with
+ * Retry-After), hands over their scoped database, and turns errors into friendly JSON. Internal error details are logged without personal data, never returned.
  */
 export function withUser<C = unknown>(handler: Handler<C>) {
   return async (request: Request, context: { params: Promise<C> }) => {
@@ -30,6 +30,7 @@ export function withUser<C = unknown>(handler: Handler<C>) {
     const user = await getCurrentUser();
     if (!user) return apiError(401, "SIGNED_OUT", "Please sign in again.");
     try {
+      await enforceApiLimit(user.id);
       return await handler({ request, user, db: scopedDb(user.id), params: await context.params });
     } catch (error) {
       if (error instanceof UserFacingError) {

@@ -53,6 +53,9 @@ const NESTED_WRITE_KEYS = new Set([
 /** Auth.js tables. Only the auth adapter (raw client) may touch these. */
 const AUTH_MODELS = new Set(["Account", "Session", "VerificationToken"]);
 
+/** Cross-user infrastructure (rate-limit counters keyed by user id or IP hash). Only packages/db touches these. */
+export const INTERNAL_MODELS = new Set(["RateLimit"]);
+
 export class ScopeViolationError extends Error {
   constructor(message: string) {
     super(message);
@@ -147,6 +150,9 @@ export function scopeArgs(model: string, operation: string, rawArgs: unknown, us
 
   if (AUTH_MODELS.has(model)) {
     throw new ScopeViolationError(`${model} is only accessible to the auth adapter`);
+  }
+  if (INTERNAL_MODELS.has(model)) {
+    throw new ScopeViolationError(`${model} is internal and not reachable through the scoped client`);
   }
 
   assertNoBlockedRelations(args.include, model);

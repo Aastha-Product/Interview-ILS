@@ -1,6 +1,8 @@
 export { scopedDb, ScopeViolationError, USER_OWNED_MODELS, SHARED_MODELS } from "./scoped";
 export { failStaleTasks, STALE_TASK_REASON } from "./maintenance";
 export { deleteUserCascade } from "./account";
+export { claimCooldown, deleteStaleRateLimits, hitRateLimit } from "./rate-limit";
+export type { RateLimitResult } from "./rate-limit";
 export type { ScopedDb, ScopedTx } from "./scoped";
 export {
   Prisma,

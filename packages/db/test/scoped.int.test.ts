@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { getPrisma } from "../src/client";
-import { scopedDb, ScopeViolationError, SHARED_MODELS, USER_OWNED_MODELS } from "../src/scoped";
+import { INTERNAL_MODELS, scopedDb, ScopeViolationError, SHARED_MODELS, USER_OWNED_MODELS } from "../src/scoped";
 import { createUser, resetDatabase } from "./helpers";
 
 let aliceId: string;
@@ -144,6 +144,10 @@ describe("scopedDb: escape hatches are closed", () => {
     await expect(bob.account.findMany()).rejects.toBeInstanceOf(ScopeViolationError);
   });
 
+  it("blocks internal tables such as rate-limit counters", async () => {
+    await expect(scopedDb(bobId).rateLimit.findMany()).rejects.toBeInstanceOf(ScopeViolationError);
+  });
+
   it("needs a user id", () => {
     expect(() => scopedDb("")).toThrow(ScopeViolationError);
   });
@@ -156,7 +160,7 @@ describe("scopedDb: escape hatches are closed", () => {
     }));
     const authModels = new Set(["Account", "Session", "VerificationToken"]);
     for (const model of models) {
-      if (authModels.has(model.name) || model.name === "User") continue;
+      if (authModels.has(model.name) || INTERNAL_MODELS.has(model.name) || model.name === "User") continue;
       if (model.hasUserId) expect(USER_OWNED_MODELS, model.name).toContain(model.name);
       else expect(SHARED_MODELS, model.name).toContain(model.name);
     }

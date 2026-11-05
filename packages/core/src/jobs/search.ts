@@ -1,4 +1,4 @@
-import type { ScopedDb } from "@pathfinder/db";
+import { claimCooldown, type ScopedDb } from "@pathfinder/db";
 import { getPrisma } from "@pathfinder/db/raw";
 import {
   FeedError,
@@ -106,8 +106,16 @@ export async function searchJobs(deps: SearchJobsDeps, input: { query: string; l
       orderBy: { createdAt: "desc" },
       select: { createdAt: true },
     });
-    if (last) {
-      const retryAfterSeconds = Math.max(1, Math.ceil((last.createdAt.getTime() + cooldownMs - now().getTime()) / 1000));
+    let retryAfterSeconds = last
+      ? Math.max(1, Math.ceil((last.createdAt.getTime() + cooldownMs - now().getTime()) / 1000))
+      : 0;
+    if (!last && cooldownMs > 0) {
+      // The check above can't stop two searches sent at the same moment; this atomic claim lets
+      // exactly one of them call the live feeds.
+      const claim = await claimCooldown(`search:${deps.db.userId}`, { cooldownMs, now: now() });
+      if (!claim.claimed) retryAfterSeconds = claim.retryAfterSeconds;
+    }
+    if (retryAfterSeconds > 0) {
       const minutes = Math.max(1, Math.ceil(retryAfterSeconds / 60));
       if (cacheHits === 0 && toCall.every((a) => a.live)) {
         throw new UserFacingError(
