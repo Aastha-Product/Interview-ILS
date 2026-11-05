@@ -11,6 +11,8 @@ const RAW_DB_ALLOWED = [
   "packages/core/src/jobs/**",
   // The worker entry point only disconnects the shared client at shutdown.
   "apps/worker/src/index.ts",
+  // The demo seed script only disconnects the shared client when it finishes.
+  "apps/worker/src/seed.ts",
   "**/*.int.test.ts",
   "**/test/**",
 ];

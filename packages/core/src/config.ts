@@ -10,6 +10,11 @@ const optional = z
 const schema = z
   .object({
     NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
+    /**
+     * Which deployment this is. Staging runs a production build (NODE_ENV=production) with test data
+     * only: it shows a banner, and demo seeding is allowed. Demo seeding is refused in production.
+     */
+    APP_ENV: z.enum(["development", "staging", "production"]).default("development"),
     DATABASE_URL: z.string().trim().min(1, "is required"),
     AUTH_SECRET: z.string().trim().min(16, "must be at least 16 characters"),
     AUTH_GOOGLE_ID: optional,
