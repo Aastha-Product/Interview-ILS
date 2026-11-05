@@ -25,7 +25,8 @@
     "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm test:integration",
     "format": "prettier --write .",
     "services:status": "node scripts/services.mjs status",
-    "services:reset": "node scripts/services.mjs reset"
+    "services:reset": "node scripts/services.mjs reset",
+    "load-test": "node scripts/load-test.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
