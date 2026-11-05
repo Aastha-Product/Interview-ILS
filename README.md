@@ -2,7 +2,7 @@
 
 Pathfinder helps Indian freshers apply to jobs off-campus. A student builds one profile, adds jobs, gets a tailored resume and answers drawn **only from their own profile**, submits each application themselves on the job site, and tracks responses.
 
-This repository is the MVP, built in phases. **Phase 1 (foundation)** covers Google sign-in, the user-scoped database, the profile editor and resume import.
+This repository is the MVP, built in phases: **1** foundation (sign-in, user-scoped data, profile, resume import), **2** jobs and matching, **3** the application flow (drafting with a fact check, PDFs, tracker, dashboard) and **4** reliability, security and privacy (limits, AI fallback, export and delete, CSP, retention, injection and load tests). Phase 5 (pilot readiness) is next.
 
 ## Rules the code must keep
 
@@ -75,11 +75,33 @@ The app starts and every test passes with all AI and job-feed keys left empty.
 
 ### Applications, drafts and the worker
 
-- **Queues.** pg-boss stores its queues in the same Postgres (schema `pgboss`). Queues: `ai.tailor` (drafting) and `pdf.render`. Jobs that fail every retry go to a `.dead` queue, and the student sees "failed" with a reason and a "Try again" button.
+- **Queues.** pg-boss stores its queues in the same Postgres (schema `pgboss`). Queues: `ai.tailor` (drafting), `pdf.render` and `cleanup.retention` (nightly). Jobs that fail every retry go to a `.dead` queue, and the student sees "failed" with a reason and a "Try again" button. Drafting runs under a deadline inside the queue's 120 s expiry, so a slow run can't be handed to a second worker; a redelivered job whose task already finished is skipped.
+- **Housekeeping.** Every 5 minutes the worker fails tasks stuck for 30 minutes (a crash can't hold a student's slot forever) and drops old rate-limit counters. Every night at 03:00 India time `cleanup.retention` deletes derived or expired data only (`RETENTION` in `packages/db/src/maintenance.ts`): AI call detail after 30 days (daily totals stay), match scores, closed unapplied listings and search history after 90 days, expired cache entries, usage totals after 2 years. Profiles, applications, documents and the audit log are kept until the student deletes their account.
 - **Limits.** A student can have at most `AI_CONCURRENT_PER_USER` (2) drafts or PDFs in progress and `TAILOR_DAILY_LIMIT` (20) drafts a day. Requesting the same draft twice (same job and profile version) returns the existing one.
 - **No invented experience.** The resume and answers are written only from numbered facts in the profile. Code rejects any point that cites no facts, cites unknown facts or facts from another item, or adds a number or skill the facts don't contain. A second, cheaper AI check confirms each remaining point. Failing drafts are regenerated once; anything still unsupported is left out and listed for the student. What the job asks for but the profile lacks is shown as a gap.
 - **PDFs** are rendered from fixed HTML with scripts and network access disabled. They are downloaded through a link that expires after 5 minutes and only works for the student who owns the file.
 - **Response rate** = responses ÷ applications sent. "Sent" is set when the student presses "I've applied"; a response is any employer reply (response, interview, offer or rejection). Weeks run Monday to Sunday, India time.
+
+### Limits and the AI fallback
+
+| Limit | Setting | Default | When hit |
+| --- | --- | --- | --- |
+| API requests per student | `RATE_LIMIT_API_PER_MINUTE` | 60 a minute | 429 with `Retry-After` and a friendly message |
+| Sign-in attempts per IP | `RATE_LIMIT_SIGNIN_PER_MINUTE` | 10 a minute | back to sign-in with a message |
+| Drafts per student | `TAILOR_DAILY_LIMIT` | 20 a day | 429 |
+| Drafts or PDFs in progress per student | `AI_CONCURRENT_PER_USER` | 2 | 429 |
+| Live job searches per student | `SEARCH_COOLDOWN_SECONDS` | 1 per 5 minutes | cached results, or 429 |
+
+Counters live in Postgres (`RateLimit` table), so every web instance shares them and simultaneous requests can't slip past.
+
+The AI client retries with backoff (1 s, 2 s), and after 5 outages (timeouts, 429s, 5xx) in a minute it opens a circuit for 2 minutes. While open, calls go to the **fallback model** if `FALLBACK_AI_BASE_URL`, `FALLBACK_AI_API_KEY` and `FALLBACK_AI_MODEL` are set (any OpenAI-compatible Chat Completions API), or fail fast if not. The fallback also gets one try when Gemini fails every retry. It receives the same student data, so use a paid tier that doesn't train on inputs.
+
+### Security and privacy
+
+- **Content-Security-Policy** with a fresh nonce per request (`apps/web/proxy.ts`): only the app's own scripts run. HSTS is sent when `APP_URL` is https.
+- **Uploads** are checked by size (and must declare it) and by file content, not name.
+- **Job text and resumes are untrusted.** They reach the model inside a data block that the text can't close or fake (`packages/ai/src/untrusted.ts`), control characters are dropped before storage, and `fixtures/injection-payloads.json` is the prompt-injection test set.
+- **Export and delete** (Settings): the student downloads everything as JSON, or deletes the account, which removes their files and every row they own and signs them out everywhere. Both are in the audit log (until the account is deleted); a deletion is logged as a keyed hash of the id.
 
 ### Signing in locally
 
@@ -136,22 +158,25 @@ The port, user and password come from `DATABASE_URL` in `.env`. The script only 
 | `pnpm e2e` | End-to-end tests (Playwright). Needs `pnpm services:up` and `pnpm db:deploy`. Install the browser once with `pnpm --filter @pathfinder/e2e install-browsers` (it goes into `node_modules`, on the same drive as the project). |
 | `pnpm lint` / `pnpm typecheck` | ESLint and TypeScript (strict mode) |
 | `pnpm check` | Lint, typecheck, unit and integration tests in one go |
+| `pnpm load-test` | 50 simulated students run the main flow at once (needs `pnpm dev` and `pnpm worker` running with the mock AI). Passes when all finish and posting-to-PDF p95 is under 2 minutes. Local only; cleans up after itself. |
 
 GitHub Actions (`.github/workflows/ci.yml`) runs the same steps on every push and pull request, using the same embedded Postgres and no real keys.
+
+**After pulling new migrations:** run `pnpm db:generate` (Prisma 7's `migrate` no longer regenerates the client) and `pnpm db:deploy`.
 
 ## Repository layout
 
 ```
 apps/web/        Next.js app (App Router): pages, components, server code and API route handlers
-apps/worker/     Queue worker (pg-boss): placeholder until Phase 3
-packages/core/   Domain logic: config, logging, profile, storage, resume import, usage
-packages/ai/     The single entry point for model calls, plus prompts, schemas and providers (Gemini, mock)
-packages/db/     Prisma schema, migrations and the user-scoped data layer
-packages/feeds/  JSearch and Adzuna adapters: placeholder until Phase 2
+apps/worker/     Queue worker (pg-boss): drafting, PDF rendering, housekeeping and nightly retention
+packages/core/   Domain logic: config, profile, jobs and matching, applications, account export/delete, limits, storage
+packages/ai/     The single entry point for model calls (retries, circuit breaker, fallback), prompts, schemas, providers (Gemini, OpenAI-compatible fallback, mock)
+packages/db/     Prisma schema, migrations, the user-scoped data layer, rate limits and cross-user housekeeping
+packages/feeds/  JSearch and Adzuna adapters, URL normalisation and dedupe keys
 e2e/             Playwright tests
 infra/           Optional Docker Compose
-scripts/         services.mjs (local Postgres) and fixture generation
-fixtures/        Sample (fictional) resumes for tests
+scripts/         services.mjs (local Postgres), fixture generation and the load test
+fixtures/        Sample (fictional) resumes and job, and the prompt-injection payloads
 test/            Shared integration-test setup
 .github/         CI workflow
 ```
@@ -178,3 +203,4 @@ When you add a model with a `userId` column, add it to `USER_OWNED_MODELS` in `p
 - **"Invalid configuration" on startup:** the message names the missing or wrong variable. Compare your `.env` with `.env.example`.
 - **`pnpm` not found after installing:** open a new terminal so `PATH` picks up the global npm folder.
 - **Disk space:** keep at least 3 GB free on the drive that holds the project. `node_modules`, the Playwright browser, build caches and the database all live there. If the disk fills up, stop Postgres with `pnpm services:down` before freeing space.
+- **System drive full (Windows):** Chromium (PDFs, end-to-end tests) writes temporary files to `%TEMP%`, usually on C:. If C: is nearly full, PDFs silently never render. Point temp at another drive for the session, e.g. in Git Bash `export TEMP='D:\tmp' TMP='D:\tmp'`, before `pnpm worker` or `pnpm e2e`.
