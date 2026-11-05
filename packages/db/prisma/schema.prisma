@@ -373,7 +373,8 @@ model Application {
   updatedAt    DateTime          @updatedAt
 
   user       User                @relation(fields: [userId], references: [id], onDelete: Cascade)
-  jobListing JobListing          @relation(fields: [jobListingId], references: [id], onDelete: Cascade)
+  /// Restrict: a shared listing a student applied to can't be deleted (it would take their application with it).
+  jobListing JobListing          @relation(fields: [jobListingId], references: [id], onDelete: Restrict)
   events     ApplicationEvent[]
   documents  GeneratedDocument[]
   tasks      ApplicationTask[]

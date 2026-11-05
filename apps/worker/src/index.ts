@@ -12,7 +12,7 @@ import {
   type PdfJobData,
   type TailorJobData,
 } from "@pathfinder/core";
-import { deleteStaleRateLimits, failStaleTasks, scopedDb } from "@pathfinder/db";
+import { deleteStaleRateLimits, failStaleTasks, runRetention, scopedDb } from "@pathfinder/db";
 import { getPrisma } from "@pathfinder/db/raw";
 import { handlePdf } from "./handlers/pdf";
 import { handleTailor } from "./handlers/tailor";
@@ -29,6 +29,7 @@ const config = getConfig();
 const ai = createAiClientFromEnv(config);
 
 const STALE_TASK_MS = 30 * 60 * 1000;
+const RETENTION_CRON = "0 3 * * *";
 const SWEEP_EVERY_MS = 5 * 60 * 1000;
 let sweepTimer: NodeJS.Timeout | null = null;
 
@@ -68,6 +69,16 @@ async function main() {
       }
     });
   }
+
+  // cleanup.retention: nightly at 03:00 India time (schedule() is an upsert, so restarts are safe).
+  // Deletes only derived or expired data; see RETENTION in packages/db/src/maintenance.ts.
+  await boss.schedule(QUEUE.cleanup, RETENTION_CRON, null, { tz: "Asia/Kolkata" });
+  await boss.work(QUEUE.cleanup, async (jobs) => {
+    for (const job of jobs) {
+      const report = await runRetention();
+      log.info({ queue: QUEUE.cleanup, jobId: job.id, ...report }, "retention cleanup done");
+    }
+  });
 
   // A crashed worker or a lost job leaves a task "queued" or "working" forever, holding one of the
   // student's concurrent slots. Every few minutes, fail tasks that have been stuck far longer than
