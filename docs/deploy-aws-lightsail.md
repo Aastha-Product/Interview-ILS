@@ -106,6 +106,16 @@ Each student chooses an AI provider and enters their own key in **Settings → A
 give everyone a default, add `DOSSIER_AI_PROVIDER`, `DOSSIER_AI_URL`, `DOSSIER_AI_MODEL` and
 `DOSSIER_AI_KEY` to the `.env` file (see `.env.example`) and run setup again.
 
+## Reading testers' feedback
+
+Testers use **Send feedback** in the sidebar. To read the latest 50, newest first, with who sent
+each and from which page:
+
+```bash
+cd /opt/pathfinder/deploy/lightsail
+sudo docker compose exec db psql -U pathfinder -d pathfinder -c 'SELECT f."createdAt", u.email, f.page, f.message FROM "Feedback" f JOIN "User" u ON u.id = f."userId" ORDER BY f."createdAt" DESC LIMIT 50;'
+```
+
 ## Updating
 
 After new code is pushed to the branch, run the setup command from step 5 again. It pulls the
