@@ -6,6 +6,8 @@ import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { buildExport } from "@/lib/data-export";
 import { importExport, parseExport } from "@/lib/data-import";
+import { runAsUser } from "@/lib/owner/context";
+import { rawClientOf } from "@/lib/owner/scope";
 import { createTestClient, resetDatabase } from "@/test/db";
 
 import { seedBuiltIns } from "../../../../prisma/seed/built-ins";
@@ -42,8 +44,11 @@ const snapshot = async () => JSON.stringify({ ...(await buildExport(prisma(), { 
 
 beforeEach(async () => {
   dataDir.path = await mkdtemp(path.join(tmpdir(), "dossier-delete-"));
-  await mkdir(path.join(dataDir.path, "backups"));
-  await writeFile(path.join(dataDir.path, "backups", "dossier-backup-nightly-2026-09-27-030000.json"), "{}");
+  // Each student's backups are in their own folder (Pathfinder: private accounts).
+  for (const student of ["test-student", "other-student"]) {
+    await mkdir(path.join(dataDir.path, "students", student, "backups"), { recursive: true });
+    await writeFile(path.join(dataDir.path, "students", student, "backups", "dossier-backup-nightly-2026-09-27-030000.json"), "{}");
+  }
   redirected.to = "";
   await resetDatabase(prisma());
   await seedBuiltIns(prisma());
@@ -51,6 +56,9 @@ beforeEach(async () => {
   await prisma().theme.create({ data: { id: "mine", name: "Mine", headFont: "GEIST", bodyFont: "GEIST", accent: "#224466" } });
   await prisma().setting.create({ data: { key: "paper", value: "LETTER" } });
   await prisma().job.create({ data: { type: "refine", key: "refine:x", status: "DONE", input: {} } });
+  // Another student, whose data must survive.
+  await rawClientOf(prisma()).user.create({ data: { id: "other-student", email: "other@example.test" } });
+  await runAsUser("other-student", () => prisma().application.create({ data: { company: "Theirs" } }));
 });
 afterAll(async () => {
   await rm(dataDir.path, { recursive: true, force: true });
@@ -94,7 +102,13 @@ describe("deleteEverything (E10-8)", () => {
     ]);
     expect(counts).toEqual([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
     expect(await prisma().theme.count({ where: { builtIn: true } })).toBe(12);
-    expect(await readdir(dataDir.path)).toEqual([]);
+    expect(await readdir(path.join(dataDir.path, "students", "test-student"))).toEqual([]);
+  });
+
+  it("leaves other students' data and backups alone (Pathfinder)", async () => {
+    await expect(deleteEverything({ confirm: "DELETE" })).rejects.toThrow("NEXT_REDIRECT");
+    expect(await runAsUser("other-student", () => prisma().application.count())).toBe(1);
+    expect(await readdir(path.join(dataDir.path, "students", "other-student", "backups"))).toHaveLength(1);
   });
 
   it("does nothing without DELETE typed exactly", async () => {

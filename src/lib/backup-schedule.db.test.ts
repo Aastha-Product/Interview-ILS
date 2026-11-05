@@ -1,4 +1,4 @@
-import { mkdtemp, readdir, rm, utimes, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, rm, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -22,7 +22,7 @@ vi.mock("@/lib/env", () => ({
 vi.mock("@/lib/log", () => ({ logServerError: vi.fn() }));
 
 const prisma = () => db.client!;
-const backups = () => readdir(path.join(dataDir.path, "backups")).catch(() => [] as string[]);
+const backups = () => readdir(path.join(dataDir.path, "students", "test-student", "backups")).catch(() => [] as string[]);
 
 beforeEach(async () => {
   dataDir.path = await mkdtemp(path.join(tmpdir(), "dossier-backups-"));
@@ -55,7 +55,7 @@ describe("nightly backups (E10-7)", () => {
   });
 
   it("remove backups past the retention", async () => {
-    const dir = path.join(dataDir.path, "backups");
+    const dir = path.join(dataDir.path, "students", "test-student", "backups");
     await runNightlyBackup(new Date(2026, 8, 28, 3));
     const old = path.join(dir, "dossier-backup-nightly-2026-09-01-030000.json");
     await writeFile(old, "{}");
@@ -67,11 +67,12 @@ describe("nightly backups (E10-7)", () => {
 
   it("keep a failure for the settings row, and clear it after a success", async () => {
     // A file where the folder should be: the backup can't be written.
-    await writeFile(path.join(dataDir.path, "backups"), "not a folder");
+    await mkdir(path.join(dataDir.path, "students", "test-student"), { recursive: true });
+    await writeFile(path.join(dataDir.path, "students", "test-student", "backups"), "not a folder");
     await expect(runNightlyBackup()).rejects.toThrow();
     expect((await loadSettings()).backupProblem).toMatch(/EEXIST|ENOTDIR/);
 
-    await rm(path.join(dataDir.path, "backups"));
+    await rm(path.join(dataDir.path, "students", "test-student", "backups"));
     await runNightlyBackup();
     expect((await loadSettings()).backupProblem).toBeNull();
   });

@@ -313,7 +313,8 @@ export const deleteEverything = action(z.object({ confirm: z.literal("DELETE") }
     await tx.theme.deleteMany({ where: { builtIn: false } });
     await tx.setting.deleteMany();
   });
-  // An empty profile and default settings need no rows; the built-in themes do.
+  // An empty profile and default settings need no rows. The built-in themes are shared and
+  // weren't deleted; this only puts back any that are missing.
   await seedBuiltIns(prisma);
   await Promise.all([deleteAllBackups(), deleteAllDownloads()]);
 

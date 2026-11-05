@@ -6,6 +6,7 @@ import path from "node:path";
 import { backupsDir, listBackups, writeBackup } from "@/lib/backups";
 import { env } from "@/lib/env";
 import { logServerError } from "@/lib/log";
+import { forEachStudent } from "@/lib/owner/students";
 import { loadSettings, saveSettings } from "@/lib/settings-data";
 
 // Nightly backups (E10-7, SET-10): while "Nightly backups" is on, an export
@@ -28,7 +29,8 @@ export function nextRun(now: Date): Date {
 export async function pruneBackups(now: Date, days = env.DOSSIER_BACKUP_RETENTION_DAYS): Promise<number> {
   const cutoff = now.getTime() - days * DAY_MS;
   const old = (await listBackups()).filter((backup) => backup.modified.getTime() < cutoff);
-  await Promise.all(old.map((backup) => unlink(path.join(backupsDir(), backup.name)).catch(() => {})));
+  const dir = await backupsDir();
+  await Promise.all(old.map((backup) => unlink(path.join(dir, backup.name)).catch(() => {})));
   return old.length;
 }
 
@@ -54,7 +56,7 @@ export async function runNightlyBackup(now = new Date()): Promise<"written" | "o
 export async function lastNightlyBackup(): Promise<Date | null> {
   const [latest] = (await listBackups()).filter((backup) => backup.name.startsWith("dossier-backup-nightly-"));
   if (!latest) return null;
-  return (await stat(path.join(backupsDir(), latest.name)).catch(() => null))?.mtime ?? null;
+  return (await stat(path.join(await backupsDir(), latest.name)).catch(() => null))?.mtime ?? null;
 }
 
 const globalForSchedule = globalThis as unknown as { backupTimer?: ReturnType<typeof setTimeout> };
@@ -65,7 +67,8 @@ export function startBackupSchedule(): void {
   const schedule = () => {
     const now = new Date();
     globalForSchedule.backupTimer = setTimeout(() => {
-      void runNightlyBackup()
+      // Each student whose nightly backups are on (Pathfinder: private accounts).
+      void forEachStudent("nightly backup", () => runNightlyBackup())
         .catch(() => {})
         .finally(schedule);
     }, nextRun(now).getTime() - now.getTime());

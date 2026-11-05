@@ -115,6 +115,9 @@ describe("checkForUpdate", () => {
 });
 
 describe("the daily check", () => {
+  // Off by default in Pathfinder; these check how it works once it's on.
+  beforeEach(() => saveSettings({ updateCheck: true }));
+
   it("runs in production only", () => {
     vi.stubEnv("NODE_ENV", "production");
     expect(dailyCheckRuns()).toBe(true);

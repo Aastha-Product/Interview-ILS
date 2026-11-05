@@ -2,6 +2,8 @@ import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
 import { AiError } from "@/lib/ai/errors";
+import { contextUserId, runAsUser } from "@/lib/owner/context";
+import { rawClientOf } from "@/lib/owner/scope";
 import { createTestClient, resetDatabase } from "@/test/db";
 
 import { cancelApplicationJobs, cancelJob, defineJob, getJob, recoverInterruptedJobs, retryJob, startJob, subscribeJob } from "./runner";
@@ -10,7 +12,7 @@ const db = vi.hoisted(() => ({ client: undefined as ReturnType<typeof createTest
 vi.mock("@/lib/prisma", async () => {
   const { createTestClient } = await import("@/test/db");
   db.client = createTestClient();
-  return { prisma: db.client };
+  return { prisma: db.client, systemPrisma: rawClientOf(db.client) };
 });
 const ai = vi.hoisted(() => ({ provider: "LOCAL" }));
 vi.mock("@/lib/ai/config", () => ({ loadAiConfig: async () => ({ provider: ai.provider }) }));
@@ -52,6 +54,16 @@ const gated = defineJob({
     return { greeting: `Hello, ${name}` };
   },
 });
+// A job that says which student it ran as (Pathfinder: private accounts).
+const whoAmI = defineJob({
+  type: "test-who-am-i",
+  input: z.object({}),
+  result: z.object({ greeting: z.string() }),
+  async run() {
+    return { greeting: contextUserId() ?? "nobody" };
+  },
+});
+
 const release = (name: string) => eventually(async () => {
   const open = gates.get(name);
   expect(open).toBeDefined();
@@ -166,6 +178,30 @@ describe("the job runner", () => {
       expect(await getJob(running)).toMatchObject({ status: "FAILED", error: "Cancelled." });
       expect(await getJob(queued)).toMatchObject({ status: "FAILED", error: "Cancelled." });
     });
+  });
+
+  it("runs each job as the student who started it, out of other students' sight", async () => {
+    await rawClientOf(prisma()).user.create({ data: { id: "other-student", email: "other@example.test" } });
+    const id = await runAsUser("other-student", () => startJob(whoAmI, {}));
+    await eventually(async () => {
+      expect(await runAsUser("other-student", () => getJob(id))).toMatchObject({ status: "DONE", result: { greeting: "other-student" } });
+    });
+    expect(await getJob(id)).toBeNull();
+  });
+
+  it("lets only the student who started a job cancel it", async () => {
+    await rawClientOf(prisma()).user.create({ data: { id: "other-student", email: "other@example.test" } });
+    const running = await startJob(gated, { name: "Mine", fail: "no" });
+    const queued = await startJob(gated, { name: "Mine too", fail: "no" });
+    await eventually(async () => (await status(running)).toBe("RUNNING"));
+    await runAsUser("other-student", async () => {
+      await cancelJob(running);
+      await cancelJob(queued);
+    });
+    await release("Mine");
+    await eventually(async () => (await status(running)).toBe("DONE"));
+    await release("Mine too");
+    await eventually(async () => (await status(queued)).toBe("DONE"));
   });
 
   it("marks jobs a previous process left unfinished as failed, so they can be retried", async () => {

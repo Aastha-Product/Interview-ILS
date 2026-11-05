@@ -74,15 +74,15 @@ const schema = z.object({
         error: "DOSSIER_BACKUP_RETENTION_DAYS must be at least 1.",
       }),
     ),
-  // The daily usage ping (usage-ping.ts): unset, Dossier asks after
-  // sign-in and sends nothing before a yes; on or off answers for good.
+  // The daily usage ping (usage-ping.ts). Pathfinder: unset means off; only
+  // on turns it on, for the whole server.
   DOSSIER_TELEMETRY: optional(
     z
       .string()
       .trim()
       .toLowerCase()
       .pipe(z.enum(["on", "off"], { error: (issue) => `DOSSIER_TELEMETRY must be on or off (got "${String(issue.input)}").` })),
-  ),
+  ).transform((value) => value ?? "off"),
   DOSSIER_AI_PROVIDER: optional(
     z.enum(AI_PROVIDERS, {
       error: (issue) =>

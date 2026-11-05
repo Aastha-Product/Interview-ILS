@@ -111,7 +111,7 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
           backups={{
             on: settings.nightlyBackup,
             retentionDays: env.DOSSIER_BACKUP_RETENTION_DAYS,
-            dir: backupsDir(),
+            dir: await backupsDir(),
             lastRun: whenRan(await lastNightlyBackup()),
             problem: settings.backupProblem,
           }}

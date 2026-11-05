@@ -183,7 +183,8 @@ export const settingsSchema = z.object({
   startupsViewedAt: z.iso.datetime().nullable().catch(null),
   startupsLastRefresh: json(startupsRefreshSchema).nullable().catch(null),
   /** "Check for updates daily" in Settings → About (update-check.ts). */
-  updateCheck: flag(true),
+  // Pathfinder: off by default; it reports Dossier's releases, which students can't install.
+  updateCheck: flag(false),
   // The newest release the update check has seen, the UTC day it last
   // asked, and the release "Not now" hid the sidebar notice for. They belong
   // to the install, not its data, so exports leave them out (INSTALL_SETTINGS).

@@ -3,6 +3,7 @@ import "server-only";
 import { findUnfinishedJobs } from "@/lib/jobs/runner";
 import { logServerError } from "@/lib/log";
 import type { SettingsData } from "@/lib/settings";
+import { forEachStudent } from "@/lib/owner/students";
 import { loadSettings } from "@/lib/settings-data";
 
 import { startStartupsRefresh, STARTUPS_JOB_KEY } from "./refresh";
@@ -38,7 +39,9 @@ const globalForStartups = globalThis as unknown as { startupsTimer?: ReturnType<
 /** Starts the timer, once per process (dev reloads keep the one they have). */
 export function startStartupsSchedule(): void {
   if (globalForStartups.startupsTimer) return;
-  const check = () => void startDueStartupsRefresh().catch((error: unknown) => logServerError("startups schedule", error));
+  // For each student, on their own settings (Pathfinder: private accounts).
+  const check = () =>
+    void forEachStudent("startups schedule", () => startDueStartupsRefresh()).catch((error: unknown) => logServerError("startups schedule", error));
   globalForStartups.startupsTimer = setInterval(check, EVERY_MS);
   // Don't keep the process alive just for this.
   globalForStartups.startupsTimer.unref?.();

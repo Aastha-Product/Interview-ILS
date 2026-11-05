@@ -1,6 +1,7 @@
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Prisma } from "@/generated/prisma/client";
+import { rawClientOf } from "@/lib/owner/scope";
 import { createTestClient, resetDatabase } from "@/test/db";
 
 import { loadSettings, saveSettings } from "./settings-data";
@@ -26,7 +27,7 @@ const editorial: Prisma.ThemeCreateInput = {
 
 beforeEach(async () => {
   await resetDatabase(prisma());
-  await prisma().theme.create({ data: editorial });
+  await rawClientOf(prisma()).theme.create({ data: editorial }); // built-in themes are shared
 });
 afterAll(() => prisma().$disconnect());
 
@@ -71,8 +72,10 @@ describe("settings and themes", () => {
   });
 
   it("refuses to delete a built-in theme", async () => {
-    // The trigger raises restrict_violation, which Prisma reports as P2003.
-    await expect(prisma().theme.delete({ where: { id: "editorial" } })).rejects.toSatisfy(
+    // A student's client doesn't reach shared themes at all (Pathfinder: private accounts).
+    await expect(prisma().theme.delete({ where: { id: "editorial" } })).rejects.toThrow();
+    // Underneath, the trigger raises restrict_violation, which Prisma reports as P2003.
+    await expect(rawClientOf(prisma()).theme.delete({ where: { id: "editorial" } })).rejects.toSatisfy(
       (error) => error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2003",
     );
     expect(await prisma().theme.count()).toBe(1);

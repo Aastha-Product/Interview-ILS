@@ -124,6 +124,12 @@ function withNestedOwners(data: Args, userId: string): Args {
   return out;
 }
 
+/** Whether a Theme write would create or mark a built-in theme. */
+function makesBuiltIn(args: Args): boolean {
+  const payloads = [args.data, args.create, args.update].flatMap((p) => (Array.isArray(p) ? p : [p]));
+  return payloads.some((p) => isObject(p) && p.builtIn !== undefined && p.builtIn !== false);
+}
+
 function andWhere(where: unknown, condition: Args): Args {
   const base = isObject(where) ? where : {};
   const existing = base.AND === undefined ? [] : Array.isArray(base.AND) ? base.AND : [base.AND];
@@ -148,6 +154,9 @@ export function scopeArgs(model: string, operation: string, rawArgs: unknown, us
   }
   const args: Args = fillCurrentUser({ ...((rawArgs as Args | undefined) ?? {}) }, userId);
   const reading = READ_OPS.has(operation);
+  if (model === "Theme" && !reading && makesBuiltIn(args)) {
+    throw new OwnerScopeError("Built-in themes are shared; only system code writes them");
+  }
   // Built-in themes (no owner) are shared: everyone may read them, nobody may change them here.
   const owner = model === "Theme" && reading ? { OR: [{ userId }, { userId: null }] } : { userId };
 

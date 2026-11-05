@@ -4,6 +4,7 @@ import { unitsSchema, matchSchema, matchScore } from "@/lib/application-data";
 import { basicsFromFields } from "@/lib/profile";
 import { advance, type StatusFields } from "@/lib/status";
 import { BUILT_IN_THEMES } from "@/lib/themes";
+import { rawClientOf } from "@/lib/owner/scope";
 import { createTestClient, resetDatabase } from "@/test/db";
 import { CURRENT_USER } from "@/lib/owner/scope";
 
@@ -37,7 +38,7 @@ describe("built-in seed", () => {
     await db.profileField.create({ data: { key: "name", value: "Me" } });
     await db.setting.create({ data: { key: "paper", value: "LETTER" } });
     await db.theme.create({ data: { name: "Mine", headFont: "GEIST", bodyFont: "GEIST", accent: "#000000" } });
-    await db.theme.update({ where: { id: "classic" }, data: { accent: "#ff0000", headerStyle: "BANNER", dateStyle: "TIMELINE" } });
+    await rawClientOf(db).theme.update({ where: { id: "classic" }, data: { accent: "#ff0000", headerStyle: "BANNER", dateStyle: "TIMELINE" } });
 
     await seedBuiltIns(db);
 

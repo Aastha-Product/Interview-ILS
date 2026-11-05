@@ -63,7 +63,7 @@ describe("sweepFinishedJobs", () => {
   });
 
   it("removes zips nobody downloaded", async () => {
-    const downloads = path.join(dataDir.path, "downloads");
+    const downloads = path.join(dataDir.path, "students", "test-student", "downloads");
     await mkdir(downloads, { recursive: true });
     await writeFile(path.join(downloads, "old.zip"), "zip");
     await writeFile(path.join(downloads, "new.zip"), "zip");

@@ -17,7 +17,7 @@ export const GET = route<RouteContext<"/api/downloads/[id]">>(async (_request, {
   const result = job?.type === zipPdfsJob.type && job.status === "DONE" ? zipPdfsJob.result.safeParse(job.result) : null;
   if (!result?.success) return NextResponse.json({ error: GONE }, { status: 404 });
 
-  const file = path.join(downloadsDir(), result.data.file);
+  const file = path.join(await downloadsDir(), result.data.file);
   const zip = await readFile(file).catch(() => null);
   if (!zip) return NextResponse.json({ error: GONE }, { status: 410 });
   await unlink(file).catch(() => {});

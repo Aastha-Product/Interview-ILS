@@ -7,6 +7,8 @@ import { runAsUser } from "@/lib/owner/context";
 import { CURRENT_USER, OWNED_MODELS, rawClientOf, SYSTEM_MODELS } from "@/lib/owner/scope";
 import { createTestClient, resetDatabase, TEST_USER_ID } from "@/test/db";
 
+import { seedBuiltIns } from "../../../prisma/seed/built-ins";
+
 // Pathfinder (private accounts): one student never sees or changes another student's data.
 
 const db = createTestClient();
@@ -56,6 +58,25 @@ describe("the owner scope", () => {
     expect(await db.note.count()).toBe(1);
   });
 
+  it("runs a query handed back unawaited from runAsUser as that student", async () => {
+    // Prisma queries are lazy; runAsUser must start them inside the student's context.
+    const created = await runAsUser(OTHER, () => db.application.create({ data: { company: "Theirs" }, select: { id: true } }));
+    expect(await raw.application.findUniqueOrThrow({ where: { id: created.id }, select: { userId: true } })).toEqual({ userId: OTHER });
+  });
+
+  it("scopes queries inside transactions too", async () => {
+    await asOther(async () => {
+      await db.$transaction(async (tx) => {
+        expect(await tx.application.findMany()).toEqual([]);
+        expect((await tx.note.deleteMany()).count).toBe(0);
+        await tx.application.deleteMany();
+      });
+      await db.$transaction([db.application.deleteMany(), db.note.deleteMany()]);
+    });
+    expect(await db.application.count()).toBe(1);
+    expect(await db.note.count()).toBe(1);
+  });
+
   it("lets each student use the same setting keys and skill names", async () => {
     await asOther(async () => {
       await db.setting.create({ data: { key: "paper", value: "LETTER" } });
@@ -82,6 +103,21 @@ describe("the owner scope", () => {
       await expect(db.note.create({ data: { application: { connect: { id: "mine" } }, body: "Planted" } })).rejects.toThrow();
     });
     expect(await db.note.count()).toBe(1);
+  });
+
+  it("shares the built-in themes for reading only", async () => {
+    await seedBuiltIns(db);
+    const builtIn = await raw.theme.findFirstOrThrow({ where: { builtIn: true }, select: { id: true, userId: true } });
+    expect(builtIn.userId).toBeNull();
+    await asOther(async () => {
+      expect(await db.theme.findUnique({ where: { id: builtIn.id } })).not.toBeNull();
+      await expect(db.theme.update({ where: { id: builtIn.id }, data: { accent: "#ff0000" } })).rejects.toThrow();
+      expect((await db.theme.deleteMany()).count).toBe(0);
+      await expect(
+        db.theme.create({ data: { name: "Fake", builtIn: true, headFont: "GEIST", bodyFont: "GEIST", accent: "#000000" } }),
+      ).rejects.toThrow(/Built-in themes/);
+    });
+    expect(await raw.theme.count({ where: { builtIn: true, userId: null } })).toBeGreaterThan(0);
   });
 
   it("keeps raw SQL and system tables off the student's client", async () => {

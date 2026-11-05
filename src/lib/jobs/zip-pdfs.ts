@@ -8,17 +8,17 @@ import { zipSync, type Zippable } from "fflate";
 import { z } from "zod";
 
 import { DocumentKind } from "@/generated/prisma/enums";
-import { env } from "@/lib/env";
 import { resolveFileName } from "@/lib/file-name";
 import { renderPdf } from "@/lib/pdf/render";
+import { studentDir } from "@/lib/owner/students";
 import { prisma } from "@/lib/prisma";
 import { loadProfileName } from "@/lib/profile-data";
 import { loadSettings } from "@/lib/settings-data";
 
 import { defineJob } from "./runner";
 
-/** Where finished zips wait to be downloaded, in DOSSIER_DATA_DIR. */
-export const downloadsDir = () => path.join(env.DOSSIER_DATA_DIR, "downloads");
+/** Where the student's finished zips wait to be downloaded: DOSSIER_DATA_DIR/students/<id>/downloads. */
+export const downloadsDir = () => studentDir("downloads");
 
 /** Zips nobody downloaded are removed after this long. */
 const KEEP_MS = 60 * 60 * 1000;
@@ -43,7 +43,7 @@ function unique(name: string, taken: Set<string>): string {
 
 /** Removes zips nobody downloaded in time; the job sweep calls it too. */
 export async function removeOldZips(now: number): Promise<void> {
-  const dir = downloadsDir();
+  const dir = await downloadsDir();
   const names = await readdir(dir).catch(() => []);
   await Promise.all(
     names.map(async (name) => {
@@ -56,7 +56,7 @@ export async function removeOldZips(now: number): Promise<void> {
 
 /** Removes every zip waiting to be downloaded (Delete everything, E10-8). */
 export async function deleteAllDownloads(): Promise<void> {
-  await rm(downloadsDir(), { recursive: true, force: true });
+  await rm(await downloadsDir(), { recursive: true, force: true });
 }
 
 /** The documents that are printed: an application's email isn't. */
@@ -122,9 +122,10 @@ export const zipPdfsJob = defineJob({
       // PDFs are compressed already: store them as they are.
       files[`${folder}/${fileName}`] = [pdf, { level: 0 }];
     }
-    await mkdir(downloadsDir(), { recursive: true });
+    const dir = await downloadsDir();
+    await mkdir(dir, { recursive: true });
     const file = `${randomUUID()}.zip`;
-    await writeFile(path.join(downloadsDir(), file), zipSync(files));
+    await writeFile(path.join(dir, file), zipSync(files));
     return { file, fileName: zipFileName(now), documents: documents.length };
   },
 });

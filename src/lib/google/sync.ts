@@ -12,6 +12,8 @@ import { emailParts } from "@/lib/application-email";
 import { logServerError } from "@/lib/log";
 import { prisma } from "@/lib/prisma";
 import { CURRENT_USER } from "@/lib/owner/scope";
+import { currentUserId } from "@/lib/owner/current";
+import { forEachStudent } from "@/lib/owner/students";
 import { loadSettings } from "@/lib/settings-data";
 import { lastKnownTimeZone } from "@/lib/time-zone";
 
@@ -198,45 +200,55 @@ export async function readReply(emailId: string, signal?: AbortSignal): Promise<
   });
 }
 
-const globalForSync = globalThis as unknown as { inboxTimer?: ReturnType<typeof setTimeout>; inboxRunning?: boolean };
+// Pathfinder (private accounts): each student has their own Google account, interval and check.
+// The timer ticks every minute and checks the students whose interval has passed.
+const globalForSync = globalThis as unknown as {
+  inboxTimer?: ReturnType<typeof setInterval>;
+  inboxRunning?: Set<string>;
+  inboxLastCheck?: Map<string, number>;
+};
+const running = (globalForSync.inboxRunning ??= new Set());
+const lastCheck = (globalForSync.inboxLastCheck ??= new Map());
 
-/** One scheduled check: interviews changed in Google Calendar, then new mail while reading is on. */
-async function scheduledCheck(): Promise<void> {
-  if (globalForSync.inboxRunning) return;
+/** One scheduled check for the current student: interviews changed in Google Calendar, then new mail while reading is on. */
+async function scheduledCheck(userId: string, now: number): Promise<void> {
+  if (running.has(userId)) return;
   const [connection, settings] = await Promise.all([googleConnection(), loadSettings()]);
   if (connection.status !== "connected") return;
-  globalForSync.inboxRunning = true;
+  if (now - (lastCheck.get(userId) ?? 0) < settings.gmailInterval * 60_000) return;
+  lastCheck.set(userId, now);
+  running.add(userId);
   try {
     // Interviews moved or deleted in Google Calendar, whether or not mail is read.
     await pullInterviewEvents().catch((error) => logServerError("calendar check", error));
     if (connection.canRead && settings.gmailRead) await syncInbox();
   } finally {
-    globalForSync.inboxRunning = false;
+    running.delete(userId);
   }
 }
 
-/** Runs a check now unless one is running; for "Check now". */
+/** Runs a check now for the signed-in student unless one is running; for "Check now". */
 export async function checkInboxNow(): Promise<SyncResult | null> {
-  if (globalForSync.inboxRunning) return null;
-  globalForSync.inboxRunning = true;
+  const userId = await currentUserId();
+  if (running.has(userId)) return null;
+  running.add(userId);
   try {
     return await syncInbox();
   } finally {
-    globalForSync.inboxRunning = false;
+    lastCheck.set(userId, Date.now());
+    running.delete(userId);
   }
 }
 
 /** Starts the inbox timer, once per process (dev reloads keep the one they have). */
 export function startInboxSchedule(): void {
   if (globalForSync.inboxTimer) return;
-  const schedule = async () => {
-    const minutes = (await loadSettings().catch(() => null))?.gmailInterval ?? 10;
-    globalForSync.inboxTimer = setTimeout(() => {
-      void scheduledCheck()
-        .catch(() => {})
-        .finally(() => void schedule());
-    }, minutes * 60_000);
-    globalForSync.inboxTimer.unref?.();
+  const tick = () => {
+    const now = Date.now();
+    void forEachStudent("inbox check", (userId) => scheduledCheck(userId, now)).catch(() => {});
   };
-  void schedule();
+  // The first check of each student waits a full interval, as before.
+  void forEachStudent("inbox check", async (userId) => void lastCheck.set(userId, Date.now())).catch(() => {});
+  globalForSync.inboxTimer = setInterval(tick, 60_000);
+  globalForSync.inboxTimer.unref?.();
 }

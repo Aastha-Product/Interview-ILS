@@ -2,6 +2,7 @@ import "server-only";
 
 import { JobStatus } from "@/generated/prisma/enums";
 import { logServerError } from "@/lib/log";
+import { forEachStudent } from "@/lib/owner/students";
 import { prisma } from "@/lib/prisma";
 import { loadSettings } from "@/lib/settings-data";
 
@@ -12,7 +13,8 @@ import { removeOldZips } from "./zip-pdfs";
 // still waiting to be used. What it holds (a posting, a resume's text,
 // drafts) is either in an application by then or was never used, so it's
 // deleted once it's older than "Keep task data for" in Settings → Your data.
-// A plain timer in this process, like the nightly backups.
+// A plain timer in this process, like the nightly backups. Each student's
+// own setting applies to their own jobs (Pathfinder: private accounts).
 
 const HOUR_MS = 60 * 60 * 1000;
 /** How often the sweep runs. */
@@ -38,7 +40,7 @@ const globalForSweep = globalThis as unknown as { jobSweepTimer?: ReturnType<typ
 /** Sweeps now and every 15 minutes, once per process (dev reloads keep the timer they have). */
 export function startJobSweep(): void {
   if (globalForSweep.jobSweepTimer) return;
-  const sweep = () => void sweepFinishedJobs().catch((error: unknown) => logServerError("job sweep", error));
+  const sweep = () => void forEachStudent("job sweep", () => sweepFinishedJobs()).catch((error: unknown) => logServerError("job sweep", error));
   globalForSweep.jobSweepTimer = setInterval(sweep, EVERY_MS);
   // Don't keep the process alive just for this.
   globalForSweep.jobSweepTimer.unref?.();
