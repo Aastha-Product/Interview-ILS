@@ -29,6 +29,10 @@ export default function PrivacyPage() {
           <strong>Your control:</strong> from Settings you can download everything we hold about you, or permanently delete
           your account with all its data and files.
         </p>
+        <p>
+          <strong>How long we keep it:</strong> your profile, files and applications stay until you delete them. Records of AI
+          requests (never their content) are kept for 30 days, and backups expire within 30 days.
+        </p>
       </div>
       <p className="mt-8">
         <Link href="/signin" className="text-brand-700 underline">
