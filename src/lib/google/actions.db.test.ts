@@ -2,6 +2,7 @@ import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vites
 
 import { MockProvider } from "@/lib/ai/providers/mock";
 import { createTestClient, resetDatabase } from "@/test/db";
+import { CURRENT_USER } from "@/lib/owner/scope";
 
 // The Google actions and loaders (E15) against the test database, signed
 // in, with Google's APIs answered by a fake fetch.
@@ -13,7 +14,7 @@ vi.mock("@/lib/prisma", async () => {
   return { prisma: db.client };
 });
 vi.mock("@/lib/auth/session", () => ({
-  getSession: async () => ({ persistent: false, issuedAt: new Date(), expiresAt: new Date(Date.now() + 60_000) }),
+  getSession: async () => ({ userId: "test-student", persistent: false, issuedAt: new Date(), expiresAt: new Date(Date.now() + 60_000) }),
 }));
 vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
 vi.mock("@/lib/env", () => ({
@@ -211,7 +212,7 @@ describe("Settings → Google (E15-1)", () => {
       ok: true,
       data: { id: "client", idState: "set", secretState: "set" },
     });
-    const stored = await prisma().setting.findUnique({ where: { key: "googleClientSecretEnc" } });
+    const stored = await prisma().setting.findUnique({ where: { userId_key: { userId: CURRENT_USER, key: "googleClientSecretEnc" } } });
     expect(stored?.value).toMatch(/^v1\./);
     expect(stored?.value).not.toContain("new-secret");
     // Same client ID, new secret: the account stays connected.

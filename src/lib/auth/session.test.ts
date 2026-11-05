@@ -21,8 +21,9 @@ const later = (seconds: number) => new Date(now.getTime() + seconds * 1000);
 
 describe("session tokens", () => {
   it("round-trips a browser session that lasts 24 hours", async () => {
-    const token = await encodeSession({ persistent: false }, { key, fingerprint, now });
+    const token = await encodeSession({ persistent: false, userId: "test-student" }, { key, fingerprint, now });
     expect(await decodeSession(token, { key, fingerprint, now })).toEqual({
+      userId: "test-student",
       persistent: false,
       issuedAt: now,
       expiresAt: later(24 * 60 * 60),
@@ -32,19 +33,26 @@ describe("session tokens", () => {
   });
 
   it("keeps a persistent session for 30 days", async () => {
-    const token = await encodeSession({ persistent: true }, { key, fingerprint, now });
-    expect(await decodeSession(token, { key, fingerprint, now: later(29 * 24 * 60 * 60) })).toMatchObject({ persistent: true });
+    const token = await encodeSession({ persistent: true, userId: "test-student" }, { key, fingerprint, now });
+    expect(await decodeSession(token, { key, fingerprint, now: later(29 * 24 * 60 * 60) })).toMatchObject({ persistent: true, userId: "test-student" });
     expect(await decodeSession(token, { key, fingerprint, now: later(30 * 24 * 60 * 60) })).toBeNull();
   });
 
+  it("refuses a session that names no student, like one from before accounts (Pathfinder)", async () => {
+    for (const userId of [undefined, ""]) {
+      const token = await encodeSession({ persistent: true, userId: userId as unknown as string }, { key, fingerprint, now });
+      expect(await decodeSession(token, { key, fingerprint, now })).toBeNull();
+    }
+  });
+
   it("is encrypted, not just signed", async () => {
-    const token = await encodeSession({ persistent: true }, { key, fingerprint, now });
+    const token = await encodeSession({ persistent: true, userId: "test-student" }, { key, fingerprint, now });
     expect(token.split(".")).toHaveLength(5); // JWE compact serialization
     expect(token).not.toContain(Buffer.from('"persistent"').toString("base64url"));
   });
 
   it("rejects tampered tokens, other keys and missing cookies", async () => {
-    const token = await encodeSession({ persistent: false }, { key, fingerprint, now });
+    const token = await encodeSession({ persistent: false, userId: "test-student" }, { key, fingerprint, now });
     const parts = token.split(".");
     const flipped = parts[3].startsWith("A") ? `B${parts[3].slice(1)}` : `A${parts[3].slice(1)}`;
     const tampered = [...parts.slice(0, 3), flipped, parts[4]].join(".");
@@ -63,7 +71,7 @@ describe("session tokens", () => {
       .encrypt(key);
     expect(await decodeSession(noFlag, { key, fingerprint, now })).toBeNull();
 
-    const noExpiry = await new EncryptJWT({ persistent: false })
+    const noExpiry = await new EncryptJWT({ persistent: false, userId: "test-student" })
       .setProtectedHeader({ alg: "dir", enc: "A256GCM" })
       .setIssuedAt()
       .encrypt(key);
@@ -95,7 +103,7 @@ describe("password fingerprint", () => {
   const fingerprintKey = deriveKey("password-fingerprint", secret);
 
   it("ends sessions created while another password was set", async () => {
-    const token = await encodeSession({ persistent: true }, { key, fingerprint, now });
+    const token = await encodeSession({ persistent: true, userId: "test-student" }, { key, fingerprint, now });
     const changed = passwordFingerprint("new password", fingerprintKey);
     expect(await decodeSession(token, { key, fingerprint: changed, now })).toBeNull();
     expect(await decodeSession(token, { key, fingerprint, now })).not.toBeNull();

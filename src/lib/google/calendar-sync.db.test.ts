@@ -1,6 +1,7 @@
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createTestClient, resetDatabase } from "@/test/db";
+import { CURRENT_USER } from "@/lib/owner/scope";
 
 // Interviews kept in step with Google Calendar both ways (E15-5), against the
 // test database and a fake Calendar API that keeps its events in memory.
@@ -171,7 +172,7 @@ describe("the dashboard calendar's data (E15-6)", () => {
 
   it("shows only interviews, saying why, without the calendar", async () => {
     await prisma().application.update({ where: { id: "nw" }, data: { nextInterviewAt: new Date("2026-10-22T11:00:00Z") } });
-    await prisma().googleAccount.update({ where: { id: "google" }, data: { scopes: "openid email" } });
+    await prisma().googleAccount.update({ where: { userId_id: { userId: CURRENT_USER, id: "google" } }, data: { scopes: "openid email" } });
     expect(await loadCalendar(week)).toMatchObject({ source: { status: "no-permission" }, items: [{ id: "interview-nw", kind: "interview" }] });
     await prisma().googleAccount.deleteMany();
     expect((await loadCalendar(week)).source).toEqual({ status: "not-connected" });

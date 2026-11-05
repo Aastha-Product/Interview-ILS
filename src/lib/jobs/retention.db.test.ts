@@ -5,6 +5,7 @@ import path from "node:path";
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { saveSettings } from "@/lib/settings-data";
+import { rawClientOf } from "@/lib/owner/scope";
 import { createTestClient, resetDatabase } from "@/test/db";
 
 import { sweepFinishedJobs } from "./retention";
@@ -56,7 +57,7 @@ describe("sweepFinishedJobs", () => {
 
   it("goes by the last change for a finished job without an end time", async () => {
     await prisma().job.create({ data: { id: "no-end", type: "read-posting", status: "DONE", input: {} } });
-    await prisma().$executeRaw`UPDATE "Job" SET "updatedAt" = ${hoursAgo(25)} WHERE id = 'no-end'`;
+    await rawClientOf(prisma()).$executeRaw`UPDATE "Job" SET "updatedAt" = ${hoursAgo(25)} WHERE id = 'no-end'`;
     await sweepFinishedJobs(now);
     expect(await left()).not.toContain("no-end");
   });

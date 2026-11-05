@@ -6,6 +6,7 @@ import { BASICS_FIELDS, sameName } from "@/lib/profile";
 import type { ImportedProfile, ImportMode } from "@/lib/profile-import";
 import { settingsFromRows } from "@/lib/settings";
 import { saveSettings } from "@/lib/settings-data";
+import { CURRENT_USER } from "@/lib/owner/scope";
 
 type Tx = Prisma.TransactionClient;
 
@@ -37,7 +38,7 @@ export async function applyImportedProfile(db: PrismaClient, profile: ImportedPr
       );
 
       for (const [key, value] of Object.entries(profile.basics)) {
-        await tx.profileField.upsert({ where: { key }, create: { key, value }, update: { value } });
+        await tx.profileField.upsert({ where: { userId_key: { userId: CURRENT_USER, key: key } }, create: { key, value }, update: { value } });
       }
 
       const skillIds = await applySkills(tx, profile);
@@ -112,7 +113,7 @@ async function applySkills(tx: Tx, profile: ImportedProfile): Promise<Map<string
   const ids = new Map<string, string>();
   let sort = ((await tx.skill.aggregate({ _max: { sort: true } }))._max.sort ?? -1) + 1;
   for (const { name } of profile.skills) {
-    const skill = (await tx.skill.findUnique({ where: { name } })) ?? (await tx.skill.create({ data: { name, sort: sort++ } }));
+    const skill = (await tx.skill.findUnique({ where: { userId_name: { userId: CURRENT_USER, name } } })) ?? (await tx.skill.create({ data: { name, sort: sort++ } }));
     ids.set(name.toLowerCase(), skill.id);
   }
   return ids;
@@ -122,7 +123,7 @@ async function applySkills(tx: Tx, profile: ImportedProfile): Promise<Map<string
 async function applyLanguages(tx: Tx, profile: ImportedProfile): Promise<void> {
   let sort = ((await tx.language.aggregate({ _max: { sort: true } }))._max.sort ?? -1) + 1;
   for (const { name, level, levelGiven } of profile.languages) {
-    const existing = await tx.language.findUnique({ where: { name } });
+    const existing = await tx.language.findUnique({ where: { userId_name: { userId: CURRENT_USER, name } } });
     if (!existing) await tx.language.create({ data: { name, level, sort: sort++ } });
     else if (levelGiven) await tx.language.update({ where: { id: existing.id }, data: { level } });
   }

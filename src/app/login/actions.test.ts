@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { loginWaitMs, recordLoginFailure, recordLoginSuccess } from "@/lib/auth/login-throttle";
 import { passwordMatches, startSession } from "@/lib/auth/session";
-import { prisma } from "@/lib/prisma";
+import { systemPrisma } from "@/lib/prisma";
 import { loadProfileName } from "@/lib/profile-data";
 
 import { signIn, signInWithForm } from "./actions";
@@ -27,7 +27,9 @@ vi.mock("@/lib/auth/login-throttle", () => ({
   recordLoginFailure: vi.fn(),
   recordLoginSuccess: vi.fn(),
 }));
-vi.mock("@/lib/prisma", () => ({ prisma: {} }));
+vi.mock("@/lib/prisma", () => ({
+  systemPrisma: { user: { upsert: vi.fn(async ({ create }: { create: { email: string } }) => ({ id: "student-1", email: create.email })) } },
+}));
 vi.mock("@/lib/profile-data", () => ({ loadProfileName: vi.fn() }));
 
 describe("signIn", () => {
@@ -39,7 +41,7 @@ describe("signIn", () => {
   });
 
   it("asks for a password when none was entered, without counting it as a failure", async () => {
-    await expect(signIn({ password: "", remember: false })).resolves.toEqual({
+    await expect(signIn({ email: "Jane@Example.com", password: "", remember: false })).resolves.toEqual({
       ok: false,
       error: loginMessages.empty,
     });
@@ -48,17 +50,17 @@ describe("signIn", () => {
   });
 
   it("refuses a wrong password and counts the failure for the client's IP", async () => {
-    await expect(signIn({ password: "hunter2", remember: false })).resolves.toEqual({
+    await expect(signIn({ email: "Jane@Example.com", password: "hunter2", remember: false })).resolves.toEqual({
       ok: false,
       error: loginMessages.wrong,
     });
-    expect(recordLoginFailure).toHaveBeenCalledWith(prisma, "203.0.113.7");
+    expect(recordLoginFailure).toHaveBeenCalledWith(systemPrisma, "203.0.113.7");
     expect(startSession).not.toHaveBeenCalled();
   });
 
   it("refuses to even check the password while the IP is blocked", async () => {
     vi.mocked(loginWaitMs).mockResolvedValue(29_500);
-    await expect(signIn({ password: "correct horse", remember: false })).resolves.toEqual({
+    await expect(signIn({ email: "Jane@Example.com", password: "correct horse", remember: false })).resolves.toEqual({
       ok: false,
       error: "Too many attempts. Try again in 30 seconds.",
     });
@@ -68,22 +70,29 @@ describe("signIn", () => {
 
   it("starts a session, resets the IP's counter and welcomes the user by first name", async () => {
     await expect(
-      signIn({ password: "correct horse", remember: true, next: "/applications/abc" }),
+      signIn({ email: "Jane@Example.com", password: "correct horse", remember: true, next: "/applications/abc" }),
     ).resolves.toEqual({
       ok: true,
       data: { redirectTo: "/applications/abc" },
       toast: "Welcome back, Jane.",
     });
-    expect(recordLoginSuccess).toHaveBeenCalledWith(prisma, "203.0.113.7");
-    expect(startSession).toHaveBeenCalledWith({ persistent: true });
+    expect(recordLoginSuccess).toHaveBeenCalledWith(systemPrisma, "203.0.113.7");
+    expect(startSession).toHaveBeenCalledWith({ persistent: true, userId: "student-1" });
+  });
+
+  it("asks for an email address, and stores it in lower case", async () => {
+    await expect(signIn({ email: "not an email", password: "correct horse", remember: false })).resolves.toMatchObject({ ok: false });
+    expect(startSession).not.toHaveBeenCalled();
+    await signIn({ email: "Jane@Example.com", password: "correct horse", remember: false });
+    expect(systemPrisma.user.upsert).toHaveBeenCalledWith(expect.objectContaining({ where: { email: "jane@example.com" } }));
   });
 
   it("says 'there' before the profile has a name, and ignores unsafe redirects", async () => {
     vi.mocked(loadProfileName).mockResolvedValue("");
     await expect(
-      signIn({ password: "correct horse", remember: false, next: "https://evil.example" }),
+      signIn({ email: "Jane@Example.com", password: "correct horse", remember: false, next: "https://evil.example" }),
     ).resolves.toMatchObject({ data: { redirectTo: "/" }, toast: "Welcome back, there." });
-    expect(startSession).toHaveBeenCalledWith({ persistent: false });
+    expect(startSession).toHaveBeenCalledWith({ persistent: false, userId: "student-1" });
   });
 });
 
@@ -102,22 +111,22 @@ describe("signInWithForm", () => {
   }
 
   it("returns the error for the page to show", async () => {
-    await expect(signInWithForm(null, form({ password: "hunter2" }))).resolves.toEqual({ error: loginMessages.wrong });
-    await expect(signInWithForm(null, form({}))).resolves.toEqual({ error: loginMessages.empty });
+    await expect(signInWithForm(null, form({ email: "jane@example.com", password: "hunter2" }))).resolves.toEqual({ error: loginMessages.wrong });
+    await expect(signInWithForm(null, form({ email: "jane@example.com" }))).resolves.toEqual({ error: loginMessages.empty });
     expect(startSession).not.toHaveBeenCalled();
   });
 
   it("signs in and goes on to the next page", async () => {
     await expect(
-      signInWithForm(null, form({ password: "correct horse", remember: "on", next: "/profile" })),
+      signInWithForm(null, form({ email: "jane@example.com", password: "correct horse", remember: "on", next: "/profile" })),
     ).rejects.toThrow("redirect /profile");
-    expect(startSession).toHaveBeenCalledWith({ persistent: true });
+    expect(startSession).toHaveBeenCalledWith({ persistent: true, userId: "student-1" });
   });
 
   it("goes to the dashboard when there's no next page, and remembers only when ticked", async () => {
-    await expect(signInWithForm({ error: loginMessages.wrong }, form({ password: "correct horse" }))).rejects.toThrow(
+    await expect(signInWithForm({ error: loginMessages.wrong }, form({ email: "jane@example.com", password: "correct horse" }))).rejects.toThrow(
       /^redirect \/$/,
     );
-    expect(startSession).toHaveBeenCalledWith({ persistent: false });
+    expect(startSession).toHaveBeenCalledWith({ persistent: false, userId: "student-1" });
   });
 });

@@ -54,6 +54,7 @@ export default defineConfig({
           environment: "node",
           include: ["src/**/*.db.test.ts", "prisma/**/*.db.test.ts"],
           globalSetup: ["./src/test/db-global-setup.ts"],
+          setupFiles: ["./src/test/setup-db.ts"],
           // The files share one database, so they run one at a time.
           fileParallelism: false,
         },

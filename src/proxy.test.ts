@@ -49,13 +49,13 @@ describe("proxy matcher", () => {
 
 describe("proxy", () => {
   it("lets signed-in requests through", async () => {
-    const token = await encodeSession({ persistent: false }, { key, fingerprint });
+    const token = await encodeSession({ persistent: false, userId: "test-student" }, { key, fingerprint });
     const response = await proxy(request("/profile", { cookie: token }));
     expect(response.headers.get("x-middleware-next")).toBe("1");
   });
 
   it("gives pages a Content-Security-Policy with a fresh nonce, for the browser and for Next.js (E11-5)", async () => {
-    const token = await encodeSession({ persistent: false }, { key, fingerprint });
+    const token = await encodeSession({ persistent: false, userId: "test-student" }, { key, fingerprint });
     const first = await proxy(request("/profile", { cookie: token }));
     const second = await proxy(request("/login"));
     const policy = first.headers.get("content-security-policy");
@@ -74,7 +74,7 @@ describe("proxy", () => {
   });
 
   it("leaves API answers without a policy", async () => {
-    const token = await encodeSession({ persistent: false }, { key, fingerprint });
+    const token = await encodeSession({ persistent: false, userId: "test-student" }, { key, fingerprint });
     const response = await proxy(request("/api/pdf/1", { cookie: token }));
     expect(response.headers.get("x-middleware-next")).toBe("1");
     expect(response.headers.get("content-security-policy")).toBeNull();
@@ -89,11 +89,11 @@ describe("proxy", () => {
 
   it("treats an expired, forged or pre-password-change cookie as signed out", async () => {
     const expired = await encodeSession(
-      { persistent: false },
+      { persistent: false, userId: "test-student" },
       { key, fingerprint, now: new Date(Date.now() - 25 * 60 * 60 * 1000) },
     );
-    const forged = await encodeSession({ persistent: true }, { key: deriveKey("session", "b".repeat(32)), fingerprint });
-    const oldPassword = await encodeSession({ persistent: true }, { key, fingerprint: "stale-fingerprint" });
+    const forged = await encodeSession({ persistent: true, userId: "test-student" }, { key: deriveKey("session", "b".repeat(32)), fingerprint });
+    const oldPassword = await encodeSession({ persistent: true, userId: "test-student" }, { key, fingerprint: "stale-fingerprint" });
     for (const cookie of [expired, forged, oldPassword, "garbage"]) {
       expect(getRedirectUrl(await proxy(request("/profile", { cookie })))).toContain("/login");
     }

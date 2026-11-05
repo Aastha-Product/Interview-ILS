@@ -3,6 +3,7 @@ import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { decryptApiKey, encryptApiKey } from "@/lib/ai/api-key";
 import { decryptSecret, encryptSecret, JOB_SOURCE_KEY, TYPESAFE_KEY } from "@/lib/secrets";
 import { createTestClient, resetDatabase } from "@/test/db";
+import { CURRENT_USER } from "@/lib/owner/scope";
 
 import { seedBuiltIns } from "../../prisma/seed/built-ins";
 import { seedDemo } from "../../prisma/seed/demo";
@@ -49,7 +50,7 @@ describe("importExport (E10-6)", () => {
     await prisma().project.deleteMany();
     await prisma().fact.deleteMany();
     await prisma().skill.create({ data: { name: "Kubernetes" } });
-    await prisma().setting.upsert({ where: { key: "paper" }, create: { key: "paper", value: "LETTER" }, update: { value: "LETTER" } });
+    await prisma().setting.upsert({ where: { userId_key: { userId: CURRENT_USER, key: "paper" } }, create: { key: "paper", value: "LETTER" }, update: { value: "LETTER" } });
     await prisma().theme.create({ data: { id: "later", name: "Later", headFont: "GEIST", bodyFont: "GEIST", accent: "#000000" } });
 
     // …and the import puts it back exactly, versions included.
@@ -104,7 +105,7 @@ describe("importExport (E10-6)", () => {
 
   it("keeps the current API key when the file has none", async () => {
     await importExport(prisma(), await asFile());
-    const saved = await prisma().setting.findUniqueOrThrow({ where: { key: "apiKeyEnc" } });
+    const saved = await prisma().setting.findUniqueOrThrow({ where: { userId_key: { userId: CURRENT_USER, key: "apiKeyEnc" } } });
     expect(decryptApiKey(saved.value, secret)).toBe("sk-current");
   });
 
@@ -138,7 +139,7 @@ describe("importExport (E10-6)", () => {
   it("saves the file's API key, encrypted for this server", async () => {
     const file = await asFile();
     await importExport(prisma(), { ...file, apiKey: "sk-from-file" });
-    const saved = await prisma().setting.findUniqueOrThrow({ where: { key: "apiKeyEnc" } });
+    const saved = await prisma().setting.findUniqueOrThrow({ where: { userId_key: { userId: CURRENT_USER, key: "apiKeyEnc" } } });
     expect(saved.value).not.toContain("sk-from-file");
     expect(decryptApiKey(saved.value, secret)).toBe("sk-from-file");
   });
@@ -343,10 +344,10 @@ describe("importExport (E10-6)", () => {
     expect(file.settings.map((setting) => setting.key)).not.toContain("jsearchKeyEnc");
 
     await importExport(prisma(), { ...file, jobSourceKeys: { jsearch: "ak-from-file" } });
-    const value = async (key: string) => decryptSecret(JOB_SOURCE_KEY, (await prisma().setting.findUniqueOrThrow({ where: { key } })).value, secret);
+    const value = async (key: string) => decryptSecret(JOB_SOURCE_KEY, (await prisma().setting.findUniqueOrThrow({ where: { userId_key: { userId: CURRENT_USER, key } } })).value, secret);
     expect(await value("jsearchKeyEnc")).toBe("ak-from-file");
     expect(await value("adzunaKeyEnc")).toBe("adz-current");
-    expect(decryptApiKey((await prisma().setting.findUniqueOrThrow({ where: { key: "apiKeyEnc" } })).value, secret)).toBe("sk-current");
+    expect(decryptApiKey((await prisma().setting.findUniqueOrThrow({ where: { userId_key: { userId: CURRENT_USER, key: "apiKeyEnc" } } })).value, secret)).toBe("sk-current");
   });
 
   it("never exports the TypeSafe key, and keeps this server's on import (#274)", async () => {
@@ -363,9 +364,9 @@ describe("importExport (E10-6)", () => {
     expect(JSON.stringify(file)).not.toContain("ts-current");
 
     await importExport(prisma(), { ...file, settings: file.settings.filter((setting) => setting.key !== "scorer") });
-    const kept = await prisma().setting.findUniqueOrThrow({ where: { key: "typesafeKeyEnc" } });
+    const kept = await prisma().setting.findUniqueOrThrow({ where: { userId_key: { userId: CURRENT_USER, key: "typesafeKeyEnc" } } });
     expect(decryptSecret(TYPESAFE_KEY, kept.value, secret)).toBe("ts-current");
-    expect(await prisma().setting.findUnique({ where: { key: "scorer" } })).toBeNull();
+    expect(await prisma().setting.findUnique({ where: { userId_key: { userId: CURRENT_USER, key: "scorer" } } })).toBeNull();
   });
 
   it("points documents at the base theme when their theme isn't in the file", async () => {

@@ -34,7 +34,7 @@ vi.mock("@/lib/prisma", async () => {
   return { prisma: db.client };
 });
 vi.mock("@/lib/auth/session", () => ({
-  getSession: async () => ({ persistent: false, issuedAt: new Date(), expiresAt: new Date(Date.now() + 60_000) }),
+  getSession: async () => ({ userId: "test-student", persistent: false, issuedAt: new Date(), expiresAt: new Date(Date.now() + 60_000) }),
 }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 // The calendar's side is tested in src/lib/google; here it's off unless a test says otherwise.

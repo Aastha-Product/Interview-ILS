@@ -3,6 +3,7 @@ import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { FoundPosting } from "@/lib/job-search/search";
 import { postingStates } from "@/lib/postings";
 import { createTestClient, resetDatabase } from "@/test/db";
+import { CURRENT_USER } from "@/lib/owner/scope";
 
 import { MockProvider } from "../ai/providers/mock";
 
@@ -68,7 +69,7 @@ describe("Score in Find jobs (#208)", () => {
     expect(run.steps).toEqual(["Getting the whole posting", "Scoring it against your profile"]);
     expect(fake.sent[0]).toContain("The whole posting: design our freight tools.");
 
-    expect(await prisma().postingScore.findUniqueOrThrow({ where: { source_externalId: { source: "ADZUNA", externalId: "az-1" } } })).toMatchObject({ score: 78, scoredWith: "score-posting@2" });
+    expect(await prisma().postingScore.findUniqueOrThrow({ where: { userId_source_externalId: { userId: CURRENT_USER, source: "ADZUNA", externalId: "az-1" } } })).toMatchObject({ score: 78, scoredWith: "score-posting@2" });
     expect((await postingStates([posting])).get("ADZUNA:az-1")?.score).toEqual({ score: 78, reasons: ["Built a design system at Northwind."], redFlags: ["Dutch is required."] });
   });
 

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { prisma } from "@/lib/prisma";
+import { systemPrisma } from "@/lib/prisma";
 import { appVersion } from "@/lib/version";
 
 /** A database that doesn't answer within this counts as down. */
@@ -13,7 +13,7 @@ const DB_TIMEOUT_MS = 3_000;
  */
 export async function GET() {
   const db = await Promise.race([
-    prisma.$queryRaw`SELECT 1`.then(() => "ok" as const),
+    systemPrisma.$queryRaw`SELECT 1`.then(() => "ok" as const),
     new Promise<"unreachable">((resolve) => setTimeout(() => resolve("unreachable"), DB_TIMEOUT_MS).unref()),
   ]).catch(() => "unreachable" as const);
   return NextResponse.json(

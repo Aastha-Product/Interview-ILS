@@ -2,6 +2,7 @@ import "server-only";
 
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
+import { CURRENT_USER } from "@/lib/owner/scope";
 import { DEFAULT_BASE_THEME, settingsFromRows, settingValue, type SettingsData } from "@/lib/settings";
 
 /**
@@ -27,6 +28,6 @@ export async function saveSettings(changes: Partial<SettingsData>, db?: Prisma.T
     if (change === undefined) continue;
     const value = settingValue(change);
     if (value === null) await db.setting.deleteMany({ where: { key } });
-    else await db.setting.upsert({ where: { key }, create: { key, value }, update: { value } });
+    else await db.setting.upsert({ where: { userId_key: { userId: CURRENT_USER, key: key } }, create: { key, value }, update: { value } });
   }
 }

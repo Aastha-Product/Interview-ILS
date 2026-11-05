@@ -25,6 +25,8 @@ export const SESSION_LIFETIME = { browser: 24 * HOUR, persistent: 30 * 24 * HOUR
 
 /** A signed-in session. */
 export type Session = {
+  /** The signed-in student (Pathfinder: private accounts). */
+  userId: string;
   /** Signed in with "Keep me signed in". */
   persistent: boolean;
   issuedAt: Date;
@@ -58,11 +60,11 @@ const seconds = (date: Date) => Math.floor(date.getTime() / 1000);
 
 /** Creates the encrypted session token. */
 export async function encodeSession(
-  { persistent }: { persistent: boolean },
+  { persistent, userId }: { persistent: boolean; userId: string },
   { key, fingerprint, now = new Date() }: TokenOptions,
 ): Promise<string> {
   const issuedAt = seconds(now);
-  return new EncryptJWT({ persistent, pwd: fingerprint })
+  return new EncryptJWT({ persistent, pwd: fingerprint, uid: userId })
     .setProtectedHeader({ alg: "dir", enc: "A256GCM" })
     .setIssuedAt(issuedAt)
     .setExpirationTime(issuedAt + SESSION_LIFETIME[persistent ? "persistent" : "browser"])
@@ -85,8 +87,12 @@ export async function decodeSession(
       contentEncryptionAlgorithms: ["A256GCM"],
       requiredClaims: ["iat", "exp"],
     });
-    if (typeof payload.persistent !== "boolean" || payload.pwd !== fingerprint) return null;
+    // A token without a student (from before private accounts) counts as signed out.
+    if (typeof payload.persistent !== "boolean" || payload.pwd !== fingerprint || typeof payload.uid !== "string" || !payload.uid) {
+      return null;
+    }
     return {
+      userId: payload.uid,
       persistent: payload.persistent,
       issuedAt: new Date(payload.iat! * 1000),
       expiresAt: new Date(payload.exp! * 1000),
@@ -108,8 +114,8 @@ async function isHttps(): Promise<boolean> {
 }
 
 /** Signs the user in: sets the session cookie. Call from a Server Action or route handler. */
-export async function startSession({ persistent }: { persistent: boolean }): Promise<void> {
-  const token = await encodeSession({ persistent }, sessionTokenOptions());
+export async function startSession({ persistent, userId }: { persistent: boolean; userId: string }): Promise<void> {
+  const token = await encodeSession({ persistent, userId }, sessionTokenOptions());
   (await cookies()).set(SESSION_COOKIE, token, {
     httpOnly: true,
     sameSite: "lax",

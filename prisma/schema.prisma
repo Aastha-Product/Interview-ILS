@@ -24,22 +24,73 @@ datasource db {
 /// The profile's basics (name, headline, contact details, summary…), one row
 /// per filled-in field. The keys and how each value is written are in
 /// src/lib/profile.ts (PROFILE_KEYS); a missing key means empty.
+// ─── Users (Pathfinder) ──────────────────────────────────────────────────────
+
+/// A student with a private account. Everything they store belongs to them and is deleted with them.
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique @db.Citext
+  name      String   @default("")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  profileFields    ProfileField[]
+  skills           Skill[]
+  languages        Language[]
+  experiences      Experience[]
+  experienceSkills ExperienceSkill[]
+  projects         Project[]
+  projectSkills    ProjectSkill[]
+  educations       Education[]
+  publications     Publication[]
+  references       Reference[]
+  facts            Fact[]
+  themes           Theme[]
+  settings         Setting[]
+  applications     Application[]
+  statusEvents     StatusEvent[]
+  documents        Document[]
+  documentVersions DocumentVersion[]
+  chatMessages     ChatMessage[]
+  notes            Note[]
+  postings         Posting[]
+  claudePastes     ClaudePaste[]
+  agentCandidates  AgentCandidate[]
+  postingScores    PostingScore[]
+  postingSearchs   PostingSearch[]
+  startups         Startup[]
+  startupBlocks    StartupBlock[]
+  googleAccounts   GoogleAccount[]
+  emailMessages    EmailMessage[]
+  jobs             Job[]
+}
+
 model ProfileField {
-  key       String   @id
+  /// The student this belongs to.
+  userId    String   @default(dbgenerated("current_setting('app.user_id')"))
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  key       String
   value     String
   updatedAt DateTime @updatedAt
+
+  @@id([userId, key])
 }
 
 model Skill {
+  /// The student this belongs to.
+  userId      String            @default(dbgenerated("current_setting('app.user_id')"))
+  user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   id          String            @id @default(cuid())
   /// Unique ignoring case ("Figma" and "figma" are the same skill).
-  name        String            @unique @db.Citext
+  name        String            @db.Citext
   sort        Int               @default(0)
   /// The group it's printed under on resumes ("Technical SEO"); empty for none (#280).
   group       String            @default("")
   experiences ExperienceSkill[]
   projects    ProjectSkill[]
   createdAt   DateTime          @default(now())
+
+  @@unique([userId, name])
 }
 
 enum LanguageLevel {
@@ -53,16 +104,24 @@ enum LanguageLevel {
 }
 
 model Language {
+  /// The student this belongs to.
+  userId    String        @default(dbgenerated("current_setting('app.user_id')"))
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   id        String        @id @default(cuid())
   /// Unique ignoring case; adding an existing language updates its level (PRO-4).
-  name      String        @unique @db.Citext
+  name      String        @db.Citext
   level     LanguageLevel
   sort      Int           @default(0)
   createdAt DateTime      @default(now())
+
+  @@unique([userId, name])
 }
 
 /// A role. Dates are month and year; `current` means "Present" (no end date).
 model Experience {
+  /// The student this belongs to.
+  userId     String            @default(dbgenerated("current_setting('app.user_id')"))
+  user       User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   id         String            @id @default(cuid())
   role       String            @default("")
   company    String            @default("")
@@ -81,10 +140,15 @@ model Experience {
   skills     ExperienceSkill[]
   createdAt  DateTime          @default(now())
   updatedAt  DateTime          @updatedAt
+
+  @@index([userId])
 }
 
 /// A skill used in a role (PRO-6). Deleting either side removes the link (PRO-3).
 model ExperienceSkill {
+  /// The student this belongs to.
+  userId       String     @default(dbgenerated("current_setting('app.user_id')"))
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   experienceId String
   skillId      String
   experience   Experience @relation(fields: [experienceId], references: [id], onDelete: Cascade)
@@ -92,10 +156,14 @@ model ExperienceSkill {
 
   @@id([experienceId, skillId])
   @@index([skillId])
+  @@index([userId])
 }
 
 /// A side, open-source, course or thesis project (PRO-13). Dates work as in Experience.
 model Project {
+  /// The student this belongs to.
+  userId     String         @default(dbgenerated("current_setting('app.user_id')"))
+  user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   id         String         @id @default(cuid())
   name       String         @default("")
   /// Where it can be seen, e.g. its repository or site.
@@ -111,10 +179,15 @@ model Project {
   skills     ProjectSkill[]
   createdAt  DateTime       @default(now())
   updatedAt  DateTime       @updatedAt
+
+  @@index([userId])
 }
 
 /// A skill used in a project, as ExperienceSkill is for a role.
 model ProjectSkill {
+  /// The student this belongs to.
+  userId    String  @default(dbgenerated("current_setting('app.user_id')"))
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
   projectId String
   skillId   String
   project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -122,10 +195,14 @@ model ProjectSkill {
 
   @@id([projectId, skillId])
   @@index([skillId])
+  @@index([userId])
 }
 
 /// A degree, course or certificate. Dates work as in Experience.
 model Education {
+  /// The student this belongs to.
+  userId     String   @default(dbgenerated("current_setting('app.user_id')"))
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   id         String   @id @default(cuid())
   degree     String   @default("")
   school     String   @default("")
@@ -138,11 +215,16 @@ model Education {
   sort       Int      @default(0)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
+
+  @@index([userId])
 }
 
 /// Private unless included in a document (PRO-8).
 /// A publication (#218), cited the way its author wants: no citation style is enforced.
 model Publication {
+  /// The student this belongs to.
+  userId    String   @default(dbgenerated("current_setting('app.user_id')"))
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   id        String   @id @default(cuid())
   /// The citation as written, with **bold** and *italic* marked like that.
   citation  String   @default("")
@@ -153,9 +235,14 @@ model Publication {
   sort      Int      @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([userId])
 }
 
 model Reference {
+  /// The student this belongs to.
+  userId    String   @default(dbgenerated("current_setting('app.user_id')"))
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   id        String   @id @default(cuid())
   name      String   @default("")
   relation  String   @default("")
@@ -165,12 +252,17 @@ model Reference {
   sort      Int      @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([userId])
 }
 
 /// Something the user tells the AI about themselves: one of the profile's
 /// "Facts about me", or one for a single application. Never shown on a
 /// document; given to the AI with the profile when it writes.
 model Fact {
+  /// The student this belongs to.
+  userId        String       @default(dbgenerated("current_setting('app.user_id')"))
+  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   id            String       @id @default(cuid())
   /// The application it's for; null for the profile's own.
   applicationId String?
@@ -181,6 +273,7 @@ model Fact {
   updatedAt     DateTime     @updatedAt
 
   @@index([applicationId, sort])
+  @@index([userId])
 }
 
 // ─── Themes and settings (E2-2) ──────────────────────────────────────────────
@@ -279,6 +372,9 @@ enum Density {
 /// ("editorial") and are read-only: the app never edits them, the seed keeps
 /// them in sync, and a trigger stops them from being deleted.
 model Theme {
+  /// The student this belongs to. Empty for the built-in ones everyone shares.
+  userId        String?
+  user          User?         @relation(fields: [userId], references: [id], onDelete: Cascade)
   id            String        @id @default(cuid())
   builtIn       Boolean       @default(false)
   name          String
@@ -298,6 +394,8 @@ model Theme {
   documents     Document[]
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
+
+  @@index([userId])
 }
 
 enum AiProvider {
@@ -342,9 +440,14 @@ enum Tone {
 /// The keys, their types and defaults are in src/lib/settings.ts
 /// (settingsSchema); the enums above type its values.
 model Setting {
-  key       String   @id
+  /// The student this belongs to.
+  userId    String   @default(dbgenerated("current_setting('app.user_id')"))
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  key       String
   value     String
   updatedAt DateTime @updatedAt
+
+  @@id([userId, key])
 }
 
 // ─── Applications (E2-3) ─────────────────────────────────────────────────────
@@ -392,6 +495,9 @@ enum FunnelStage {
 }
 
 model Application {
+  /// The student this belongs to.
+  userId              String            @default(dbgenerated("current_setting('app.user_id')"))
+  user                User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   id                  String            @id @default(cuid())
   /// Whether the user made it, or the job agent prepared it (E16).
   origin              ApplicationOrigin @default(MANUAL)
@@ -461,11 +567,15 @@ model Application {
 
   @@index([status])
   @@index([updatedAt])
+  @@index([userId])
 }
 
 /// One status change. Keeps the application's furthestStage and sentAt from
 /// before the change, so the change can be undone (decision in #26).
 model StatusEvent {
+  /// The student this belongs to.
+  userId                String            @default(dbgenerated("current_setting('app.user_id')"))
+  user                  User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   id                    String            @id @default(cuid())
   applicationId         String
   application           Application       @relation(fields: [applicationId], references: [id], onDelete: Cascade)
@@ -476,6 +586,7 @@ model StatusEvent {
   previousSentAt        DateTime?
 
   @@index([applicationId, at])
+  @@index([userId])
 }
 
 enum DocumentKind {
@@ -487,6 +598,9 @@ enum DocumentKind {
 
 /// A tailored resume, cover letter or application email, split into editable units (unitsSchema).
 model Document {
+  /// The student this belongs to.
+  userId        String            @default(dbgenerated("current_setting('app.user_id')"))
+  user          User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   id            String            @id @default(cuid())
   applicationId String
   application   Application       @relation(fields: [applicationId], references: [id], onDelete: Cascade)
@@ -504,6 +618,7 @@ model Document {
   updatedAt     DateTime          @updatedAt
 
   @@unique([applicationId, kind])
+  @@index([userId])
 }
 
 /// Why a tailored document has a version (E8-10, APP-13).
@@ -526,6 +641,9 @@ enum VersionCause {
 
 /// A tailored document's units as they were at one point (E8-10).
 model DocumentVersion {
+  /// The student this belongs to.
+  userId     String       @default(dbgenerated("current_setting('app.user_id')"))
+  user       User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   id         String       @id @default(cuid())
   documentId String
   document   Document     @relation(fields: [documentId], references: [id], onDelete: Cascade)
@@ -536,6 +654,7 @@ model DocumentVersion {
   createdAt  DateTime     @default(now())
 
   @@index([documentId, createdAt])
+  @@index([userId])
 }
 
 enum ChatRole {
@@ -545,6 +664,9 @@ enum ChatRole {
 
 /// A message in an application's "Refine with AI" panel (APP-7).
 model ChatMessage {
+  /// The student this belongs to.
+  userId        String      @default(dbgenerated("current_setting('app.user_id')"))
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   id            String      @id @default(cuid())
   applicationId String
   application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
@@ -562,10 +684,14 @@ model ChatMessage {
   createdAt     DateTime    @default(now())
 
   @@index([applicationId, createdAt])
+  @@index([userId])
 }
 
 /// A private note or activity entry on an application (APP-14, E8-9).
 model Note {
+  /// The student this belongs to.
+  userId        String      @default(dbgenerated("current_setting('app.user_id')"))
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   id            String      @id @default(cuid())
   applicationId String
   application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
@@ -575,6 +701,7 @@ model Note {
   updatedAt     DateTime    @default(now()) @updatedAt
 
   @@index([applicationId, createdAt])
+  @@index([userId])
 }
 
 // ─── Job search (E14) ────────────────────────────────────────────────────────
@@ -591,6 +718,9 @@ enum PostingSource {
 /// started an application from. Plain search results aren't stored. The
 /// fields follow the posting shape in src/lib/job-search/search.ts.
 model Posting {
+  /// The student this belongs to.
+  userId        String        @default(dbgenerated("current_setting('app.user_id')"))
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   id            String        @id @default(cuid())
   source        PostingSource
   /// The source's own id for it.
@@ -619,7 +749,7 @@ model Posting {
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
 
-  @@unique([source, externalId])
+  @@unique([userId, source, externalId])
   @@index([savedAt])
   @@index([dismissedAt])
 }
@@ -628,6 +758,9 @@ model Posting {
 /// the Claude connector reads it by its id. It's kept for 14 days, then the
 /// task-data sweep deletes it.
 model ClaudePaste {
+  /// The student this belongs to.
+  userId    String   @default(dbgenerated("current_setting('app.user_id')"))
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   id        String   @id @default(uuid())
   text      String
   /// The posting's link, when one was given; always http(s), or empty.
@@ -636,6 +769,7 @@ model ClaudePaste {
   createdAt DateTime @default(now())
 
   @@index([expiresAt])
+  @@index([userId])
 }
 
 // ─── Job agent (E16) ─────────────────────────────────────────────────────────
@@ -644,6 +778,9 @@ model ClaudePaste {
 /// it. Kept after it's dismissed, trimmed to what dedupe needs, so the same
 /// posting never comes back.
 model AgentCandidate {
+  /// The student this belongs to.
+  userId        String               @default(dbgenerated("current_setting('app.user_id')"))
+  user          User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
   id            String               @id @default(cuid())
   source        PostingSource
   /// The source's own id for it.
@@ -674,11 +811,12 @@ model AgentCandidate {
   application   Application?         @relation(fields: [applicationId], references: [id], onDelete: SetNull)
   /// A hash of the link without tracking parameters, else of company, title
   /// and place: the same job from another source or a later run matches.
-  dedupeKey     String               @unique
+  dedupeKey     String
   createdAt     DateTime             @default(now())
   updatedAt     DateTime             @updatedAt
 
-  @@unique([source, externalId])
+  @@unique([userId, source, externalId])
+  @@unique([userId, dedupeKey])
   @@index([status, score])
   @@index([createdAt])
 }
@@ -687,6 +825,9 @@ model AgentCandidate {
 /// the job agent. Kept by the source's id, for search results that aren't
 /// stored as postings, so the score shows again in later searches.
 model PostingScore {
+  /// The student this belongs to.
+  userId     String        @default(dbgenerated("current_setting('app.user_id')"))
+  user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   source     PostingSource
   externalId String
   /// 0–100 (score-posting, or Jev).
@@ -699,12 +840,15 @@ model PostingScore {
   createdAt  DateTime      @default(now())
   updatedAt  DateTime      @updatedAt
 
-  @@id([source, externalId])
+  @@id([userId, source, externalId])
 }
 
 /// A search on Find jobs, kept with what it found until the user removes it
 /// (E14-10), so going back to it costs no searches from the source's plan.
 model PostingSearch {
+  /// The student this belongs to.
+  userId    String        @default(dbgenerated("current_setting('app.user_id')"))
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   id        String        @id @default(cuid())
   source    PostingSource
   /// The search as asked (searchQuerySchema in src/lib/job-search/search.ts).
@@ -719,6 +863,7 @@ model PostingSearch {
   updatedAt DateTime      @updatedAt
 
   @@index([createdAt])
+  @@index([userId])
 }
 
 // ─── Startups (#222) ─────────────────────────────────────────────────────────
@@ -737,6 +882,9 @@ enum StartupStatus {
 /// with what the user did with it; untouched ones go once no refresh finds
 /// them for a while.
 model Startup {
+  /// The student this belongs to.
+  userId             String        @default(dbgenerated("current_setting('app.user_id')"))
+  user               User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   id                 String        @id @default(cuid())
   /// Where it was found: "YC" (YC's job posts) or "HN" ("Who is hiring?").
   source             String
@@ -783,7 +931,7 @@ model Startup {
   createdAt          DateTime      @default(now())
   updatedAt          DateTime      @updatedAt
 
-  @@unique([source, externalId])
+  @@unique([userId, source, externalId])
   @@index([status, score])
 }
 
@@ -791,8 +939,13 @@ model Startup {
 /// SHA-256 hash of its post, its site's domain or its name, so a refresh
 /// leaves it out without keeping anything about it.
 model StartupBlock {
-  hash      String   @id
+  /// The student this belongs to.
+  userId    String   @default(dbgenerated("current_setting('app.user_id')"))
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  hash      String
   createdAt DateTime @default(now())
+
+  @@id([userId, hash])
 }
 
 // ─── Google: Gmail and Calendar (E15) ────────────────────────────────────────
@@ -800,7 +953,10 @@ model StartupBlock {
 /// The connected Google account; at most one row, with id "google". It
 /// belongs to this install, not its data: exports leave it out.
 model GoogleAccount {
-  id              String    @id @default("google")
+  /// The student this belongs to.
+  userId          String    @default(dbgenerated("current_setting('app.user_id')"))
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id              String    @default("google")
   /// The Gmail address it's connected as.
   email           String
   /// The OAuth refresh token, encrypted like the API keys (GOOGLE_TOKEN).
@@ -814,6 +970,8 @@ model GoogleAccount {
   syncProblem     String?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
+
+  @@id([userId, id])
 }
 
 enum EmailDirection {
@@ -836,8 +994,11 @@ enum ReplyKind {
 /// A mail in Gmail about an application, or one that may be (E15-3). Only
 /// the text is kept, not attachments.
 model EmailMessage {
+  /// The student this belongs to.
+  userId          String             @default(dbgenerated("current_setting('app.user_id')"))
+  user            User               @relation(fields: [userId], references: [id], onDelete: Cascade)
   id              String             @id @default(cuid())
-  gmailId         String             @unique
+  gmailId         String
   threadId        String
   /// Null while it isn't linked to an application ("Needs a look").
   /// Deleting the application deletes its mail, as it does its documents.
@@ -876,6 +1037,7 @@ model EmailMessage {
   dismissedAt     DateTime?
   createdAt       DateTime           @default(now())
 
+  @@unique([userId, gmailId])
   @@index([threadId])
   @@index([applicationId, sentAt])
   @@index([sentAt])
@@ -911,6 +1073,9 @@ enum JobStatus {
 /// A long AI task run in the background, e.g. reading a posting or writing the
 /// documents. Each job type validates its own input and result (src/lib/jobs).
 model Job {
+  /// The student this belongs to.
+  userId        String       @default(dbgenerated("current_setting('app.user_id')"))
+  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   id            String       @id @default(cuid())
   /// Which handler runs it, e.g. "extract-posting".
   type          String
@@ -934,4 +1099,5 @@ model Job {
   @@index([key, createdAt])
   @@index([status])
   @@index([applicationId])
+  @@index([userId])
 }

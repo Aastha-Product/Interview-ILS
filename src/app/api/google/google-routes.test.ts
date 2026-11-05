@@ -25,7 +25,7 @@ const idToken = (email: string) => `h.${Buffer.from(JSON.stringify({ email })).t
 
 beforeEach(() => {
   env.DOSSIER_GOOGLE_CLIENT_ID = "client";
-  vi.mocked(getSession).mockResolvedValue({ persistent: false, issuedAt: new Date(), expiresAt: new Date() });
+  vi.mocked(getSession).mockResolvedValue({ userId: "test-student", persistent: false, issuedAt: new Date(), expiresAt: new Date() });
   vi.mocked(loadGoogleAccount).mockResolvedValue(null);
   vi.mocked(saveGoogleAccount).mockReset().mockResolvedValue();
   vi.mocked(exchangeCode).mockReset().mockResolvedValue({ access_token: "a", expires_in: 3600, refresh_token: "r", scope: "openid email", id_token: idToken("jane@gmail.com") });

@@ -11,6 +11,7 @@ import { unitsSchema } from "@/lib/application-data";
 import { emailParts } from "@/lib/application-email";
 import { logServerError } from "@/lib/log";
 import { prisma } from "@/lib/prisma";
+import { CURRENT_USER } from "@/lib/owner/scope";
 import { loadSettings } from "@/lib/settings-data";
 import { lastKnownTimeZone } from "@/lib/time-zone";
 
@@ -75,7 +76,7 @@ export async function syncInbox({ signal }: { signal?: AbortSignal } = {}): Prom
   if (!account) throw new GoogleError("not-connected", "Connect your Google account in Settings → Google first.");
   try {
     const result = await runSync(account.historyId, account.email, settings.gmailScope, signal);
-    await prisma.googleAccount.update({ where: { id: account.id }, data: { lastSyncAt: new Date(), syncProblem: null, historyId: result.historyId } });
+    await prisma.googleAccount.update({ where: { userId_id: { userId: CURRENT_USER, id: account.id } }, data: { lastSyncAt: new Date(), syncProblem: null, historyId: result.historyId } });
     return result.counts;
   } catch (error) {
     logServerError("inbox check", error instanceof GoogleError && error.detail ? new GoogleError(error.problem, `${error.message} (${error.detail})`) : error);
@@ -123,7 +124,7 @@ async function runSync(historyId: string | null, ownAddress: string, scope: "kno
     if (outgoing && match?.by !== "thread") continue;
 
     const created = await prisma.emailMessage.upsert({
-      where: { gmailId: mail.id },
+      where: { userId_gmailId: { userId: CURRENT_USER, gmailId: mail.id } },
       create: {
         gmailId: mail.id,
         threadId: mail.threadId,

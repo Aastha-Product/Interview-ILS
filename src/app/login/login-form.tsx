@@ -20,25 +20,30 @@ import { loginMessages } from "./messages";
 export function LoginForm({ next }: { next?: string }) {
   const router = useRouter();
   const input = useRef<HTMLInputElement>(null);
+  const emailInput = useRef<HTMLInputElement>(null);
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [visible, setVisible] = useState(false);
   const [remember, setRemember] = useState(false);
   const [posted, formAction] = useActionState(signInWithForm, null);
   const [error, setError] = useState<string | null>(posted?.error ?? null);
+  // The email field shows its own error; every other one belongs to the password.
+  const emailError = error === loginMessages.email;
   const [pending, startTransition] = useTransition();
 
   function fail(message: string) {
     setError(message);
-    input.current?.focus();
+    (message === loginMessages.email ? emailInput : input).current?.focus();
   }
 
   function submit(event: FormEvent) {
     event.preventDefault();
     if (pending) return;
+    if (!email.trim()) return fail(loginMessages.email);
     if (!password) return fail(loginMessages.empty);
 
     startTransition(async () => {
-      const result = await signIn({ password, remember, next });
+      const result = await signIn({ email: email.trim(), password, remember, next });
       if (!result.ok) return fail(result.error);
       toastResult(result);
       router.replace(result.data.redirectTo);
@@ -56,6 +61,33 @@ export function LoginForm({ next }: { next?: string }) {
       <div className="flex flex-col gap-1.5">
         <h1 className="font-serif text-[28px] leading-[1.15] tracking-[-0.01em]">Welcome back</h1>
         <p className="text-sm text-muted">Sign in to pick up where you left off.</p>
+      </div>
+
+      <div className="flex flex-col gap-[7px]">
+        <label htmlFor="email" className="text-label text-muted">
+          Email
+        </label>
+        <input
+          id="email"
+          name="email"
+          ref={emailInput}
+          type="email"
+          autoComplete="email"
+          autoFocus
+          value={email}
+          onChange={(event) => {
+            setEmail(event.target.value);
+            setError(null);
+          }}
+          aria-invalid={emailError ? true : undefined}
+          aria-describedby={emailError ? "email-error" : undefined}
+          className={cn(controlClassName, "h-10 px-3")}
+        />
+        {emailError && (
+          <p id="email-error" role="alert" className="text-meta text-error">
+            {error}
+          </p>
+        )}
       </div>
 
       <div className="flex flex-col gap-[7px]">
@@ -77,17 +109,16 @@ export function LoginForm({ next }: { next?: string }) {
           name="password"
           type={visible ? "text" : "password"}
           autoComplete="current-password"
-          autoFocus
           value={password}
           onChange={(event) => {
             setPassword(event.target.value);
             setError(null);
           }}
-          aria-invalid={error ? true : undefined}
-          aria-describedby={error ? "password-error" : undefined}
+          aria-invalid={error && !emailError ? true : undefined}
+          aria-describedby={error && !emailError ? "password-error" : undefined}
           className={cn(controlClassName, "h-10 px-3")}
         />
-        {error && (
+        {error && !emailError && (
           <p id="password-error" role="alert" className="text-meta text-error">
             {error}
           </p>

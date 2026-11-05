@@ -1,5 +1,14 @@
 import type { PrismaClient } from "@/generated/prisma/client";
 import { createPrismaClient, isSqliteUrl } from "@/lib/database";
+import { contextUserId } from "@/lib/owner/context";
+import { rawClientOf, scopedClient } from "@/lib/owner/scope";
+
+/**
+ * The student database tests act as (Pathfinder: private accounts). resetDatabase creates it.
+ * A test can act as someone else with runAsUser(otherId, ...) from @/lib/owner/context.
+ */
+export const TEST_USER_ID = "test-student";
+export const TEST_USER_EMAIL = "student@example.test";
 
 /**
  * The database for `*.db.test.ts` files: TEST_DATABASE_URL, or DATABASE_URL
@@ -31,12 +40,19 @@ export function testsUseSqlite(): boolean {
   return isSqliteUrl(testDatabaseUrl());
 }
 
+/** The app's database client as the test student sees it: scoped to their own rows. */
 export function createTestClient(): PrismaClient {
-  return createPrismaClient(testDatabaseUrl());
+  return scopedClient(createPrismaClient(testDatabaseUrl()), async () => contextUserId() ?? TEST_USER_ID);
 }
 
-/** Empties every table, so each test starts from a blank database. */
-export async function resetDatabase(db: PrismaClient): Promise<void> {
+/** Empties every table, so each test starts from a blank database, then adds the test student. */
+export async function resetDatabase(scoped: PrismaClient): Promise<void> {
+  const db = rawClientOf(scoped);
+  await emptyDatabase(db);
+  await db.user.create({ data: { id: TEST_USER_ID, email: TEST_USER_EMAIL } });
+}
+
+async function emptyDatabase(db: PrismaClient): Promise<void> {
   if (testsUseSqlite()) {
     const tables = await db.$queryRaw<{ name: string }[]>`
       SELECT name FROM sqlite_master

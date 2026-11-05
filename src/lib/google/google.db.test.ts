@@ -2,6 +2,7 @@ import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vites
 
 import { MockProvider } from "@/lib/ai/providers/mock";
 import { createTestClient, resetDatabase } from "@/test/db";
+import { CURRENT_USER } from "@/lib/owner/scope";
 
 // The inbox check and Send with Gmail (E15-2, E15-3) against a test
 // database, with Google's APIs answered by a fake fetch.
@@ -140,13 +141,13 @@ describe("the inbox check (E15-3)", () => {
     ]);
     expect(kept[0].body).toBe("Could we talk next week?");
     expect(kept[0].questions).toEqual(["What is your notice period?"]);
-    const account = await prisma().googleAccount.findUniqueOrThrow({ where: { id: "google" } });
+    const account = await prisma().googleAccount.findUniqueOrThrow({ where: { userId_id: { userId: CURRENT_USER, id: "google" } } });
     expect(account).toMatchObject({ historyId: "200", syncProblem: null });
 
     // The next check carries on from the history: only what's new since.
     mailbox.push({ id: "m6", threadId: "thread-new", from: "Anna Keller <a.keller@northwind.example>", subject: "Re: Application", text: "Wednesday 14:00 works.", history: 250 });
     expect(await syncInbox()).toEqual({ fetched: 1, kept: 1, read: 1 });
-    expect((await prisma().googleAccount.findUniqueOrThrow({ where: { id: "google" } })).historyId).toBe("300");
+    expect((await prisma().googleAccount.findUniqueOrThrow({ where: { userId_id: { userId: CURRENT_USER, id: "google" } } })).historyId).toBe("300");
   });
 
   it("skips mail deleted since Gmail listed it, and carries on from the history", async () => {
@@ -157,7 +158,7 @@ describe("the inbox check (E15-3)", () => {
       { id: "m7", threadId: "thread-new", from: "Anna Keller <a.keller@northwind.example>", subject: "Re: Application", text: "Thursday?", history: 250 },
     ];
     expect(await syncInbox()).toEqual({ fetched: 2, kept: 1, read: 1 });
-    expect(await prisma().googleAccount.findUniqueOrThrow({ where: { id: "google" } })).toMatchObject({ historyId: "300", syncProblem: null });
+    expect(await prisma().googleAccount.findUniqueOrThrow({ where: { userId_id: { userId: CURRENT_USER, id: "google" } } })).toMatchObject({ historyId: "300", syncProblem: null });
   });
 
   it("keeps unmatched inbox mail for a look when set to read everything", async () => {

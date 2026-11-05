@@ -8,7 +8,7 @@ import { messages } from "./messages";
 
 vi.mock("./auth/session", () => ({ getSession: vi.fn() }));
 
-const session = { persistent: false, issuedAt: new Date(), expiresAt: new Date(Date.now() + 60_000) };
+const session = { userId: "test-student", persistent: false, issuedAt: new Date(), expiresAt: new Date(Date.now() + 60_000) };
 
 const schema = z.object({ name: z.string().min(1, "Enter a name.") });
 

@@ -6,6 +6,7 @@ import type { Prisma, Startup } from "@/generated/prisma/client";
 import { ApplicationStatus, StartupStatus } from "@/generated/prisma/enums";
 import type { ProfileData } from "@/lib/profile";
 import { prisma } from "@/lib/prisma";
+import { CURRENT_USER } from "@/lib/owner/scope";
 import { loadProfile } from "@/lib/profile-data";
 
 import { lookUpSite, rankEmails } from "./emails";
@@ -117,7 +118,7 @@ export async function upsertStartups(found: readonly FoundStartup[], now = new D
       reasons: fit.reasons,
       scoredWith: MATCH_VERSION,
     };
-    if (known) updates.push(prisma.startup.update({ where: { source_externalId: { source: startup.source, externalId: startup.externalId } }, data: fields }));
+    if (known) updates.push(prisma.startup.update({ where: { userId_source_externalId: { userId: CURRENT_USER, source: startup.source, externalId: startup.externalId } }, data: fields }));
     else creates.push({ source: startup.source, externalId: startup.externalId, ...fields });
   }
   for (let index = 0; index < creates.length; index += 200) {

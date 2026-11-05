@@ -2,12 +2,13 @@ import "server-only";
 
 import { photoFromFields } from "@/lib/photo";
 import { prisma } from "@/lib/prisma";
+import { CURRENT_USER } from "@/lib/owner/scope";
 import { basicsFromFields, factTexts, inEntryOrder, type FactItem, type ProfileData } from "@/lib/profile";
 import { loadSettings } from "@/lib/settings-data";
 
 /** The profile's name, "" without one: for the sidebar, the sign-in greeting and file names. */
 export async function loadProfileName(): Promise<string> {
-  const field = await prisma.profileField.findUnique({ where: { key: "name" } });
+  const field = await prisma.profileField.findUnique({ where: { userId_key: { userId: CURRENT_USER, key: "name" } } });
   return field?.value ?? "";
 }
 

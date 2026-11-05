@@ -4,6 +4,7 @@ import type { Posting } from "@/generated/prisma/client";
 import { linkKey, postingKey, type FoundPosting, type JobSource, type PostingState, type ShownPosting } from "@/lib/job-search/search";
 import { stringsOf } from "@/lib/agent/candidates";
 import { prisma } from "@/lib/prisma";
+import { CURRENT_USER } from "@/lib/owner/scope";
 
 // Postings kept from Find jobs (E14-5): saved, dismissed, or started an
 // application from. Nothing else from a search is stored, and a posting
@@ -13,7 +14,7 @@ export type { PostingState };
 
 type PostingRef = { source: JobSource; externalId: string };
 
-const whereRef = ({ source, externalId }: PostingRef) => ({ source_externalId: { source, externalId } });
+const whereRef = ({ source, externalId }: PostingRef) => ({ userId_source_externalId: { userId: CURRENT_USER, source, externalId } });
 
 function fieldsOf(found: FoundPosting) {
   return {

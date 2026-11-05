@@ -1,6 +1,7 @@
 import "server-only";
 
 import { prisma } from "@/lib/prisma";
+import { CURRENT_USER } from "@/lib/owner/scope";
 
 // Helpers for adding to the profile's lists, shared by the profile editor
 // and the application page ("+ Add to profile").
@@ -23,7 +24,7 @@ export async function firstSort(model: {
 
 /** Finds a skill by name, ignoring case (citext), or creates it. */
 export async function findOrCreateSkill(name: string, group?: string) {
-  const existing = await prisma.skill.findUnique({ where: { name } });
+  const existing = await prisma.skill.findUnique({ where: { userId_name: { userId: CURRENT_USER, name } } });
   if (existing) {
     // Added under a group in Profile → Skills, it moves there (#280).
     const skill = group !== undefined && group !== existing.group ? await prisma.skill.update({ where: { id: existing.id }, data: { group } }) : existing;

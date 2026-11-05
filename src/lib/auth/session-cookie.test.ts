@@ -35,14 +35,14 @@ beforeEach(() => {
 
 describe("the session cookie (E3-1)", () => {
   it("starts a browser session: an HTTP-only, same-site cookie without an expiry", async () => {
-    await startSession({ persistent: false });
+    await startSession({ persistent: false, userId: "test-student" });
     expect(jar.set).toHaveBeenCalledWith(SESSION_COOKIE, expect.any(String), { httpOnly: true, sameSite: "lax", path: "/", secure: false });
-    expect(await getSession()).toMatchObject({ persistent: false });
+    expect(await getSession()).toMatchObject({ persistent: false, userId: "test-student" });
   });
 
   it("keeps a remembered session for 30 days, secure behind an HTTPS proxy", async () => {
     jar.proto = "https, http";
-    await startSession({ persistent: true });
+    await startSession({ persistent: true, userId: "test-student" });
     expect(jar.set).toHaveBeenCalledWith(SESSION_COOKIE, expect.any(String), expect.objectContaining({ secure: true, maxAge: SESSION_LIFETIME.persistent }));
   });
 
@@ -54,12 +54,12 @@ describe("the session cookie (E3-1)", () => {
 
   it("sends visitors without a session to the sign-in page", async () => {
     await expect(verifySession()).rejects.toThrow("redirect /login");
-    await startSession({ persistent: false });
-    await expect(verifySession()).resolves.toMatchObject({ persistent: false });
+    await startSession({ persistent: false, userId: "test-student" });
+    await expect(verifySession()).resolves.toMatchObject({ persistent: false, userId: "test-student" });
   });
 
   it("ends the session by deleting the cookie", async () => {
-    await startSession({ persistent: false });
+    await startSession({ persistent: false, userId: "test-student" });
     await endSession();
     expect(jar.remove).toHaveBeenCalledWith(SESSION_COOKIE);
     expect(await getSession()).toBeNull();

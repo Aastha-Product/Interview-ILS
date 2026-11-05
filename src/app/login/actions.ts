@@ -10,36 +10,44 @@ import { loginWaitMs, recordLoginFailure, recordLoginSuccess } from "@/lib/auth/
 import { safeNextPath } from "@/lib/auth/next-path";
 import { passwordMatches, startSession } from "@/lib/auth/session";
 import { tooManyAttemptsMessage } from "@/lib/auth/throttle";
-import { prisma } from "@/lib/prisma";
+import { runAsUser } from "@/lib/owner/context";
+import { systemPrisma } from "@/lib/prisma";
 import { loadProfileName } from "@/lib/profile-data";
 
 import { loginMessages } from "./messages";
 
 /**
- * Signs in with the password that DOSSIER_PASSWORD is a hash of (PRD AUTH-1, AUTH-4).
+ * Signs a student in by email (Pathfinder: private accounts). For this trial the password is the
+ * shared access code that DOSSIER_PASSWORD is a hash of; Google sign-in replaces it next.
  * Failed attempts are rate-limited per IP and globally (AUTH-5). Returns
  * where to go next: the requested page if it's on this site, or the dashboard.
  */
 export const signIn = publicAction(
   z.object({
+    email: z.email({ error: loginMessages.email }).max(200),
     password: z.string(),
     remember: z.boolean(),
     next: z.string().optional(),
   }),
-  async ({ password, remember, next }, { toast }) => {
+  async ({ email, password, remember, next }, { toast }) => {
     const ip = clientIp(await headers());
-    const wait = await loginWaitMs(prisma, ip);
+    const wait = await loginWaitMs(systemPrisma, ip);
     if (wait > 0) throw new ActionError(tooManyAttemptsMessage(wait));
 
     if (!password) throw new ActionError(loginMessages.empty);
     if (!(await passwordMatches(password))) {
-      await recordLoginFailure(prisma, ip);
+      await recordLoginFailure(systemPrisma, ip);
       throw new ActionError(loginMessages.wrong);
     }
-    await recordLoginSuccess(prisma, ip);
+    await recordLoginSuccess(systemPrisma, ip);
 
-    await startSession({ persistent: remember });
-    const firstName = (await loadProfileName()).trim().split(/\s+/)[0] || "there";
+    const user = await systemPrisma.user.upsert({
+      where: { email: email.toLowerCase() },
+      create: { email: email.toLowerCase() },
+      update: {},
+    });
+    await startSession({ persistent: remember, userId: user.id });
+    const firstName = (await runAsUser(user.id, () => loadProfileName())).trim().split(/\s+/)[0] || "there";
     toast(`Welcome back, ${firstName}.`);
     return { redirectTo: safeNextPath(next) };
   },
@@ -56,6 +64,7 @@ export type SignInFormState = { error: string } | null;
  */
 export async function signInWithForm(_previous: SignInFormState, form: FormData): Promise<SignInFormState> {
   const result = await signIn({
+    email: text(form, "email"),
     password: text(form, "password"),
     remember: form.get("remember") === "on",
     next: text(form, "next") || undefined,

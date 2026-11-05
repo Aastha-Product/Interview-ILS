@@ -16,7 +16,7 @@ vi.mock("@/lib/data-export", async (importOriginal) => ({
 const get = (query = "") => GET(new NextRequest(`http://localhost:3000/api/export${query}`), undefined);
 
 beforeEach(() => {
-  vi.mocked(getSession).mockResolvedValue({ persistent: false, issuedAt: new Date(), expiresAt: new Date() });
+  vi.mocked(getSession).mockResolvedValue({ userId: "test-student", persistent: false, issuedAt: new Date(), expiresAt: new Date() });
   vi.mocked(buildExport).mockClear();
 });
 

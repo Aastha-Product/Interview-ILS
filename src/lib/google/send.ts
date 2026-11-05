@@ -6,6 +6,7 @@ import { emailAddresses, emailParts } from "@/lib/application-email";
 import { resolveFileName } from "@/lib/file-name";
 import { renderPdf } from "@/lib/pdf/render";
 import { prisma } from "@/lib/prisma";
+import { CURRENT_USER } from "@/lib/owner/scope";
 import { loadProfileName } from "@/lib/profile-data";
 import { loadSettings } from "@/lib/settings-data";
 import { applyStatusChange } from "@/lib/status-changes";
@@ -65,7 +66,7 @@ export async function sendApplicationEmail(applicationId: string): Promise<SentA
   await prisma.$transaction([
     prisma.application.update({ where: { id: applicationId }, data: { emailThreadId: sent.threadId } }),
     prisma.emailMessage.upsert({
-      where: { gmailId: sent.id },
+      where: { userId_gmailId: { userId: CURRENT_USER, gmailId: sent.id } },
       create: {
         gmailId: sent.id,
         threadId: sent.threadId,
@@ -112,7 +113,7 @@ export async function sendReply(emailId: string, body: string): Promise<{ applic
   await prisma.$transaction([
     prisma.emailMessage.update({ where: { id: emailId }, data: { handledAt: new Date(), replyDraft: "", replyGaps: [] } }),
     prisma.emailMessage.upsert({
-      where: { gmailId: sent.id },
+      where: { userId_gmailId: { userId: CURRENT_USER, gmailId: sent.id } },
       create: {
         gmailId: sent.id,
         threadId: sent.threadId,
