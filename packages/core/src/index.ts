@@ -2,6 +2,7 @@ export {
   getConfig,
   parseConfig,
   withHostDefaults,
+  configProblems,
   isDevSignInEnabled,
   isDemoSignInEnabled,
   runsJobsInline,

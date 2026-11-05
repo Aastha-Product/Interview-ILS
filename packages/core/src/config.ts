@@ -100,9 +100,13 @@ const schema = z
 export type ServerConfig = z.infer<typeof schema>;
 
 export class ConfigError extends Error {
-  constructor(problems: string[]) {
+  /** The setting names that are missing or wrong (never their values). */
+  readonly settings: string[];
+
+  constructor(problems: string[], settings: string[] = []) {
     super(`Invalid configuration:\n  - ${problems.join("\n  - ")}`);
     this.name = "ConfigError";
+    this.settings = settings;
   }
 }
 
@@ -124,10 +128,45 @@ export function withHostDefaults(
 export function parseConfig(rawEnv: Record<string, string | undefined>): ServerConfig {
   const result = schema.safeParse(withHostDefaults(rawEnv));
   if (!result.success) {
-    throw new ConfigError(result.error.issues.map((i) => `${i.path.join(".")} ${i.message}`));
+    throw new ConfigError(
+      result.error.issues.map((i) => `${i.path.join(".")} ${i.message}`),
+      [...new Set(result.error.issues.map((i) => String(i.path[0] ?? "")).filter(Boolean))],
+    );
   }
   return result.data;
 }
+
+/**
+ * Names of settings that are missing or invalid, or [] when the configuration is fine. For the
+ * health check, so a deployment problem can be diagnosed without reading server logs.
+ */
+export function configProblems(env: Record<string, string | undefined> = process.env): string[] {
+  const problems = new Set<string>();
+  let current = { ...env };
+  // A missing basic setting stops validation before the cross-setting rules (e.g. "demo mode needs
+  // DEMO_PASSWORD") run. Stand in valid placeholders for those and check again, so every problem
+  // is listed at once. The placeholders are never used for anything else.
+  for (let round = 0; round < 3; round++) {
+    try {
+      parseConfig(current);
+      break;
+    } catch (error) {
+      if (!(error instanceof ConfigError)) return ["unknown"];
+      const fresh = error.settings.filter((s) => !problems.has(s));
+      fresh.forEach((s) => problems.add(s));
+      const fillable = fresh.filter((s) => s in PLACEHOLDERS);
+      if (fillable.length === 0) break;
+      current = { ...current, ...Object.fromEntries(fillable.map((s) => [s, PLACEHOLDERS[s]])) };
+    }
+  }
+  return [...problems];
+}
+
+const PLACEHOLDERS: Record<string, string> = {
+  DATABASE_URL: "postgresql://placeholder@localhost:5432/placeholder",
+  AUTH_SECRET: "placeholder-secret-for-config-checks-only",
+  APP_URL: "https://placeholder.invalid",
+};
 
 let cached: ServerConfig | undefined;
 

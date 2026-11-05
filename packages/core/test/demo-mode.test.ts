@@ -2,6 +2,7 @@ import { PDFDocument } from "pdf-lib";
 import { describe, expect, it } from "vitest";
 import {
   ConfigError,
+  configProblems,
   isDemoSignInEnabled,
   isDevSignInEnabled,
   parseConfig,
@@ -109,5 +110,20 @@ describe("renderResumePdf (no browser)", () => {
     const many = await renderResumePdf(long);
     expect((await PDFDocument.load(one)).getPageCount()).toBe(1);
     expect((await PDFDocument.load(many)).getPageCount()).toBeGreaterThan(2);
+  });
+});
+
+describe("configProblems (for the health check)", () => {
+  it("names missing or wrong settings without their values", () => {
+    expect(configProblems(prodDemo)).toEqual([]);
+    const problems = configProblems({
+      ...prodDemo,
+      DEMO_PASSWORD: "",
+      AUTH_SECRET: "short",
+      DATABASE_URL: "",
+    });
+    expect(problems.sort()).toEqual(["AUTH_SECRET", "DATABASE_URL", "DEMO_PASSWORD"]);
+    expect(JSON.stringify(problems)).not.toContain("short");
+    expect(configProblems({ ...prodDemo, APP_ENV: "demoo" })).toEqual(["APP_ENV"]);
   });
 });
