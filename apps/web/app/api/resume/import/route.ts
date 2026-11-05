@@ -12,7 +12,13 @@ export const maxDuration = 120;
  * draft profile for the student to confirm. Nothing is written to the profile here.
  */
 export const POST = withUser(async ({ request, db }) => {
-  const declared = Number(request.headers.get("content-length") ?? 0);
+  // Browsers always send Content-Length for a file upload. Without one the body would be read in
+  // full before its size could be checked, so it is refused up front.
+  const lengthHeader = request.headers.get("content-length");
+  const declared = lengthHeader === null ? NaN : Number(lengthHeader);
+  if (!Number.isFinite(declared) || declared < 0) {
+    throw new UserFacingError("LENGTH_REQUIRED", "The upload didn't come through. Please try again.", 411);
+  }
   if (declared > MAX_RESUME_BYTES + 64 * 1024) {
     throw new UserFacingError("FILE_TOO_LARGE", "That file is bigger than 5 MB. Save a smaller PDF or Word file and try again.", 413);
   }

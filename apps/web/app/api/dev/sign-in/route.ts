@@ -11,9 +11,10 @@ const formSchema = z.object({ email: z.email().max(200) });
 export async function POST(request: Request) {
   if (!isDevSignInEnabled()) return new NextResponse("Not found", { status: 404 });
 
-  // Same-origin form posts only.
+  // Same-origin form posts only. Browsers always send Origin on a form POST, so a missing one
+  // means the request didn't come from this app's sign-in page.
   const origin = request.headers.get("origin");
-  if (origin && origin !== new URL(getConfig().APP_URL).origin && origin !== new URL(request.url).origin) {
+  if (!origin || (origin !== new URL(getConfig().APP_URL).origin && origin !== new URL(request.url).origin)) {
     return new NextResponse("Forbidden", { status: 403 });
   }
 
