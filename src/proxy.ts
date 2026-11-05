@@ -1,9 +1,13 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 import { decodeSession, SESSION_COOKIE, sessionTokenOptions } from "@/lib/auth/session";
-import { contentSecurityPolicy, createNonce } from "@/lib/csp";
+import { contentSecurityPolicy, createNonce, GOOGLE_SIGN_IN_ORIGIN } from "@/lib/csp";
+import { env } from "@/lib/env";
 import { messages } from "@/lib/messages";
 import { PRINT_TOKEN_HEADER, verifyPrintToken } from "@/lib/pdf/print-token";
+
+/** Signing in with Google (Pathfinder): its start and Google's callback, before there's a session. */
+const SIGN_IN_PATHS = /^\/api\/auth\/google(?:\/callback)?$/;
 
 /** The Claude connector's endpoint, its sign-in and the metadata that points to them. */
 const CONNECTOR_PATHS = /^\/(?:api\/(?:mcp|oauth)(?:\/|$)|\.well-known\/oauth-(?:authorization-server|protected-resource)(?:\/|$))/;
@@ -17,7 +21,7 @@ const CONNECTOR_PATHS = /^\/(?:api\/(?:mcp|oauth)(?:\/|$)|\.well-known\/oauth-(?
  */
 export async function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
-  if (pathname === "/login") return pass(request);
+  if (pathname === "/login" || SIGN_IN_PATHS.test(pathname)) return pass(request);
   // The Claude connector (#221) brings its own credentials, an OAuth token,
   // which its routes check; they answer 404 while it's off.
   if (CONNECTOR_PATHS.test(pathname)) return NextResponse.next();
@@ -58,7 +62,9 @@ function pass(request: NextRequest): NextResponse {
   if (request.nextUrl.pathname.startsWith("/api/")) return NextResponse.next();
   // Behind a reverse proxy that ends TLS, only the forwarded header knows.
   const protocol = request.headers.get("x-forwarded-proto")?.split(",")[0].trim() ?? request.nextUrl.protocol.replace(/:$/, "");
-  const policy = contentSecurityPolicy(createNonce(), { dev: process.env.NODE_ENV === "development", https: protocol === "https" });
+  // The end-to-end tests' fake Google stands in for Google's sign-in host.
+  const formTargets = [env.DOSSIER_GOOGLE_TEST_BASE_URL ? new URL(env.DOSSIER_GOOGLE_TEST_BASE_URL).origin : GOOGLE_SIGN_IN_ORIGIN];
+  const policy = contentSecurityPolicy(createNonce(), { dev: process.env.NODE_ENV === "development", https: protocol === "https", formTargets });
   const headers = new Headers(request.headers);
   headers.set("content-security-policy", policy);
   const response = NextResponse.next({ request: { headers } });

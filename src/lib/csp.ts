@@ -15,8 +15,17 @@ export function createNonce(): string {
  * frame Dossier. `upgrade-insecure-requests` only over HTTPS, so a server on
  * plain HTTP in a home network keeps working. Development needs eval for
  * React's error overlay.
+ *
+ * Pathfinder: the sign-in form goes to /api/auth/google, which redirects on to Google, and
+ * browsers hold that redirect to form-action too. So Google's sign-in host is a form target
+ * (`formTargets`; the end-to-end tests add their fake Google).
  */
-export function contentSecurityPolicy(nonce: string, { dev = false, https = false }: { dev?: boolean; https?: boolean } = {}): string {
+export const GOOGLE_SIGN_IN_ORIGIN = "https://accounts.google.com";
+
+export function contentSecurityPolicy(
+  nonce: string,
+  { dev = false, https = false, formTargets = [GOOGLE_SIGN_IN_ORIGIN] }: { dev?: boolean; https?: boolean; formTargets?: string[] } = {},
+): string {
   return [
     "default-src 'self'",
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${dev ? " 'unsafe-eval'" : ""}`,
@@ -26,7 +35,7 @@ export function contentSecurityPolicy(nonce: string, { dev = false, https = fals
     "connect-src 'self'",
     "object-src 'none'",
     "base-uri 'self'",
-    "form-action 'self'",
+    ["form-action 'self'", ...formTargets].join(" "),
     "frame-ancestors 'none'",
     ...(https ? ["upgrade-insecure-requests"] : []),
   ].join("; ");

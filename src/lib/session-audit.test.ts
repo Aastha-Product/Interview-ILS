@@ -15,6 +15,10 @@ const OPEN_ROUTES = new Set([
   // Google's redirect comes from Google's site, so route()'s same-origin check
   // would refuse it; it checks the session and its signed state itself (E15-1).
   "src/app/api/google/callback/route.ts",
+  // Signing in with Google (Pathfinder) happens before there's a session: the start only sends
+  // the browser to Google; the callback checks its encrypted cookie against Google's state.
+  "src/app/api/auth/google/route.ts",
+  "src/app/api/auth/google/callback/route.ts",
   // The Claude connector (#221) is called by Claude, not the browser: it
   // checks its OAuth token instead, and answers 404 while it's off.
   "src/app/api/mcp/route.ts",
@@ -70,6 +74,12 @@ describe("session checks (E11-5)", () => {
     const source = read("src/app/api/google/callback/route.ts");
     expect(source).toContain("await getSession()");
     expect(source).toContain("await verifyState(");
+  });
+
+  it("checks the browser's own sign-in in the Google sign-in callback (Pathfinder)", () => {
+    const source = read("src/app/api/auth/google/callback/route.ts");
+    expect(source).toContain("await openPendingSignIn(request.cookies.get(SIGN_IN_COOKIE)?.value, params.get(\"state\"))");
+    expect(source).toContain("if (!pending) return fail(\"expired\");");
   });
 
   it("checks the token and the switch in the Claude connector itself (#221)", () => {

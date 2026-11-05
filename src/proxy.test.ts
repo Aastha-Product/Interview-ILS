@@ -109,6 +109,14 @@ describe("proxy", () => {
     expect((await proxy(request("/api/mcpx"))).status).toBe(401);
   });
 
+  it("lets signed-out visitors start and finish signing in with Google, and nothing else under it (Pathfinder)", async () => {
+    for (const path of ["/api/auth/google", "/api/auth/google/callback"]) {
+      expect((await proxy(request(path))).headers.get("x-middleware-next"), path).toBe("1");
+    }
+    expect((await proxy(request("/api/auth/google/other"))).status).toBe(401);
+    expect((await proxy(request("/api/auth/googlex"))).status).toBe(401);
+  });
+
   it("answers API requests with 401 JSON instead of a redirect", async () => {
     const response = await proxy(request("/api/pdf/1"));
     expect(response.status).toBe(401);

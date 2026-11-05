@@ -31,10 +31,13 @@ vi.mock("@/lib/prisma", () => ({
   systemPrisma: { user: { upsert: vi.fn(async ({ create }: { create: { email: string } }) => ({ id: "student-1", email: create.email })) } },
 }));
 vi.mock("@/lib/profile-data", () => ({ loadProfileName: vi.fn() }));
+const mode = vi.hoisted(() => ({ value: "code" as "code" | "google" }));
+vi.mock("@/lib/auth/google-sign-in", () => ({ signInMode: () => mode.value }));
 
 describe("signIn", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mode.value = "code";
     vi.mocked(passwordMatches).mockImplementation(async (candidate) => candidate === "correct horse");
     vi.mocked(loginWaitMs).mockResolvedValue(0);
     vi.mocked(loadProfileName).mockResolvedValue("Jane Doe");
@@ -78,6 +81,16 @@ describe("signIn", () => {
     });
     expect(recordLoginSuccess).toHaveBeenCalledWith(systemPrisma, "203.0.113.7");
     expect(startSession).toHaveBeenCalledWith({ persistent: true, userId: "student-1" });
+  });
+
+  it("refuses the access code once students sign in with Google (Pathfinder)", async () => {
+    mode.value = "google";
+    await expect(signIn({ email: "jane@example.com", password: "correct horse", remember: false })).resolves.toEqual({
+      ok: false,
+      error: loginMessages.useGoogle,
+    });
+    expect(passwordMatches).not.toHaveBeenCalled();
+    expect(startSession).not.toHaveBeenCalled();
   });
 
   it("asks for an email address, and stores it in lower case", async () => {

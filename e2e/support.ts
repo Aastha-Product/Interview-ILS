@@ -33,11 +33,16 @@ export function e2eDatabaseUrl(): string {
   return url.toString();
 }
 
+/** The student the runs sign in as (Pathfinder: private accounts). */
+export const E2E_EMAIL = "jane.doe@example.com";
+
 /** The app's environment for a run. */
 export function appEnv(): Record<string, string> {
   return {
     DATABASE_URL: e2eDatabaseUrl(),
     DOSSIER_PASSWORD: PASSWORD_HASH,
+    // Pathfinder: the runs sign in with an email and the access code.
+    PATHFINDER_SIGN_IN: "code",
     DOSSIER_SECRET: "e2e-secret-e2e-secret-e2e-secret-e2e",
     DOSSIER_DATA_DIR: "/tmp/dossier-e2e",
     DOSSIER_AI_PROVIDER: "openai",

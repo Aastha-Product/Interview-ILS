@@ -5,6 +5,7 @@
 // agrees at once. The first application sent gets a reply in its thread, from
 // the address it went to.
 
+import { createHash } from "node:crypto";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 
 const port = Number(process.env.FAKE_GOOGLE_PORT ?? 3997);
@@ -48,7 +49,26 @@ async function read(request: IncomingMessage): Promise<string> {
 
 const base64url = (text: string) => Buffer.from(text, "utf8").toString("base64url");
 /** An ID token with the account's address; the app reads it without checking the signature, as it may. */
-const idToken = () => [base64url(JSON.stringify({ alg: "none" })), base64url(JSON.stringify({ email: ACCOUNT, email_verified: true })), "e2e"].join(".");
+// Like Google's: who it is, for which client, until when, and the sign-in's nonce (Pathfinder).
+const idToken = (nonce?: string) =>
+  [
+    base64url(JSON.stringify({ alg: "none" })),
+    base64url(
+      JSON.stringify({
+        iss: "https://accounts.google.com",
+        aud: CLIENT_ID,
+        exp: Math.floor(Date.now() / 1000) + 3600,
+        sub: "e2e-google-sub",
+        email: ACCOUNT,
+        email_verified: true,
+        name: "Jane Doe",
+        ...(nonce ? { nonce } : {}),
+      }),
+    ),
+    "e2e",
+  ].join(".");
+/** The last consent's nonce and PKCE challenge, which the code is traded with. */
+let consent: { nonce: string | null; challenge: string | null } = { nonce: null, challenge: null };
 
 /** A header of a raw message, unfolded. */
 const rawHeader = (raw: string, name: string) =>
@@ -118,6 +138,7 @@ createServer(async (request, response) => {
   if (path === "/accounts/o/oauth2/v2/auth") {
     if (url.searchParams.get("client_id") !== CLIENT_ID) return send(response, 400, { error: "invalid_client" });
     granted = url.searchParams.get("scope") ?? "";
+    consent = { nonce: url.searchParams.get("nonce"), challenge: url.searchParams.get("code_challenge") };
     const back = new URL(url.searchParams.get("redirect_uri") ?? "");
     back.searchParams.set("code", "e2e-code");
     back.searchParams.set("state", url.searchParams.get("state") ?? "");
@@ -129,7 +150,12 @@ createServer(async (request, response) => {
     if (form.get("client_id") !== CLIENT_ID || form.get("client_secret") !== CLIENT_SECRET) return send(response, 401, { error: "invalid_client" });
     if (form.get("grant_type") === "authorization_code") {
       if (form.get("code") !== "e2e-code") return send(response, 400, { error: "invalid_grant" });
-      return send(response, 200, { access_token: ACCESS_TOKEN, expires_in: 3600, refresh_token: "e2e-refresh-token", scope: granted, id_token: idToken() });
+      // PKCE: the verifier must hash to the consent's challenge.
+      if (consent.challenge) {
+        const verifier = form.get("code_verifier") ?? "";
+        if (createHash("sha256").update(verifier).digest("base64url") !== consent.challenge) return send(response, 400, { error: "invalid_grant" });
+      }
+      return send(response, 200, { access_token: ACCESS_TOKEN, expires_in: 3600, refresh_token: "e2e-refresh-token", scope: granted, id_token: idToken(consent.nonce ?? undefined) });
     }
     if (form.get("refresh_token") !== "e2e-refresh-token") return send(response, 400, { error: "invalid_grant" });
     return send(response, 200, { access_token: ACCESS_TOKEN, expires_in: 3600, scope: granted });

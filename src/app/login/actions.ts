@@ -6,6 +6,7 @@ import { z } from "zod";
 
 import { ActionError, publicAction } from "@/lib/action";
 import { clientIp } from "@/lib/auth/client-ip";
+import { signInMode } from "@/lib/auth/google-sign-in";
 import { loginWaitMs, recordLoginFailure, recordLoginSuccess } from "@/lib/auth/login-throttle";
 import { safeNextPath } from "@/lib/auth/next-path";
 import { passwordMatches, startSession } from "@/lib/auth/session";
@@ -17,8 +18,9 @@ import { loadProfileName } from "@/lib/profile-data";
 import { loginMessages } from "./messages";
 
 /**
- * Signs a student in by email (Pathfinder: private accounts). For this trial the password is the
- * shared access code that DOSSIER_PASSWORD is a hash of; Google sign-in replaces it next.
+ * Signs a student in by email and the shared access code that DOSSIER_PASSWORD is a hash of
+ * (Pathfinder). Anyone with the code can sign in as any email, so it only works while
+ * PATHFINDER_SIGN_IN is "code" (trials); otherwise students sign in with Google.
  * Failed attempts are rate-limited per IP and globally (AUTH-5). Returns
  * where to go next: the requested page if it's on this site, or the dashboard.
  */
@@ -30,6 +32,7 @@ export const signIn = publicAction(
     next: z.string().optional(),
   }),
   async ({ email, password, remember, next }, { toast }) => {
+    if (signInMode() !== "code") throw new ActionError(loginMessages.useGoogle);
     const ip = clientIp(await headers());
     const wait = await loginWaitMs(systemPrisma, ip);
     if (wait > 0) throw new ActionError(tooManyAttemptsMessage(wait));

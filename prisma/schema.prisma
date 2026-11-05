@@ -30,6 +30,8 @@ datasource db {
 model User {
   id        String   @id @default(cuid())
   email     String   @unique @db.Citext
+  /// The Google account the student signs in with: Google's stable id ("sub"), which outlives an email change.
+  googleSub String?  @unique
   name      String   @default("")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

@@ -154,6 +154,12 @@ const schema = z.object({
   // Never echo the secret.
   DOSSIER_GOOGLE_CLIENT_ID: optional(z.string().trim()),
   DOSSIER_GOOGLE_CLIENT_SECRET: optional(z.string().trim()),
+  // Pathfinder: how students sign in. "google" (the default once the client
+  // above is set) uses their Google account; "code" lets anyone with the
+  // DOSSIER_PASSWORD access code in under any email, for trials only.
+  PATHFINDER_SIGN_IN: optional(
+    z.enum(["google", "code"], { error: (issue) => `PATHFINDER_SIGN_IN must be google or code (got "${String(issue.input)}").` }),
+  ),
   // The address Dossier is reached at, e.g. https://dossier.example.com, for
   // Google's redirect. Defaults to the address of the request that connects.
   DOSSIER_PUBLIC_URL: optional(

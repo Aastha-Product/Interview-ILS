@@ -2,16 +2,23 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 
 import { BrandMark } from "@/components/brand-mark";
+import { signInMode } from "@/lib/auth/google-sign-in";
 import { getSession } from "@/lib/auth/session";
 
+import { GoogleSignInForm } from "./google-sign-in-form";
 import { LoginForm } from "./login-form";
 
 export const metadata: Metadata = { title: "Sign in" };
 
-/** Password-only sign-in, outside the app shell (PRD AUTH-1, AUTH-8). */
+/**
+ * Sign-in, outside the app shell (PRD AUTH-1, AUTH-8). Pathfinder: with Google, or, for trials,
+ * an email and the shared access code (PATHFINDER_SIGN_IN).
+ */
 export default async function LoginPage({ searchParams }: PageProps<"/login">) {
   if (await getSession()) redirect("/");
-  const { next } = await searchParams;
+  const { next, error } = await searchParams;
+  const withGoogle = signInMode() === "google";
+  const nextPath = typeof next === "string" ? next : undefined;
 
   return (
     // The form on the panel's colour, a warm wash on the right.
@@ -25,11 +32,20 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
             <div className="text-sm text-muted">Your job search, on your server</div>
           </div>
         </div>
-        <LoginForm next={typeof next === "string" ? next : undefined} />
+        {withGoogle ? (
+          <GoogleSignInForm next={nextPath} error={typeof error === "string" ? error : undefined} />
+        ) : (
+          <LoginForm next={nextPath} />
+        )}
         <p className="text-meta leading-[1.6] text-pretty text-muted">
-          Your password is set on the server, as a hash in{" "}
-          <code className="font-mono text-label">DOSSIER_PASSWORD</code>. Forgot it? Make a new hash with{" "}
-          <code className="font-mono text-label">hash-password</code> and restart.
+          {withGoogle ? (
+            <>Google only tells this server your name and email address. Your job search stays private to you.</>
+          ) : (
+            <>
+              This server is in trial mode: the access code is set on the server, as a hash in{" "}
+              <code className="font-mono text-label">DOSSIER_PASSWORD</code>, and anyone who has it can sign in.
+            </>
+          )}
         </p>
       </div>
       </div>

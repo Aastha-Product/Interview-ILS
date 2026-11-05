@@ -5,6 +5,15 @@ export async function register() {
     const { checkEnvOnStartup } = await import("@/lib/env");
     checkEnvOnStartup();
 
+    // Pathfinder: the shared access code lets anyone who has it in as any email.
+    const { signInMode } = await import("@/lib/auth/google-sign-in");
+    if (signInMode() === "code" && process.env.NODE_ENV === "production") {
+      console.warn(
+        "Sign-in: students sign in with the shared access code (DOSSIER_PASSWORD), and anyone with it can sign in as any email. " +
+          "For real students, set DOSSIER_GOOGLE_CLIENT_ID and DOSSIER_GOOGLE_CLIENT_SECRET to sign in with Google.",
+      );
+    }
+
     // AI jobs left running by the previous process can't finish (E6-7).
     const { recoverInterruptedJobs } = await import("@/lib/jobs/runner");
     const { logServerError } = await import("@/lib/log");

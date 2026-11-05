@@ -13,6 +13,11 @@ describe("contentSecurityPolicy (E11-5)", () => {
     expect(policy).not.toContain("upgrade-insecure-requests");
   });
 
+  it("lets forms go to this server and on to Google's sign-in only (Pathfinder)", () => {
+    expect(contentSecurityPolicy("abc")).toContain("form-action 'self' https://accounts.google.com;");
+    expect(contentSecurityPolicy("abc", { formTargets: [] })).toContain("form-action 'self';");
+  });
+
   it("allows eval in development, and upgrades requests over HTTPS", () => {
     expect(contentSecurityPolicy("abc", { dev: true })).toContain("'strict-dynamic' 'unsafe-eval'");
     expect(contentSecurityPolicy("abc", { https: true })).toMatch(/; upgrade-insecure-requests$/);
