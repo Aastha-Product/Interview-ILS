@@ -79,7 +79,7 @@ The app starts and every test passes with all AI and job-feed keys left empty.
    pnpm db:seed
    ```
 
-   It adds a fictional student's profile, 8 scored jobs and 8 applications over five weeks (with drafts; their PDFs render while `pnpm worker` runs). It only fills an empty account and is refused when `APP_ENV=production`.
+   It adds a fictional student's profile, 8 scored jobs and 7 applications over five weeks (3 with drafts; their PDFs render while `pnpm worker` runs). It only fills an empty account and is refused when `APP_ENV=production`.
 
 ### Applications, drafts and the worker
 

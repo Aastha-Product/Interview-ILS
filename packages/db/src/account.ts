@@ -24,12 +24,12 @@ export async function findUserIdByEmail(email: string): Promise<string | null> {
  * Creates (or finds) a local user by email. Development only: with Google sign-in, a user created
  * this way has no linked Google account, and Auth.js then refuses that email's Google sign-in.
  */
-export async function ensureLocalUser(email: string): Promise<string> {
+export async function ensureLocalUser(email: string, name?: string): Promise<string> {
   const normalised = email.trim().toLowerCase();
   const user = await getPrisma().user.upsert({
     where: { email: normalised },
     update: {},
-    create: { email: normalised, name: normalised.split("@")[0] },
+    create: { email: normalised, name: name ?? normalised.split("@")[0] },
     select: { id: true },
   });
   return user.id;

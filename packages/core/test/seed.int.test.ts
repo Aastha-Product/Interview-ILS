@@ -24,7 +24,7 @@ describe("seedDemoData", () => {
   it("fills an empty account so every screen has something to show", async () => {
     const db = scopedDb(userId);
     const result = await seedDemoData({ db, ai }, { now });
-    expect(result).toEqual({ jobs: 8, applications: 8, drafted: 3, pdfsQueued: 0 });
+    expect(result).toEqual({ jobs: 8, applications: 7, drafted: 3, pdfsQueued: 0 });
 
     // Jobs page: eight scored jobs with reasons.
     const matches = await listMatches(db);
@@ -33,12 +33,14 @@ describe("seedDemoData", () => {
 
     // Dashboard: 6 sent, 4 replies (response, rejection, interview, response), over several weeks.
     const dashboard = await getDashboard(db, now);
-    expect(dashboard.totals).toMatchObject({ sent: 6, responses: 4, interviews: 1, drafts: 2 });
+    expect(dashboard.totals).toMatchObject({ sent: 6, responses: 4, interviews: 1, drafts: 1 });
     expect(dashboard.totals.responseRate).toBeCloseTo(4 / 6, 5);
     expect(dashboard.weeks.filter((w) => w.sent > 0).length).toBeGreaterThanOrEqual(4);
-    expect(dashboard.byStatus).toMatchObject({ DRAFT: 2, APPLIED: 2, RESPONSE: 2, INTERVIEW: 1, REJECTED: 1 });
+    expect(dashboard.byStatus).toMatchObject({ DRAFT: 1, APPLIED: 2, RESPONSE: 2, INTERVIEW: 1, REJECTED: 1 });
 
-    // Three applications have fact-checked drafts.
+    // Every application that is still a draft has one (none is stuck at "Drafting…"), three in all.
+    const drafts = await db.application.findMany({ where: { status: "DRAFT" }, include: { documents: true } });
+    expect(drafts.every((a) => a.documents.length > 0)).toBe(true);
     expect(await db.generatedDocument.count({ where: { kind: "RESUME" } })).toBe(3);
     expect(await db.generatedDocument.count({ where: { kind: "ANSWERS" } })).toBe(3);
 

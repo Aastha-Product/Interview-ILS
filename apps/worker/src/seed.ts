@@ -12,6 +12,8 @@ import { ensureLocalUser, findUserIdByEmail, scopedDb } from "@pathfinder/db";
 import { getPrisma } from "@pathfinder/db/raw";
 
 const DEFAULT_EMAIL = "demo@example.test";
+// Shown on the demo resumes; clearly fictional.
+const DEFAULT_NAME = "Asha Verma (demo)";
 
 async function main(): Promise<number> {
   const config = getConfig();
@@ -28,7 +30,7 @@ async function main(): Promise<number> {
 
   let userId: string | null;
   if (config.APP_ENV === "development") {
-    userId = await ensureLocalUser(email);
+    userId = await ensureLocalUser(email, email === DEFAULT_EMAIL ? DEFAULT_NAME : undefined);
   } else {
     userId = await findUserIdByEmail(email);
     if (!userId) {

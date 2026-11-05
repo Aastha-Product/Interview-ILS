@@ -119,7 +119,7 @@ Both images run as the unprivileged `node` user and contain no secrets.
    ./node_modules/.bin/tsx src/seed.ts --email you@example.com
    ```
 
-   It adds a fictional profile, 8 scored jobs and 8 applications with drafts to that account (only if the account is empty).
+   It adds a fictional profile, 8 scored jobs and 7 applications (3 with drafts) to that account (only if the account is empty).
 5. Walk the main flow:
    - import a resume
    - paste a job

@@ -10,7 +10,7 @@ import type { ProfileInput } from "../profile/schema";
 
 /**
  * Demo data for local development, demos and staging: one student's profile, preferences, eight
- * scored jobs and eight applications spread over five weeks, so every screen has something to show.
+ * scored jobs and seven applications spread over five weeks, so every screen has something to show.
  * Everything is fictional. All of it goes through the same domain functions (and the same
  * user-scoped database client) as the app itself, with the mock AI.
  */
@@ -76,6 +76,11 @@ interface DemoJob {
   reply?: { daysAgo: number; status: "RESPONSE" | "INTERVIEW" | "REJECTED" };
   /** Draft a tailored resume and answers for this one. */
   draft?: boolean;
+  /**
+   * Only scored, not started: a job the student is still considering. (In the app every started
+   * application gets a draft, so an application without one would show "Drafting…" forever.)
+   */
+  considering?: boolean;
 }
 
 const posting = (role: string, about: string, needs: string[], extra: string) =>
@@ -151,6 +156,7 @@ export const DEMO_JOBS: DemoJob[] = [
     company: "Greenleaf Foods (demo)",
     location: "Pune",
     text: posting("Data", "Track inventory and sales across our stores and report weekly.", ["Excel", "SQL", "Power BI", "Python is a plus"], "Full-time, office-based."),
+    considering: true,
   },
 ];
 
@@ -191,6 +197,7 @@ export async function seedDemoData(
   for (const job of DEMO_JOBS) {
     const { jobListingId } = await importJob({ db, ai }, { text: job.text, title: job.title, company: job.company, location: job.location });
     result.jobs++;
+    if (job.considering) continue;
     const { applicationId } = await createApplication(db, jobListingId, { confirmSimilar: true, now });
     result.applications++;
 
