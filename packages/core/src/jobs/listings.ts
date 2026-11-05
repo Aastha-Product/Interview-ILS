@@ -7,6 +7,20 @@ export type JobListing = Prisma.JobListingModel;
 /** Two postings seen within this window with the same URL or company|title|city are one job. */
 export const DEDUPE_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
 
+/**
+ * Control characters (NUL and friends; tab and newlines are kept) that Postgres can't store or that
+ * only serve to hide text. Pasted pages and feeds sometimes contain them.
+ */
+// eslint-disable-next-line no-control-regex -- matching control characters is the point
+const CONTROL_CHARS = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g;
+const clean = (value: string) => value.replace(CONTROL_CHARS, "");
+
+/** Feed payloads go into a JSONB column, which rejects NUL too. Drops it (as JSON writes it: \u0000). */
+function cleanJson(value: unknown): Prisma.InputJsonValue | typeof Prisma.JsonNull {
+  if (value === undefined || value === null) return Prisma.JsonNull;
+  return JSON.parse(JSON.stringify(value).replaceAll("\\u0000", "")) as Prisma.InputJsonValue;
+}
+
 function isUniqueViolation(error: unknown): boolean {
   return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
 }
@@ -27,16 +41,16 @@ export async function saveListing(job: NormalizedJob, opts: { now?: Date } = {})
   const fields = {
     urlNormalised,
     applyUrl: job.applyUrl,
-    company: job.company,
-    title: job.title,
-    location: job.location,
+    company: clean(job.company),
+    title: clean(job.title),
+    location: clean(job.location),
     remote: job.remote,
-    employmentType: job.employmentType,
-    description: job.description,
+    employmentType: clean(job.employmentType),
+    description: clean(job.description),
     dedupeKey: key,
     postedAt: job.postedAt,
     closedAt: job.closesAt && job.closesAt < now ? job.closesAt : null,
-    raw: job.raw === undefined || job.raw === null ? Prisma.JsonNull : (job.raw as Prisma.InputJsonValue),
+    raw: cleanJson(job.raw),
   };
 
   const bySourceId = await prisma.jobListing.findUnique({

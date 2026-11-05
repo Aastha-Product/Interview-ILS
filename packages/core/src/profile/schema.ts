@@ -2,7 +2,17 @@ import { z } from "zod";
 
 // Shared by the API, the resume importer and the browser editor. Keep it free of server imports.
 
-const text = (max: number) => z.string().trim().max(max, `Keep this under ${max} characters`);
+// Control characters (NUL and friends; tab and newlines are kept) can come in with text extracted
+// from a PDF. Postgres can't store NUL, so they are dropped before any other check. (overwrite keeps
+// the schema a plain string, so callers can still chain .min/.max.)
+// eslint-disable-next-line no-control-regex -- matching control characters is the point
+const CONTROL_CHARS = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g;
+const text = (max: number) =>
+  z
+    .string()
+    .overwrite((v) => v.replace(CONTROL_CHARS, ""))
+    .trim()
+    .max(max, `Keep this under ${max} characters`);
 const required = (max: number, label: string) => text(max).min(1, `${label} is required`);
 
 export const LIMITS = {

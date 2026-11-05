@@ -1,17 +1,30 @@
 /**
  * Wraps text that came from outside (a resume, a job description) in clearly marked delimiters.
  * The system prompt tells the model that anything between the markers is data, never instructions.
- * Marker look-alikes inside the text are removed so the text cannot close the block early.
+ *
+ * The text must not be able to fake a marker and close the block early. Removing marker look-alikes
+ * in one pass isn't enough ("<<<BEG<<<END_X>>>IN_..." rebuilds one), so instead the text is made
+ * unable to contain any marker at all:
+ * 1. invisible format characters (zero-width spaces and joiners, bidi controls) are removed, so
+ *    they can't split a marker the model would still read as one;
+ * 2. NFKC folds look-alikes such as full-width ＜ ＞ into < >;
+ * 3. every run of three or more < or > becomes two. Every marker starts with <<< and ends with >>>.
  */
 export const MAX_UNTRUSTED_CHARS = 40_000;
 
+export function neutraliseUntrusted(text: string): string {
+  return text
+    .replace(/\p{Cf}/gu, "")
+    .normalize("NFKC")
+    .replaceAll("\u0000", "")
+    .replace(/<{3,}/g, "<<")
+    .replace(/>{3,}/g, ">>")
+    .slice(0, MAX_UNTRUSTED_CHARS);
+}
+
 export function wrapUntrusted(label: string, text: string): string {
   const tag = label.toUpperCase().replace(/[^A-Z_]/g, "_");
-  const cleaned = text
-    .replace(/<<<\s*(BEGIN|END)[^>]*>>>/gi, "")
-    .replaceAll("\u0000", "")
-    .slice(0, MAX_UNTRUSTED_CHARS);
-  return `<<<BEGIN_UNTRUSTED_${tag}>>>\n${cleaned}\n<<<END_UNTRUSTED_${tag}>>>`;
+  return `<<<BEGIN_UNTRUSTED_${tag}>>>\n${neutraliseUntrusted(text)}\n<<<END_UNTRUSTED_${tag}>>>`;
 }
 
 export const UNTRUSTED_DATA_RULES = [
