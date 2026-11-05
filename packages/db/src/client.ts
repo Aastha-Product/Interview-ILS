@@ -14,7 +14,9 @@ const globalForPrisma = globalThis as unknown as { __pathfinderPrisma?: PrismaCl
 /** The process-wide raw client. Created lazily so importing this module never needs a database. */
 export function getPrisma(): PrismaClient {
   if (!globalForPrisma.__pathfinderPrisma) {
-    const url = process.env.DATABASE_URL;
+    // Vercel's Postgres integration may name the address POSTGRES_PRISMA_URL or POSTGRES_URL.
+    const url =
+      process.env.DATABASE_URL || process.env.POSTGRES_PRISMA_URL || process.env.POSTGRES_URL;
     if (!url) throw new Error("DATABASE_URL is not set");
     globalForPrisma.__pathfinderPrisma = createPrismaClient(url);
   }

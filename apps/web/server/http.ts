@@ -4,6 +4,7 @@ import { scopedDb, ScopeViolationError, type ScopedDb } from "@pathfinder/db";
 import { NextResponse } from "next/server";
 import { ZodError } from "zod";
 import { getCurrentUser, type CurrentUser } from "./session";
+import { ensureInlineJobs } from "./inline-jobs";
 
 export interface ApiErrorBody {
   error: {
@@ -14,11 +15,21 @@ export interface ApiErrorBody {
   };
 }
 
-export function apiError(status: number, code: string, message: string, extra?: Partial<ApiErrorBody["error"]>) {
+export function apiError(
+  status: number,
+  code: string,
+  message: string,
+  extra?: Partial<ApiErrorBody["error"]>,
+) {
   return NextResponse.json<ApiErrorBody>({ error: { code, message, ...extra } }, { status });
 }
 
-type Handler<C> = (ctx: { request: Request; user: CurrentUser; db: ScopedDb; params: C }) => Promise<Response>;
+type Handler<C> = (ctx: {
+  request: Request;
+  user: CurrentUser;
+  db: ScopedDb;
+  params: C;
+}) => Promise<Response>;
 
 /**
  * Wraps an API route: requires a signed-in user, applies the per-student request limit (429 with
@@ -30,12 +41,19 @@ export function withUser<C = unknown>(handler: Handler<C>) {
     const user = await getCurrentUser();
     if (!user) return apiError(401, "SIGNED_OUT", "Please sign in again.");
     try {
+      ensureInlineJobs();
       await enforceApiLimit(user.id);
       return await handler({ request, user, db: scopedDb(user.id), params: await context.params });
     } catch (error) {
       if (error instanceof UserFacingError) {
-        const response = apiError(error.status, error.code, error.message, error.details ? { details: error.details } : undefined);
-        if (error.retryAfterSeconds !== undefined) response.headers.set("Retry-After", String(error.retryAfterSeconds));
+        const response = apiError(
+          error.status,
+          error.code,
+          error.message,
+          error.details ? { details: error.details } : undefined,
+        );
+        if (error.retryAfterSeconds !== undefined)
+          response.headers.set("Retry-After", String(error.retryAfterSeconds));
         return response;
       }
       if (error instanceof ZodError) {

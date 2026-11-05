@@ -1,16 +1,20 @@
 import { request as httpRequest } from "node:http";
 import { expect, test, type Page } from "@playwright/test";
+import { DEMO_PASSWORD } from "../playwright.config";
 
 async function devSignIn(page: Page, email: string) {
   await page.goto("/signin");
   await page.getByLabel("Email").fill(email);
-  await page.getByRole("button", { name: "Dev sign-in" }).click();
+  // Demo sites (E2E_DEMO=1) also ask for the shared demo password.
+  if (process.env.E2E_DEMO) await page.getByLabel("Demo password").fill(DEMO_PASSWORD);
+  await page.getByRole("button", { name: /^(Dev|Demo) sign-in$/ }).click();
 }
 
 test("pages carry a nonce-based CSP and run without any CSP violations", async ({ page }) => {
   const violations: string[] = [];
   page.on("console", (msg) => {
-    if (/Content Security Policy|Content-Security-Policy/i.test(msg.text())) violations.push(msg.text());
+    if (/Content Security Policy|Content-Security-Policy/i.test(msg.text()))
+      violations.push(msg.text());
   });
 
   const response = await page.goto("/signin");
@@ -20,7 +24,9 @@ test("pages carry a nonce-based CSP and run without any CSP violations", async (
   expect(csp).toContain("frame-ancestors 'none'");
   // Next.js puts this request's nonce on its own scripts.
   // (Read the property: browsers blank the nonce attribute once the page has loaded.)
-  const scriptNonces = await page.locator("script[nonce]").evaluateAll((els) => els.map((e) => (e as unknown as { nonce: string }).nonce));
+  const scriptNonces = await page
+    .locator("script[nonce]")
+    .evaluateAll((els) => els.map((e) => (e as unknown as { nonce: string }).nonce));
   expect(scriptNonces.length).toBeGreaterThan(0);
   expect(scriptNonces.every((n) => n === nonce)).toBe(true);
   // A fresh nonce per request.
@@ -39,11 +45,17 @@ test("pages carry a nonce-based CSP and run without any CSP violations", async (
 
 test("dev sign-in refuses a request with no Origin header", async ({ request }) => {
   // Playwright's API client sends no Origin; a browser form post always does.
-  const response = await request.post("/api/dev/sign-in", { form: { email: "no-origin@example.test" }, maxRedirects: 0 });
+  const response = await request.post("/api/dev/sign-in", {
+    form: { email: "no-origin@example.test" },
+    maxRedirects: 0,
+  });
   expect(response.status()).toBe(403);
 });
 
-test("a resume upload without Content-Length is refused before it is read", async ({ page, context }) => {
+test("a resume upload without Content-Length is refused before it is read", async ({
+  page,
+  context,
+}) => {
   await devSignIn(page, `e2e-chunked-${Date.now()}@example.test`);
   await expect(page).toHaveURL(/\/onboarding$/);
   const cookie = (await context.cookies()).map((c) => `${c.name}=${c.value}`).join("; ");
@@ -55,7 +67,11 @@ test("a resume upload without Content-Length is refused before it is read", asyn
         port: 3000,
         path: "/api/resume/import",
         method: "POST",
-        headers: { Cookie: cookie, "Content-Type": "multipart/form-data; boundary=x", "Transfer-Encoding": "chunked" },
+        headers: {
+          Cookie: cookie,
+          "Content-Type": "multipart/form-data; boundary=x",
+          "Transfer-Encoding": "chunked",
+        },
       },
       (res) => {
         res.resume();
@@ -74,4 +90,14 @@ test("the health check answers without sign-in and gives nothing away", async ({
   expect(response.status()).toBe(200);
   expect(await response.json()).toEqual({ status: "ok" });
   expect(response.headers()["cache-control"]).toContain("no-store");
+});
+
+test("the demo sign-in refuses a wrong demo password", async ({ page }) => {
+  test.skip(!process.env.E2E_DEMO, "demo sites only");
+  await page.goto("/signin");
+  await page.getByLabel("Email").fill(`e2e-wrongpw-${Date.now()}@example.test`);
+  await page.getByLabel("Demo password").fill("not-the-password");
+  await page.getByRole("button", { name: "Demo sign-in" }).click();
+  await expect(page).toHaveURL(/\/signin\?error=demo-password$/);
+  await expect(page.getByText("That demo password isn't right.")).toBeVisible();
 });

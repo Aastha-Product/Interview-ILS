@@ -4,8 +4,13 @@ import { z } from "zod";
 import { readJson, withUser } from "@/server/http";
 
 export const runtime = "nodejs";
+// On demo sites drafting and the PDF run in this function after it responds (see server/inline-jobs.ts).
+export const maxDuration = 120;
 
-const createSchema = z.object({ jobListingId: z.string().min(1).max(64), confirmSimilar: z.boolean().optional() });
+const createSchema = z.object({
+  jobListingId: z.string().min(1).max(64),
+  confirmSimilar: z.boolean().optional(),
+});
 
 /** GET /api/applications: every application, for the tracker. */
 export const GET = withUser(async ({ db }) => NextResponse.json(await listApplications(db)));
@@ -17,6 +22,8 @@ export const GET = withUser(async ({ db }) => NextResponse.json(await listApplic
  */
 export const POST = withUser(async ({ request, db }) => {
   const body = createSchema.parse(await readJson(request));
-  const { applicationId } = await startApplication(db, body.jobListingId, { confirmSimilar: body.confirmSimilar });
+  const { applicationId } = await startApplication(db, body.jobListingId, {
+    confirmSimilar: body.confirmSimilar,
+  });
   return NextResponse.json({ applicationId }, { status: 201 });
 });

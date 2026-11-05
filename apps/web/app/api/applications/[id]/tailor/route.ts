@@ -3,6 +3,8 @@ import { NextResponse } from "next/server";
 import { withUser } from "@/server/http";
 
 export const runtime = "nodejs";
+// On demo sites drafting and the PDF run in this function after it responds (see server/inline-jobs.ts).
+export const maxDuration = 120;
 
 /**
  * POST /api/applications/:id/tailor: queue a (re)draft. Idempotent per profile version, so a

@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { expect, test, type Page } from "@playwright/test";
+import { DEMO_PASSWORD } from "../playwright.config";
 
 const fixture = (name: string) => path.resolve(import.meta.dirname, "../../fixtures", name);
 const jobText = readFileSync(fixture("job-qa-pune.txt"), "utf8");
@@ -9,7 +10,9 @@ const jobText = readFileSync(fixture("job-qa-pune.txt"), "utf8");
 async function studentWithProfile(page: Page, tag: string) {
   await page.goto("/signin");
   await page.getByLabel("Email").fill(`e2e-${tag}-${Date.now()}@example.test`);
-  await page.getByRole("button", { name: "Dev sign-in" }).click();
+  // Demo sites (E2E_DEMO=1) also ask for the shared demo password.
+  if (process.env.E2E_DEMO) await page.getByLabel("Demo password").fill(DEMO_PASSWORD);
+  await page.getByRole("button", { name: /^(Dev|Demo) sign-in$/ }).click();
   await page.locator("#resume-file").setInputFiles(fixture("resume-asha.pdf"));
   await page.getByRole("button", { name: "Save and continue" }).click();
   await page.getByLabel("Roles you want").fill("Software Tester");
@@ -30,7 +33,9 @@ async function pasteJob(page: Page) {
   return page.url();
 }
 
-test("pasting a job shows a score, reasons and gaps, and pasting it again doesn't duplicate it", async ({ page }) => {
+test("pasting a job shows a score, reasons and gaps, and pasting it again doesn't duplicate it", async ({
+  page,
+}) => {
   await studentWithProfile(page, "paste");
   const firstUrl = await pasteJob(page);
 
@@ -50,7 +55,9 @@ test("pasting a job shows a score, reasons and gaps, and pasting it again doesn'
 
   // It is listed once under "Your jobs".
   await page.goto("/jobs");
-  await expect(page.getByRole("heading", { name: "QA Engineer - Fresher", level: 3 })).toHaveCount(1);
+  await expect(page.getByRole("heading", { name: "QA Engineer - Fresher", level: 3 })).toHaveCount(
+    1,
+  );
 });
 
 test("a link we can't read asks the student to paste the description", async ({ page }) => {
@@ -58,11 +65,15 @@ test("a link we can't read asks the student to paste the description", async ({ 
   await page.goto("/jobs");
   await page.getByLabel("Job link").fill("http://localhost:3000/private-page");
   await page.getByRole("button", { name: "Add job" }).click();
-  await expect(page.getByRole("alert").filter({ hasText: "Paste the job description instead" })).toBeVisible();
+  await expect(
+    page.getByRole("alert").filter({ hasText: "Paste the job description instead" }),
+  ).toBeVisible();
   await expect(page.getByLabel("Job description")).toBeVisible();
 });
 
-test("searching uses the feeds, collapses cross-source duplicates and caches repeat searches", async ({ page }) => {
+test("searching uses the feeds, collapses cross-source duplicates and caches repeat searches", async ({
+  page,
+}) => {
   await studentWithProfile(page, "search");
   await page.goto("/jobs");
   const search = page.getByRole("search");
@@ -84,6 +95,10 @@ test("searching uses the feeds, collapses cross-source duplicates and caches rep
 
   // Same search again is served from the 24-hour cache.
   await search.getByRole("button", { name: "Search" }).click();
-  await expect(page.getByText(/saved results from an earlier search/)).toBeVisible({ timeout: 60_000 });
-  await expect(page.getByText(/\d+ jobs? found/)).toHaveText(`${count} jobs found (saved results from an earlier search).`.replace(/^1 jobs/, "1 job"));
+  await expect(page.getByText(/saved results from an earlier search/)).toBeVisible({
+    timeout: 60_000,
+  });
+  await expect(page.getByText(/\d+ jobs? found/)).toHaveText(
+    `${count} jobs found (saved results from an earlier search).`.replace(/^1 jobs/, "1 job"),
+  );
 });

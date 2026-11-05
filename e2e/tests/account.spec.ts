@@ -1,16 +1,21 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { expect, test, type Page } from "@playwright/test";
+import { DEMO_PASSWORD } from "../playwright.config";
 
 const fixture = (name: string) => path.resolve(import.meta.dirname, "../../fixtures", name);
 
 async function devSignIn(page: Page, email: string) {
   await page.goto("/signin");
   await page.getByLabel("Email").fill(email);
-  await page.getByRole("button", { name: "Dev sign-in" }).click();
+  // Demo sites (E2E_DEMO=1) also ask for the shared demo password.
+  if (process.env.E2E_DEMO) await page.getByLabel("Demo password").fill(DEMO_PASSWORD);
+  await page.getByRole("button", { name: /^(Dev|Demo) sign-in$/ }).click();
 }
 
-test("a student downloads their data, then deletes the account and can't get back in", async ({ page }) => {
+test("a student downloads their data, then deletes the account and can't get back in", async ({
+  page,
+}) => {
   const email = `e2e-account-${Date.now()}@example.test`;
   await devSignIn(page, email);
   await expect(page).toHaveURL(/\/onboarding$/);
@@ -54,7 +59,9 @@ test("a student downloads their data, then deletes the account and can't get bac
 test("the delete API refuses a wrong confirmation and keeps the account", async ({ page }) => {
   await devSignIn(page, `e2e-keep-${Date.now()}@example.test`);
   await expect(page).toHaveURL(/\/onboarding$/);
-  const response = await page.request.delete("/api/account", { data: { confirmEmail: "not-me@example.test" } });
+  const response = await page.request.delete("/api/account", {
+    data: { confirmEmail: "not-me@example.test" },
+  });
   expect(response.status()).toBe(400);
   expect((await response.json()).error.code).toBe("CONFIRMATION_MISMATCH");
   expect((await page.request.get("/api/profile")).status()).toBe(200);

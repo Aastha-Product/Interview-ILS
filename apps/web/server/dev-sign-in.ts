@@ -1,16 +1,30 @@
-import { randomBytes } from "node:crypto";
-import { getConfig, isDevSignInEnabled, recordAudit } from "@pathfinder/core";
+import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
+import { getConfig, isDemoSignInEnabled, isDevSignInEnabled, recordAudit } from "@pathfinder/core";
 import { scopedDb } from "@pathfinder/db";
 import { getPrisma } from "@pathfinder/db/raw";
 import { SESSION_MAX_AGE_SECONDS } from "./auth";
 
+/** True when the dev form (local) or the demo form (demo sites, with the demo password) is available. */
+export function isEmailSignInEnabled(): boolean {
+  return isDevSignInEnabled() || isDemoSignInEnabled();
+}
+
+/** Constant-time check of the shared demo password. */
+export function demoPasswordMatches(given: string): boolean {
+  const expected = getConfig().DEMO_PASSWORD;
+  if (!expected) return false;
+  const a = createHash("sha256").update(given).digest();
+  const b = createHash("sha256").update(expected).digest();
+  return timingSafeEqual(a, b);
+}
+
 /**
- * Development-only sign-in, for when no Google OAuth client is configured (local work, CI, e2e).
- * Creates a normal Auth.js database session, so everything downstream behaves as after Google sign-in.
- * Refuses to run in production or once Google sign-in is set up.
+ * Email sign-in without Google: the local dev form, or the demo form on demo sites (which also
+ * needs the shared DEMO_PASSWORD, checked by the route). Creates a normal Auth.js database session,
+ * so everything downstream behaves as after Google sign-in. Refuses to run anywhere else.
  */
 export async function createDevSession(email: string, ipHash: string | null) {
-  if (!isDevSignInEnabled()) throw new Error("Dev sign-in is disabled");
+  if (!isEmailSignInEnabled()) throw new Error("Email sign-in is disabled");
   const prisma = getPrisma();
   const user = await prisma.user.upsert({
     where: { email },

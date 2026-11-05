@@ -1,4 +1,12 @@
-export { getConfig, parseConfig, isDevSignInEnabled, ConfigError } from "./config";
+export {
+  getConfig,
+  parseConfig,
+  withHostDefaults,
+  isDevSignInEnabled,
+  isDemoSignInEnabled,
+  runsJobsInline,
+  ConfigError,
+} from "./config";
 export type { ServerConfig } from "./config";
 export { getLogger } from "./logger";
 export { UserFacingError } from "./errors";
@@ -11,6 +19,7 @@ export { draftToProfileInput } from "./profile/normalize";
 export { getProfile, saveProfile, getPreferences, savePreferences } from "./profile/service";
 export {
   getStorage,
+  createDatabaseStorage,
   createLocalStorage,
   createMemoryStorage,
   createS3Storage,
@@ -42,7 +51,12 @@ export type { SearchJobsDeps, SearchJobsResult } from "./jobs/search";
 export { saveListing } from "./jobs/listings";
 export { importJob, importJobInputSchema } from "./jobs/import";
 export type { ImportJobInput, ImportJobResult } from "./jobs/import";
-export { fetchJobPage, isPublicAddress, isAllowedByRobots, PageFetchError } from "./jobs/fetch-page";
+export {
+  fetchJobPage,
+  isPublicAddress,
+  isAllowedByRobots,
+  PageFetchError,
+} from "./jobs/fetch-page";
 export { parsePostingHtml, htmlToText } from "./jobs/posting";
 export { incrementUsage } from "./usage";
 // Applications (Phase 3)
@@ -59,7 +73,12 @@ export {
   saveDraftEdits,
   getLatestResumePdf,
 } from "./applications/service";
-export type { ApplicationView, ApplicationSummary, DocumentView, ApplicationJobView } from "./applications/service";
+export type {
+  ApplicationView,
+  ApplicationSummary,
+  DocumentView,
+  ApplicationJobView,
+} from "./applications/service";
 export { startApplication } from "./applications/start";
 export { seedDemoData, DEMO_PROFILE, DEMO_JOBS } from "./demo/seed";
 export type { SeedDemoResult } from "./demo/seed";
@@ -101,3 +120,9 @@ export type {
 } from "./applications/fact-check";
 export { generateDrafts } from "./applications/tailor";
 export type { GenerateDraftsDeps, GenerateDraftsResult } from "./applications/tailor";
+// Job handlers (worker and demo sites) and the browser-free PDF renderer
+export { handleTailor, handlePdf, pdfStorageKey, TAILOR_BUDGET_MS } from "./queue/handlers";
+export type { JobInfo, GenerateDrafts } from "./queue/handlers";
+export { setInlineDispatcher } from "./applications/tasks";
+export type { InlineJob } from "./applications/tasks";
+export { renderResumePdf, toPdfText } from "./pdf/resume-pdf";

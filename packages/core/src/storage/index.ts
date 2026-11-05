@@ -1,6 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { getPrisma } from "@pathfinder/db/raw";
 import {
   DeleteObjectCommand,
   DeleteObjectsCommand,
@@ -14,7 +15,7 @@ import type { ServerConfig } from "../config";
 
 /** Where uploaded resumes (and later, generated PDFs) live. Keys look like users/<id>/resumes/<uuid>.pdf */
 export interface FileStorage {
-  readonly driver: "local" | "s3" | "memory";
+  readonly driver: "local" | "s3" | "memory" | "database";
   put(key: string, body: Uint8Array, contentType: string): Promise<void>;
   get(key: string): Promise<Uint8Array>;
   delete(key: string): Promise<void>;
@@ -65,7 +66,8 @@ export function signLocalFileUrl(
 ): string {
   assertSafeKey(key);
   const name = safeFilename(options.filename);
-  const exp = Math.floor(now.getTime() / 1000) + (options.expiresInSeconds ?? DEFAULT_EXPIRY_SECONDS);
+  const exp =
+    Math.floor(now.getTime() / 1000) + (options.expiresInSeconds ?? DEFAULT_EXPIRY_SECONDS);
   const url = new URL("/api/files", signing.appUrl);
   url.searchParams.set("key", key);
   url.searchParams.set("exp", String(exp));
@@ -90,7 +92,8 @@ export function verifyLocalFileUrl(
   if (!Number.isInteger(expNum)) return { ok: false, reason: "missing" };
   const expected = Buffer.from(localSignature(secret, key, expNum, name));
   const given = Buffer.from(sig);
-  if (expected.length !== given.length || !timingSafeEqual(expected, given)) return { ok: false, reason: "bad_signature" };
+  if (expected.length !== given.length || !timingSafeEqual(expected, given))
+    return { ok: false, reason: "bad_signature" };
   if (expNum * 1000 < now.getTime()) return { ok: false, reason: "expired" };
   try {
     assertSafeKey(key);
@@ -169,7 +172,12 @@ export function createS3Storage(options: {
     async put(key, body, contentType) {
       assertSafeKey(key);
       await client.send(
-        new PutObjectCommand({ Bucket: options.bucket, Key: key, Body: body, ContentType: contentType }),
+        new PutObjectCommand({
+          Bucket: options.bucket,
+          Key: key,
+          Body: body,
+          ContentType: contentType,
+        }),
       );
     },
     async get(key) {
@@ -187,14 +195,22 @@ export function createS3Storage(options: {
       let token: string | undefined;
       do {
         const page = await client.send(
-          new ListObjectsV2Command({ Bucket: options.bucket, Prefix: prefix, ContinuationToken: token }),
+          new ListObjectsV2Command({
+            Bucket: options.bucket,
+            Prefix: prefix,
+            ContinuationToken: token,
+          }),
         );
         const keys = (page.Contents ?? []).flatMap((o) => (o.Key ? [{ Key: o.Key }] : []));
         if (keys.length) {
           const result = await client.send(
-            new DeleteObjectsCommand({ Bucket: options.bucket, Delete: { Objects: keys, Quiet: true } }),
+            new DeleteObjectsCommand({
+              Bucket: options.bucket,
+              Delete: { Objects: keys, Quiet: true },
+            }),
           );
-          if (result.Errors?.length) throw new Error(`Could not delete ${result.Errors.length} files`);
+          if (result.Errors?.length)
+            throw new Error(`Could not delete ${result.Errors.length} files`);
         }
         token = page.IsTruncated ? page.NextContinuationToken : undefined;
       } while (token);
@@ -207,13 +223,17 @@ export function createS3Storage(options: {
         ResponseContentDisposition: `attachment; filename="${safeFilename(filename)}"`,
         ResponseCacheControl: "private, no-store",
       });
-      return getSignedUrl(client, command, { expiresIn: expiresInSeconds ?? DEFAULT_EXPIRY_SECONDS });
+      return getSignedUrl(client, command, {
+        expiresIn: expiresInSeconds ?? DEFAULT_EXPIRY_SECONDS,
+      });
     },
   };
 }
 
 /** In-memory storage for tests. */
-export function createMemoryStorage(signing?: LocalSigning): FileStorage & { files: Map<string, Uint8Array> } {
+export function createMemoryStorage(
+  signing?: LocalSigning,
+): FileStorage & { files: Map<string, Uint8Array> } {
   const files = new Map<string, Uint8Array>();
   return {
     driver: "memory",
@@ -240,6 +260,52 @@ export function createMemoryStorage(signing?: LocalSigning): FileStorage & { fil
   };
 }
 
+/** The student id from a key of the form users/<id>/... (every stored file lives under one). */
+function ownerOf(key: string): string {
+  const match = /^users\/([^/]+)\//.exec(key);
+  if (!match) throw new Error("Storage keys must start with users/<id>/");
+  return match[1]!;
+}
+
+/**
+ * Files in Postgres (StoredFile rows). For demo sites that have a database but no object storage.
+ * Rows belong to the student and are removed with their account. Downloads use the same signed,
+ * owner-only /api/files links as local storage.
+ */
+export function createDatabaseStorage(signing?: LocalSigning): FileStorage {
+  return {
+    driver: "database",
+    async put(key, body, contentType) {
+      assertSafeKey(key);
+      const data = new Uint8Array(body);
+      await getPrisma().storedFile.upsert({
+        where: { key },
+        create: { key, userId: ownerOf(key), contentType, size: data.byteLength, data },
+        update: { contentType, size: data.byteLength, data },
+      });
+    },
+    async get(key) {
+      assertSafeKey(key);
+      const row = await getPrisma().storedFile.findUnique({
+        where: { key },
+        select: { data: true },
+      });
+      if (!row) throw new Error("Not found");
+      return new Uint8Array(row.data);
+    },
+    async delete(key) {
+      assertSafeKey(key);
+      await getPrisma().storedFile.deleteMany({ where: { key } });
+    },
+    async deleteUserFiles(userId) {
+      await getPrisma().storedFile.deleteMany({ where: { userId } });
+    },
+    async signedUrl(key, options) {
+      return signLocalFileUrl(requireSigning(signing), key, options);
+    },
+  };
+}
+
 let cached: FileStorage | undefined;
 
 export function getStorage(config: ServerConfig): FileStorage {
@@ -252,10 +318,16 @@ export function getStorage(config: ServerConfig): FileStorage {
       accessKeyId: config.S3_ACCESS_KEY!,
       secretAccessKey: config.S3_SECRET_KEY!,
     });
+  } else if (config.STORAGE_DRIVER === "database") {
+    cached = createDatabaseStorage({ secret: config.AUTH_SECRET, appUrl: config.APP_URL });
   } else {
     // The web app's next.config.ts defaults this to <repo>/.local/storage.
-    if (!config.STORAGE_LOCAL_DIR) throw new Error("STORAGE_LOCAL_DIR must be set when STORAGE_DRIVER=local");
-    cached = createLocalStorage(config.STORAGE_LOCAL_DIR, { secret: config.AUTH_SECRET, appUrl: config.APP_URL });
+    if (!config.STORAGE_LOCAL_DIR)
+      throw new Error("STORAGE_LOCAL_DIR must be set when STORAGE_DRIVER=local");
+    cached = createLocalStorage(config.STORAGE_LOCAL_DIR, {
+      secret: config.AUTH_SECRET,
+      appUrl: config.APP_URL,
+    });
   }
   return cached;
 }

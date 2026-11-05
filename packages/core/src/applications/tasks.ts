@@ -3,7 +3,14 @@ import { getConfig } from "../config";
 import { UserFacingError } from "../errors";
 import { getLogger } from "../logger";
 import { getBoss } from "../queue/boss";
-import { deadLetterQueue, QUEUE, QUEUE_SETTINGS, type PdfJobData, type QueueName, type TailorJobData } from "../queue/names";
+import {
+  deadLetterQueue,
+  QUEUE,
+  QUEUE_SETTINGS,
+  type PdfJobData,
+  type QueueName,
+  type TailorJobData,
+} from "../queue/names";
 import { istDay } from "../usage";
 import type { TaskStateView } from "./types";
 
@@ -39,7 +46,10 @@ export interface TaskLimits {
 
 function limitsFromConfig(): TaskLimits {
   const config = getConfig();
-  return { dailyTailorLimit: config.TAILOR_DAILY_LIMIT, concurrentPerUser: config.AI_CONCURRENT_PER_USER };
+  return {
+    dailyTailorLimit: config.TAILOR_DAILY_LIMIT,
+    concurrentPerUser: config.AI_CONCURRENT_PER_USER,
+  };
 }
 
 async function assertNotBusy(db: ScopedDb, limits: TaskLimits): Promise<void> {
@@ -56,9 +66,14 @@ async function assertNotBusy(db: ScopedDb, limits: TaskLimits): Promise<void> {
 
 async function assertUnderDailyLimit(db: ScopedDb, limits: TaskLimits, now: Date): Promise<void> {
   const dayStart = new Date(istDay(now).getTime() - IST_OFFSET_MS); // midnight IST, in UTC
-  const created = await db.applicationTask.count({ where: { kind: "TAILOR", createdAt: { gte: dayStart } } });
+  const created = await db.applicationTask.count({
+    where: { kind: "TAILOR", createdAt: { gte: dayStart } },
+  });
   if (created >= limits.dailyTailorLimit) {
-    const retryAfterSeconds = Math.max(1, Math.ceil((dayStart.getTime() + 24 * 60 * 60 * 1000 - now.getTime()) / 1000));
+    const retryAfterSeconds = Math.max(
+      1,
+      Math.ceil((dayStart.getTime() + 24 * 60 * 60 * 1000 - now.getTime()) / 1000),
+    );
     throw new UserFacingError(
       "DAILY_LIMIT",
       `You've prepared ${limits.dailyTailorLimit} drafts today, which is the daily limit. You can prepare more tomorrow.`,
@@ -69,20 +84,47 @@ async function assertUnderDailyLimit(db: ScopedDb, limits: TaskLimits, now: Date
 }
 
 function isUniqueViolation(error: unknown): boolean {
-  return typeof error === "object" && error !== null && (error as { code?: string }).code === "P2002";
+  return (
+    typeof error === "object" && error !== null && (error as { code?: string }).code === "P2002"
+  );
 }
 
-async function sendJob(name: QueueName, data: TailorJobData | PdfJobData, singletonKey: string, groupId: string): Promise<string | null> {
+/** A job handed to the web app to run itself (demo sites have no worker). */
+export type InlineJob =
+  | { queue: typeof QUEUE.tailor; data: TailorJobData }
+  | { queue: typeof QUEUE.pdf; data: PdfJobData };
+
+let inlineDispatcher: ((job: InlineJob) => void) | null = null;
+
+/**
+ * Demo sites: run queued jobs inside the web app instead of sending them to pg-boss. The
+ * dispatcher must not block (the web app runs the job after responding). Pass null to restore
+ * the queue.
+ */
+export function setInlineDispatcher(dispatch: ((job: InlineJob) => void) | null): void {
+  inlineDispatcher = dispatch;
+}
+
+async function sendJob(
+  name: QueueName,
+  data: TailorJobData | PdfJobData,
+  singletonKey: string,
+  groupId: string,
+): Promise<string | null> {
   const settings = QUEUE_SETTINGS[name];
   const boss = await getBoss();
-  return boss.send(name, { ...data }, {
-    singletonKey,
-    priority: settings.priority,
-    retryLimit: settings.retryLimit,
-    expireInSeconds: settings.expireInSeconds,
-    deadLetter: deadLetterQueue(name),
-    group: { id: groupId },
-  });
+  return boss.send(
+    name,
+    { ...data },
+    {
+      singletonKey,
+      priority: settings.priority,
+      retryLimit: settings.retryLimit,
+      expireInSeconds: settings.expireInSeconds,
+      deadLetter: deadLetterQueue(name),
+      group: { id: groupId },
+    },
+  );
 }
 
 /**
@@ -113,7 +155,14 @@ async function enqueue(
   if (existing) {
     task = await db.applicationTask.update({
       where: { id: existing.id },
-      data: { state: "QUEUED", reason: "", attempts: 0, startedAt: null, finishedAt: null, bossJobId: null },
+      data: {
+        state: "QUEUED",
+        reason: "",
+        attempts: 0,
+        startedAt: null,
+        finishedAt: null,
+        bossJobId: null,
+      },
     });
     singletonKey = `${args.key}|retry-${Date.now()}`;
   } else {
@@ -136,6 +185,15 @@ async function enqueue(
   }
 
   try {
+    if (inlineDispatcher) {
+      inlineDispatcher({ queue: args.queue, data: args.data(task.id) } as InlineJob);
+      return toTaskView(
+        await db.applicationTask.update({
+          where: { id: task.id },
+          data: { bossJobId: `inline:${task.id}` },
+        }),
+      );
+    }
     const bossJobId = await sendJob(args.queue, args.data(task.id), singletonKey, db.userId);
     // No id means pg-boss kept an older job with this singleton key. That job carries another
     // task's id, so nothing would ever pick this task up: fail it rather than leave it "queued".
@@ -145,9 +203,17 @@ async function enqueue(
     log.error({ taskId: task.id, errName: (error as Error).name }, "could not enqueue");
     await db.applicationTask.update({
       where: { id: task.id },
-      data: { state: "FAILED", reason: "We couldn't start this just now. Please try again.", finishedAt: new Date() },
+      data: {
+        state: "FAILED",
+        reason: "We couldn't start this just now. Please try again.",
+        finishedAt: new Date(),
+      },
     });
-    throw new UserFacingError("QUEUE_UNAVAILABLE", "We couldn't start this just now. Please try again in a minute.", 503);
+    throw new UserFacingError(
+      "QUEUE_UNAVAILABLE",
+      "We couldn't start this just now. Please try again in a minute.",
+      503,
+    );
   }
   return toTaskView(task);
 }
@@ -158,10 +224,19 @@ export async function enqueueTailor(
   applicationId: string,
   options: { limits?: TaskLimits; now?: Date } = {},
 ): Promise<TaskView> {
-  const application = await db.application.findUnique({ where: { id: applicationId }, select: { id: true, jobListingId: true } });
-  if (!application) throw new UserFacingError("APPLICATION_NOT_FOUND", "We couldn't find that application.", 404);
+  const application = await db.application.findUnique({
+    where: { id: applicationId },
+    select: { id: true, jobListingId: true },
+  });
+  if (!application)
+    throw new UserFacingError("APPLICATION_NOT_FOUND", "We couldn't find that application.", 404);
   const profile = await db.profile.findFirst({ select: { version: true } });
-  if (!profile) throw new UserFacingError("NO_PROFILE", "Set up your profile first so we can draft from it.", 409);
+  if (!profile)
+    throw new UserFacingError(
+      "NO_PROFILE",
+      "Set up your profile first so we can draft from it.",
+      409,
+    );
 
   const limits = options.limits ?? limitsFromConfig();
   const now = options.now ?? new Date();
@@ -200,7 +275,12 @@ export async function enqueuePdf(
     documentId,
     key,
     queue: QUEUE.pdf,
-    data: (taskId) => ({ userId: db.userId, applicationId: document.applicationId, documentId, taskId }),
+    data: (taskId) => ({
+      userId: db.userId,
+      applicationId: document.applicationId,
+      documentId,
+      taskId,
+    }),
     checkLimits: async () => {
       if (!options.fromWorker) await assertNotBusy(db, options.limits ?? limitsFromConfig());
     },
@@ -209,7 +289,10 @@ export async function enqueuePdf(
 
 /** Tasks for one application, newest first. */
 export async function getTasks(db: ScopedDb, applicationId: string): Promise<TaskView[]> {
-  const tasks = await db.applicationTask.findMany({ where: { applicationId }, orderBy: { createdAt: "desc" } });
+  const tasks = await db.applicationTask.findMany({
+    where: { applicationId },
+    orderBy: { createdAt: "desc" },
+  });
   return tasks.map(toTaskView);
 }
 
@@ -219,8 +302,15 @@ export async function getTasks(db: ScopedDb, applicationId: string): Promise<Tas
  * Marks a task as being worked on. Returns false when the job should be skipped: the task is gone
  * (its application was deleted) or already finished (a redelivered job must not draft twice).
  */
-export async function markTaskWorking(db: ScopedDb, taskId: string, attempt: number): Promise<boolean> {
-  const task = await db.applicationTask.findUnique({ where: { id: taskId }, select: { startedAt: true, state: true } });
+export async function markTaskWorking(
+  db: ScopedDb,
+  taskId: string,
+  attempt: number,
+): Promise<boolean> {
+  const task = await db.applicationTask.findUnique({
+    where: { id: taskId },
+    select: { startedAt: true, state: true },
+  });
   if (!task || task.state === "DONE" || task.state === "NEEDS_INPUT") return false;
   await db.applicationTask.update({
     where: { id: taskId },

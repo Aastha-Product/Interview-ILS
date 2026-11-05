@@ -23,6 +23,7 @@ export const USER_OWNED_MODELS = new Set([
   "AuditLog",
   "FeedSearch",
   "ApplicationTask",
+  "StoredFile",
 ]);
 
 /** Shared models any signed-in user may read, minus their user-owned relations. */
@@ -95,7 +96,9 @@ function assertNoBlockedRelations(tree: unknown, model: string): void {
   if (!tree || typeof tree !== "object") return;
   for (const [key, value] of Object.entries(tree as Args)) {
     if (BLOCKED_RELATION_KEYS.has(key) && value) {
-      throw new ScopeViolationError(`Cannot read ${key} through ${model}: they belong to other users`);
+      throw new ScopeViolationError(
+        `Cannot read ${key} through ${model}: they belong to other users`,
+      );
     }
     assertNoBlockedRelations(value, model);
   }
@@ -145,14 +148,21 @@ function withUser(data: unknown, userId: string, model: string): unknown {
 }
 
 /** Exported for unit tests. Rewrites query arguments so they can only touch `userId`'s rows. */
-export function scopeArgs(model: string, operation: string, rawArgs: unknown, userId: string): Args {
+export function scopeArgs(
+  model: string,
+  operation: string,
+  rawArgs: unknown,
+  userId: string,
+): Args {
   const args: Args = { ...((rawArgs as Args | undefined) ?? {}) };
 
   if (AUTH_MODELS.has(model)) {
     throw new ScopeViolationError(`${model} is only accessible to the auth adapter`);
   }
   if (INTERNAL_MODELS.has(model)) {
-    throw new ScopeViolationError(`${model} is internal and not reachable through the scoped client`);
+    throw new ScopeViolationError(
+      `${model} is internal and not reachable through the scoped client`,
+    );
   }
 
   assertNoBlockedRelations(args.include, model);
@@ -164,7 +174,9 @@ export function scopeArgs(model: string, operation: string, rawArgs: unknown, us
   if (SHARED_MODELS.has(model)) {
     // Writes to shared job data go through the raw client in the ingest code, not user requests.
     if (!READ_OPS.has(operation)) {
-      throw new ScopeViolationError(`${model}.${operation} is not allowed through the scoped client`);
+      throw new ScopeViolationError(
+        `${model}.${operation} is not allowed through the scoped client`,
+      );
     }
     return args;
   }

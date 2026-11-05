@@ -23,6 +23,7 @@ This repository is the MVP, built in phases: **1** foundation (sign-in, user-sco
   ```
 
   (`corepack enable` can fail on Windows without admin rights, so the npm install is the reliable route.)
+
 - **No Docker.** The database runs from npm-packaged PostgreSQL 17 binaries, and files are stored in a local folder.
 
 ## Set up and run
@@ -73,7 +74,7 @@ This repository is the MVP, built in phases: **1** foundation (sign-in, user-sco
 
 The app starts and every test passes with all AI and job-feed keys left empty.
 
-8. *Optional:* fill a demo account so every screen has something to show, then sign in with **Dev sign-in** as `demo@example.test`:
+8. _Optional:_ fill a demo account so every screen has something to show, then sign in with **Dev sign-in** as `demo@example.test`:
 
    ```bash
    pnpm db:seed
@@ -92,13 +93,13 @@ The app starts and every test passes with all AI and job-feed keys left empty.
 
 ### Limits and the AI fallback
 
-| Limit | Setting | Default | When hit |
-| --- | --- | --- | --- |
-| API requests per student | `RATE_LIMIT_API_PER_MINUTE` | 60 a minute | 429 with `Retry-After` and a friendly message |
-| Sign-in attempts per IP | `RATE_LIMIT_SIGNIN_PER_MINUTE` | 10 a minute | back to sign-in with a message |
-| Drafts per student | `TAILOR_DAILY_LIMIT` | 20 a day | 429 |
-| Drafts or PDFs in progress per student | `AI_CONCURRENT_PER_USER` | 2 | 429 |
-| Live job searches per student | `SEARCH_COOLDOWN_SECONDS` | 1 per 5 minutes | cached results, or 429 |
+| Limit                                  | Setting                        | Default         | When hit                                      |
+| -------------------------------------- | ------------------------------ | --------------- | --------------------------------------------- |
+| API requests per student               | `RATE_LIMIT_API_PER_MINUTE`    | 60 a minute     | 429 with `Retry-After` and a friendly message |
+| Sign-in attempts per IP                | `RATE_LIMIT_SIGNIN_PER_MINUTE` | 10 a minute     | back to sign-in with a message                |
+| Drafts per student                     | `TAILOR_DAILY_LIMIT`           | 20 a day        | 429                                           |
+| Drafts or PDFs in progress per student | `AI_CONCURRENT_PER_USER`       | 2               | 429                                           |
+| Live job searches per student          | `SEARCH_COOLDOWN_SECONDS`      | 1 per 5 minutes | cached results, or 429                        |
 
 Counters live in Postgres (`RateLimit` table), so every web instance shares them and simultaneous requests can't slip past.
 
@@ -115,7 +116,7 @@ The AI client retries with backoff (1 s, 2 s), and after 5 outages (timeouts, 42
 
 - **Dev sign-in.** A **Dev sign-in** button appears only when `NODE_ENV` is not `production` **and** `AUTH_GOOGLE_ID` is empty. It creates or reuses a local test user, and the end-to-end tests use it. It can never appear in production.
 - **Real Google sign-in.**
-  1. In Google Cloud Console, create an OAuth client ID of type *Web application*.
+  1. In Google Cloud Console, create an OAuth client ID of type _Web application_.
   2. Add the authorised redirect URI `http://localhost:3000/api/auth/callback/google`.
   3. Put the client ID and secret in `AUTH_GOOGLE_ID` and `AUTH_GOOGLE_SECRET` in `.env`.
 
@@ -129,10 +130,10 @@ To use Gemini, set `GEMINI_API_KEY`. `GEMINI_MODEL` defaults to the alias `gemin
 
 ### File storage
 
-| `STORAGE_DRIVER` | Where files go | Use for |
-| --- | --- | --- |
-| `local` (default) | `.local/storage` (or `STORAGE_LOCAL_DIR`) | Development only |
-| `s3` | Any S3-compatible bucket (Cloudflare R2, AWS S3, MinIO), using the `S3_*` settings | Staging and production (required in production) |
+| `STORAGE_DRIVER`  | Where files go                                                                     | Use for                                         |
+| ----------------- | ---------------------------------------------------------------------------------- | ----------------------------------------------- |
+| `local` (default) | `.local/storage` (or `STORAGE_LOCAL_DIR`)                                          | Development only                                |
+| `s3`              | Any S3-compatible bucket (Cloudflare R2, AWS S3, MinIO), using the `S3_*` settings | Staging and production (required in production) |
 
 ### Jobs: feeds and pasted jobs
 
@@ -146,12 +147,12 @@ To use Gemini, set `GEMINI_API_KEY`. `GEMINI_MODEL` defaults to the alias `gemin
 
 ### Local services
 
-| Command | What it does |
-| --- | --- |
-| `pnpm services:up` | Starts Postgres in the background, creating it on the first run |
-| `pnpm services:down` | Stops it |
-| `pnpm services:status` | Shows whether it is running |
-| `pnpm services:reset` | Stops it and **deletes all local data**: the database and stored files in `.local/` |
+| Command                | What it does                                                                        |
+| ---------------------- | ----------------------------------------------------------------------------------- |
+| `pnpm services:up`     | Starts Postgres in the background, creating it on the first run                     |
+| `pnpm services:down`   | Stops it                                                                            |
+| `pnpm services:status` | Shows whether it is running                                                         |
+| `pnpm services:reset`  | Stops it and **deletes all local data**: the database and stored files in `.local/` |
 
 The port, user and password come from `DATABASE_URL` in `.env`. The script only manages a database on `localhost`.
 
@@ -159,14 +160,14 @@ The port, user and password come from `DATABASE_URL` in `.env`. The script only 
 
 ## Tests
 
-| Command | What it runs |
-| --- | --- |
-| `pnpm test` | Unit tests (Vitest). No database needed. |
-| `pnpm test:integration` | Integration tests against `TEST_DATABASE_URL`, which must be a database whose name ends in `_test`. Migrations are applied automatically, and tables are emptied between tests. Needs `pnpm services:up`. |
-| `pnpm e2e` | End-to-end tests (Playwright). Needs `pnpm services:up` and `pnpm db:deploy`. Install the browser once with `pnpm --filter @pathfinder/e2e install-browsers` (it goes into `node_modules`, on the same drive as the project). |
-| `pnpm lint` / `pnpm typecheck` | ESLint and TypeScript (strict mode) |
-| `pnpm check` | Lint, typecheck, unit and integration tests in one go |
-| `pnpm load-test` | 50 simulated students run the main flow at once (needs `pnpm dev` and `pnpm worker` running with the mock AI). Passes when all finish and posting-to-PDF p95 is under 2 minutes. Local only; cleans up after itself. |
+| Command                        | What it runs                                                                                                                                                                                                                  |
+| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm test`                    | Unit tests (Vitest). No database needed.                                                                                                                                                                                      |
+| `pnpm test:integration`        | Integration tests against `TEST_DATABASE_URL`, which must be a database whose name ends in `_test`. Migrations are applied automatically, and tables are emptied between tests. Needs `pnpm services:up`.                     |
+| `pnpm e2e`                     | End-to-end tests (Playwright). Needs `pnpm services:up` and `pnpm db:deploy`. Install the browser once with `pnpm --filter @pathfinder/e2e install-browsers` (it goes into `node_modules`, on the same drive as the project). |
+| `pnpm lint` / `pnpm typecheck` | ESLint and TypeScript (strict mode)                                                                                                                                                                                           |
+| `pnpm check`                   | Lint, typecheck, unit and integration tests in one go                                                                                                                                                                         |
+| `pnpm load-test`               | 50 simulated students run the main flow at once (needs `pnpm dev` and `pnpm worker` running with the mock AI). Passes when all finish and posting-to-PDF p95 is under 2 minutes. Local only; cleans up after itself.          |
 
 GitHub Actions (`.github/workflows/ci.yml`) runs the same steps on every push and pull request, using the same embedded Postgres and no real keys.
 
@@ -176,12 +177,13 @@ GitHub Actions (`.github/workflows/ci.yml`) runs the same steps on every push an
 
 Pushes to `main` redeploy wherever the repository is connected (Vercel, Render). To run Pathfinder on a server, follow these guides in order:
 
-| Guide | What it covers |
-| --- | --- |
-| [docs/deploy-vercel.md](docs/deploy-vercel.md) | Quickest staging setup, step by step: website on Vercel, Neon, AWS S3 (Mumbai), Google sign-in, worker on Render |
-| [docs/deploy.md](docs/deploy.md) | Staging, then production: managed Postgres, S3/R2 storage, Google sign-in, settings (`.env.staging.example`), the two container images (`infra/Dockerfile.web`, `infra/Dockerfile.worker`), first-deploy checks, rollback |
-| [docs/backup-restore.md](docs/backup-restore.md) | Backups, the monthly restore drill (`scripts/backup-drill.sh`), restoring after an incident, breaches |
-| [docs/privacy-notice-draft.md](docs/privacy-notice-draft.md) | The privacy notice, **draft for legal review** |
+| Guide                                                        | What it covers                                                                                                                                                                                                            |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [docs/deploy-vercel-demo.md](docs/deploy-vercel-demo.md)     | Fastest test site: Vercel and its Postgres only (demo mode: no worker, S3 or Google sign-in)                                                                                                                              |
+| [docs/deploy-vercel.md](docs/deploy-vercel.md)               | Quickest staging setup, step by step: website on Vercel, Neon, AWS S3 (Mumbai), Google sign-in, worker on Render                                                                                                          |
+| [docs/deploy.md](docs/deploy.md)                             | Staging, then production: managed Postgres, S3/R2 storage, Google sign-in, settings (`.env.staging.example`), the two container images (`infra/Dockerfile.web`, `infra/Dockerfile.worker`), first-deploy checks, rollback |
+| [docs/backup-restore.md](docs/backup-restore.md)             | Backups, the monthly restore drill (`scripts/backup-drill.sh`), restoring after an incident, breaches                                                                                                                     |
+| [docs/privacy-notice-draft.md](docs/privacy-notice-draft.md) | The privacy notice, **draft for legal review**                                                                                                                                                                            |
 
 `APP_ENV` says which deployment this is: `development` (local), `staging` (a production build with test data, an amber banner and no search indexing) or `production`. `GET /api/health` answers 200 when the app can reach its database, for the host's health check.
 

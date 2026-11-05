@@ -1,23 +1,34 @@
 import { expect, test, type Page } from "@playwright/test";
+import { DEMO_PASSWORD } from "../playwright.config";
 
 async function devSignIn(page: Page, email: string) {
   await page.goto("/signin");
   await page.getByLabel("Email").fill(email);
-  await page.getByRole("button", { name: "Dev sign-in" }).click();
+  // Demo sites (E2E_DEMO=1) also ask for the shared demo password.
+  if (process.env.E2E_DEMO) await page.getByLabel("Demo password").fill(DEMO_PASSWORD);
+  await page.getByRole("button", { name: /^(Dev|Demo) sign-in$/ }).click();
 }
 
-test("a student who sends too many API requests gets a friendly 429 with Retry-After", async ({ page }) => {
+test("a student who sends too many API requests gets a friendly 429 with Retry-After", async ({
+  page,
+}) => {
   await devSignIn(page, `e2e-limits-${Date.now()}@example.test`);
   await expect(page).toHaveURL(/\/onboarding$/);
 
   // 125 requests: even if they straddle two one-minute windows (2 × 60 allowed), some are refused.
   const statuses: number[] = [];
-  let refused: { retryAfter: string | null; body: { error: { code: string; message: string } } } | null = null;
+  let refused: {
+    retryAfter: string | null;
+    body: { error: { code: string; message: string } };
+  } | null = null;
   for (let i = 0; i < 125; i++) {
     const response = await page.request.get("/api/dashboard");
     statuses.push(response.status());
     if (response.status() === 429 && !refused) {
-      refused = { retryAfter: response.headers()["retry-after"] ?? null, body: await response.json() };
+      refused = {
+        retryAfter: response.headers()["retry-after"] ?? null,
+        body: await response.json(),
+      };
     }
   }
   expect(statuses.filter((s) => s === 200).length).toBeGreaterThanOrEqual(60);

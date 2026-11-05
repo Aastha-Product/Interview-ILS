@@ -9,6 +9,8 @@ const RAW_DB_ALLOWED = [
   "apps/web/server/dev-sign-in.ts",
   // Shared job data (listings, extractions, feed cache and budget) is written outside any one user's scope.
   "packages/core/src/jobs/**",
+  // Database file storage (demo sites) stores rows keyed by path, outside any one request's scope.
+  "packages/core/src/storage/**",
   // The worker entry point only disconnects the shared client at shutdown.
   "apps/worker/src/index.ts",
   // The demo seed script only disconnects the shared client when it finishes.
@@ -36,7 +38,10 @@ export default tseslint.config(
   {
     languageOptions: { globals: { ...globals.node } },
     rules: {
-      "@typescript-eslint/no-unused-vars": ["error", { argsIgnorePattern: "^_", varsIgnorePattern: "^_" }],
+      "@typescript-eslint/no-unused-vars": [
+        "error",
+        { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },
+      ],
       "no-console": "error",
     },
   },
@@ -64,7 +69,8 @@ export default tseslint.config(
           paths: [
             {
               name: "@pathfinder/db/raw",
-              message: "Use scopedDb(userId) from @pathfinder/db. Raw access is limited to auth and account deletion.",
+              message:
+                "Use scopedDb(userId) from @pathfinder/db. Raw access is limited to auth and account deletion.",
             },
           ],
           patterns: [
