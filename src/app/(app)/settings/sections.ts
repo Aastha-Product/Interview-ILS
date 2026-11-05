@@ -6,16 +6,16 @@ export const SETTINGS_SECTIONS = [
   { id: "agent", label: "Job agent" },
   { id: "documents", label: "Documents" },
   { id: "google", label: "Google" },
-  { id: "connector", label: "MCP connector" },
+  // Pathfinder: the MCP connector (#221) isn't available on a server with many students yet: its
+  // tokens don't name a student. Its section comes back once they do.
   { id: "data", label: "Your data" },
   { id: "about", label: "About" },
 ] as const;
 
 export type SettingsSectionId = (typeof SETTINGS_SECTIONS)[number]["id"];
 
-/** The section in `?section=`, or AI provider when it's missing or unknown; "claude" is the MCP connector's old name (#281). */
+/** The section in `?section=`, or AI provider when it's missing or unknown. */
 export function settingsSectionFromParam(value: string | string[] | undefined): SettingsSectionId {
-  if (value === "claude") return "connector";
   return SETTINGS_SECTIONS.find((section) => section.id === value)?.id ?? "ai";
 }
 

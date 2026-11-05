@@ -8,8 +8,9 @@ describe("settings sections", () => {
     expect(settingsSectionFromParam(undefined)).toBe("ai");
     expect(settingsSectionFromParam("nope")).toBe("ai");
     expect(settingsSectionFromParam(["about", "data"])).toBe("ai");
-    // The MCP connector's old name (#281).
-    expect(settingsSectionFromParam("claude")).toBe("connector");
+    // Pathfinder: the MCP connector is off on a server with many students, so its links fall back.
+    expect(settingsSectionFromParam("claude")).toBe("ai");
+    expect(settingsSectionFromParam("connector")).toBe("ai");
   });
 
   it("links to a section", () => {

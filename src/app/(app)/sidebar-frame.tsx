@@ -1,7 +1,8 @@
 "use client";
 
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
-import { createContext, use, useState, type ReactNode } from "react";
+import { usePathname } from "next/navigation";
+import { createContext, use, useEffect, useState, type ReactNode } from "react";
 
 import { cn } from "@/lib/cn";
 import { rememberPreference, SIDEBAR_COOKIE } from "@/lib/ui-preferences";
@@ -35,6 +36,13 @@ export function SidebarFrame({
   children: ReactNode;
 }) {
   const [collapsed, setCollapsed] = useState(initialCollapsed);
+  const pathname = usePathname();
+  // Pathfinder: on a phone the open sidebar would leave the page a thin column, so it starts as
+  // its strip of icons, opens over the page, and closes again on the next page. Not remembered.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- the screen's width is only known in the browser
+    if (window.matchMedia?.("(max-width: 767px)").matches) setCollapsed(true);
+  }, [pathname]);
   const change = (next: boolean) => {
     setCollapsed(next);
     rememberPreference(SIDEBAR_COOKIE, next ? "collapsed" : "expanded");
@@ -44,11 +52,13 @@ export function SidebarFrame({
 
   return (
     <CollapsedContext value={{ collapsed, expand: () => change(false) }}>
+      {/* On a phone, the open sidebar lies over the page; this keeps the page where it was. */}
+      {!collapsed && <div aria-hidden="true" className="hidden w-12 shrink-0 max-md:block" />}
       <aside
         data-collapsed={collapsed || undefined}
         className={cn(
           "group/sidebar sticky top-0 flex h-screen shrink-0 flex-col self-start overflow-x-hidden overflow-y-auto border-r border-line bg-sidebar motion-safe:transition-[width] motion-safe:duration-200",
-          collapsed ? "w-12" : "w-[260px]",
+          collapsed ? "w-12" : "w-[260px] max-md:fixed max-md:inset-y-0 max-md:left-0 max-md:z-40 max-md:shadow-dialog",
         )}
       >
         <div

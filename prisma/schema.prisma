@@ -65,6 +65,7 @@ model User {
   googleAccounts   GoogleAccount[]
   emailMessages    EmailMessage[]
   jobs             Job[]
+  feedback         Feedback[]
 }
 
 model ProfileField {
@@ -1102,4 +1103,18 @@ model Job {
   @@index([status])
   @@index([applicationId])
   @@index([userId])
+}
+
+/// What a tester tells us (Pathfinder, first testing release): read by the team on the server.
+model Feedback {
+  userId    String   @default(dbgenerated("current_setting('app.user_id')"))
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id        String   @id @default(cuid())
+  /// The page it was sent from, e.g. "/applications/abc".
+  page      String   @default("")
+  message   String
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([createdAt])
 }

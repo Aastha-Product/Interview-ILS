@@ -6,6 +6,7 @@ import { jwtVerify, SignJWT } from "jose";
 
 import { passwordFingerprint } from "@/lib/auth/session";
 import { deriveKey } from "@/lib/keys";
+import { OwnerScopeError } from "@/lib/owner/scope";
 import { loadSettings } from "@/lib/settings-data";
 
 // Sign-in for the Claude connector (#221, src/app/api/mcp): a small OAuth 2.1
@@ -33,7 +34,14 @@ const key = (kind: TokenKind) => deriveKey(`connector-${kind}`);
 
 /** When the connector was turned on, or Claude last disconnected; null while it's off. */
 export async function connectorSince(): Promise<string | null> {
-  return (await loadSettings()).connectorEnabledAt;
+  // Pathfinder: Claude calls without a student's session, and its tokens don't name one yet, so
+  // the connector is off on a server with many students: its routes answer 404.
+  try {
+    return (await loadSettings()).connectorEnabledAt;
+  } catch (error) {
+    if (error instanceof OwnerScopeError) return null;
+    throw error;
+  }
 }
 
 /**
