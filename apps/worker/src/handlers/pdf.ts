@@ -29,7 +29,10 @@ export async function handlePdf(job: JobInfo<PdfJobData>, deps: { render?: typeo
   const { userId, applicationId, documentId, taskId } = job.data;
   const log = getLogger().child({ queue: "pdf.render", jobId: job.id, taskId });
   const db = scopedDb(userId);
-  await markTaskWorking(db, taskId, job.retryCount + 1);
+  if (!(await markTaskWorking(db, taskId, job.retryCount + 1))) {
+    log.info("task already finished or removed; skipping");
+    return;
+  }
 
   const doc = await db.generatedDocument.findUnique({ where: { id: documentId } });
   if (!doc || doc.kind !== "RESUME" || doc.applicationId !== applicationId) {

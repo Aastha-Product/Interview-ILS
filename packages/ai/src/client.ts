@@ -18,6 +18,11 @@ export interface AiClientOptions {
 
 export interface RunContext {
   recorder?: AiRecorder;
+  /**
+   * Epoch ms after which no new attempt starts and the current one is cut short. Queue jobs pass
+   * one so a run always ends before pg-boss expires the job (which would start a duplicate run).
+   */
+  deadline?: number;
 }
 
 export interface AiClient {
@@ -25,7 +30,15 @@ export interface AiClient {
   run<I, O>(task: TaskDefinition<I, O>, input: I, context?: RunContext): Promise<O>;
 }
 
-const defaultSleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+/** Returns a client whose every call carries `deadline` (unless the call passes its own). */
+export function withDeadline(client: AiClient, deadline: number): AiClient {
+  return {
+    providerName: client.providerName,
+    run: (task, input, context = {}) => client.run(task, input, { ...context, deadline: context.deadline ?? deadline }),
+  };
+}
+
+const defaultSleep =(ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 /** Converts a Zod schema to the JSON Schema sent to the model. */
 export function toModelJsonSchema(schema: z.ZodType): Record<string, unknown> {
@@ -64,8 +77,10 @@ export function createAiClient(options: AiClientOptions): AiClient {
 
       for (let attempt = 1; attempt <= maxAttempts; attempt++) {
         const started = now();
+        const remaining = context.deadline === undefined ? Infinity : context.deadline - started;
+        if (remaining <= 0) throw lastError ?? new AiError("timeout", "No time left for the AI call");
         const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), task.timeoutMs ?? timeoutMs);
+        const timer = setTimeout(() => controller.abort(), Math.min(task.timeoutMs ?? timeoutMs, remaining));
         let model = provider.name;
         let inputTokens = 0;
         let outputTokens = 0;
@@ -118,7 +133,10 @@ export function createAiClient(options: AiClientOptions): AiClient {
           });
         }
         const base = backoffMs[Math.min(attempt - 1, backoffMs.length - 1)] ?? 1_000;
-        await sleep(base + Math.floor(random() * base * 0.25));
+        const wait = base + Math.floor(random() * base * 0.25);
+        // Don't sleep into a deadline only to give up afterwards.
+        if (context.deadline !== undefined && now() + wait >= context.deadline) throw lastError;
+        await sleep(wait);
       }
       throw lastError ?? new AiError("server_error", "The AI call failed");
     },

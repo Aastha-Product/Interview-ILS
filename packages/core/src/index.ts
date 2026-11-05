@@ -57,6 +57,7 @@ export {
   getLatestResumePdf,
 } from "./applications/service";
 export type { ApplicationView, ApplicationSummary, DocumentView, ApplicationJobView } from "./applications/service";
+export { startApplication } from "./applications/start";
 export { computeDashboard, getDashboard, istWeekStart } from "./applications/dashboard";
 export type { Dashboard, WeekStats, DashboardRow } from "./applications/dashboard";
 export { resumeContentSchema, answersContentSchema } from "./applications/draft-schema";

@@ -2,7 +2,7 @@ import { createAiClient, type AiClient } from "./client";
 import { createGeminiProvider } from "./providers/gemini";
 import { createMockProvider } from "./providers/mock";
 
-export { createAiClient, hashInput, toModelJsonSchema } from "./client";
+export { createAiClient, hashInput, toModelJsonSchema, withDeadline } from "./client";
 export type { AiClient, AiClientOptions, RunContext } from "./client";
 export { AiError } from "./errors";
 export { createGeminiProvider } from "./providers/gemini";

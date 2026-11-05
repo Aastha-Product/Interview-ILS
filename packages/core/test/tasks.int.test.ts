@@ -1,7 +1,7 @@
-import { scopedDb } from "@pathfinder/db";
+import { failStaleTasks, scopedDb, STALE_TASK_REASON } from "@pathfinder/db";
 import { getPrisma } from "@pathfinder/db/raw";
 import { dedupeKey } from "@pathfinder/feeds";
-import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { createUser, resetDatabase } from "../../db/test/helpers";
 import {
   enqueuePdf,
@@ -11,6 +11,7 @@ import {
   markTaskFailed,
   markTaskWorking,
 } from "../src/applications/tasks";
+import { startApplication } from "../src/applications/start";
 import { UserFacingError } from "../src/errors";
 import { saveProfile } from "../src/profile/service";
 import { getBoss, stopBoss } from "../src/queue/boss";
@@ -183,5 +184,75 @@ describe("task state helpers", () => {
     expect(await getTasks(scopedDb(bobId), app.id)).toEqual([]);
     await markTaskFailed(scopedDb(bobId), tailor.id, "nope");
     expect((await getTasks(db, app.id))[1]!.state).toBe("needs_input");
+  });
+
+  it("markTaskWorking says skip for a finished or missing task, so a redelivered job never drafts twice", async () => {
+    const db = scopedDb(aliceId);
+    const app = await application(aliceId, 1);
+    const task = await enqueueTailor(db, app.id, { limits: roomy });
+    expect(await markTaskWorking(db, task.id, 1)).toBe(true);
+    await markTaskDone(db, task.id);
+    expect(await markTaskWorking(db, task.id, 2)).toBe(false);
+    expect((await db.applicationTask.findUniqueOrThrow({ where: { id: task.id } })).state).toBe("DONE");
+    expect(await markTaskWorking(db, "no-such-task", 1)).toBe(false);
+    // Another student's task id looks missing.
+    const other = await enqueueTailor(db, (await application(aliceId, 2)).id, { limits: roomy });
+    expect(await markTaskWorking(scopedDb(bobId), other.id, 1)).toBe(false);
+  });
+
+  it("fails a task the queue didn't accept instead of leaving it queued", async () => {
+    const db = scopedDb(aliceId);
+    const app = await application(aliceId, 1);
+    // pg-boss returns no id when it keeps an older job instead (singleton or throttled queues).
+    const send = vi.spyOn(await getBoss(), "send").mockResolvedValueOnce(null);
+    await expect(enqueueTailor(db, app.id, { limits: roomy })).rejects.toMatchObject({ code: "QUEUE_UNAVAILABLE", status: 503 });
+    send.mockRestore();
+    const [task] = await getTasks(db, app.id);
+    expect(task).toMatchObject({ state: "failed" });
+    expect(task!.reason).toMatch(/try again/i);
+  });
+});
+
+describe("failStaleTasks", () => {
+  it("fails only tasks stuck in queued or working past the cutoff, for every user", async () => {
+    const alice = scopedDb(aliceId);
+    const bob = scopedDb(bobId);
+    const stuckQueued = await enqueueTailor(alice, (await application(aliceId, 1)).id, { limits: roomy });
+    const stuckWorking = await enqueueTailor(bob, (await application(bobId, 2)).id, { limits: roomy });
+    await markTaskWorking(bob, stuckWorking.id, 1);
+    const finished = await enqueueTailor(alice, (await application(aliceId, 3)).id, { limits: roomy });
+    await markTaskDone(alice, finished.id);
+
+    const later = new Date(Date.now() + 31 * 60 * 1000);
+    expect(await failStaleTasks({ olderThanMs: 30 * 60 * 1000, now: new Date() })).toBe(0);
+    expect(await failStaleTasks({ olderThanMs: 30 * 60 * 1000, now: later })).toBe(2);
+
+    const state = async (db: typeof alice, id: string) => (await db.applicationTask.findUniqueOrThrow({ where: { id } })).state;
+    expect(await state(alice, stuckQueued.id)).toBe("FAILED");
+    expect(await state(bob, stuckWorking.id)).toBe("FAILED");
+    expect(await state(alice, finished.id)).toBe("DONE");
+    expect((await alice.applicationTask.findUniqueOrThrow({ where: { id: stuckQueued.id } })).reason).toBe(STALE_TASK_REASON);
+  });
+});
+
+describe("startApplication", () => {
+  it("creates the application and queues its draft", async () => {
+    const db = scopedDb(aliceId);
+    const job = await listing(1);
+    const { applicationId, task } = await startApplication(db, job.id, { limits: roomy });
+    expect(task).toMatchObject({ kind: "tailor", state: "queued" });
+    expect(await db.application.count({ where: { id: applicationId } })).toBe(1);
+  });
+
+  it("keeps nothing when the draft can't be queued, so trying again later works", async () => {
+    const db = scopedDb(aliceId);
+    const job = await listing(1);
+    const full = { dailyTailorLimit: 0, concurrentPerUser: 100 };
+    await expect(startApplication(db, job.id, { limits: full })).rejects.toMatchObject({ code: "DAILY_LIMIT", status: 429 });
+    expect(await db.application.count()).toBe(0);
+    expect(await db.applicationTask.count()).toBe(0);
+    expect(await db.applicationEvent.count()).toBe(0);
+    // Not "already started" the next time.
+    await expect(startApplication(db, job.id, { limits: roomy })).resolves.toMatchObject({ task: { state: "queued" } });
   });
 });

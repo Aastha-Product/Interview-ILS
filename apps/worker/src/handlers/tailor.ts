@@ -1,20 +1,26 @@
 import type { AiClient } from "@pathfinder/ai";
-import * as core from "@pathfinder/core";
-import { enqueuePdf, getLogger, markTaskDone, markTaskFailed, markTaskWorking, UserFacingError, type TailorJobData } from "@pathfinder/core";
-import { scopedDb, type ScopedDb } from "@pathfinder/db";
+import {
+  enqueuePdf,
+  generateDrafts as coreGenerateDrafts,
+  getLogger,
+  markTaskDone,
+  markTaskFailed,
+  markTaskWorking,
+  QUEUE_SETTINGS,
+  UserFacingError,
+  type TailorJobData,
+} from "@pathfinder/core";
+import { scopedDb } from "@pathfinder/db";
 import type { JobInfo } from "./pdf";
 
-/** Signature agreed with the drafting track (packages/core/src/applications/tailor.ts). */
-export type GenerateDrafts = (
-  deps: { db: ScopedDb; ai: AiClient },
-  applicationId: string,
-) => Promise<{ resumeDocumentId: string; answersDocumentId: string; needsInput: boolean; removedCount: number }>;
+export type GenerateDrafts = typeof coreGenerateDrafts;
 
-function resolveGenerateDrafts(): GenerateDrafts {
-  const fn = (core as unknown as { generateDrafts?: GenerateDrafts }).generateDrafts;
-  if (!fn) throw new Error("generateDrafts is not available in @pathfinder/core");
-  return fn;
-}
+/**
+ * Time kept back from the queue's expiry for saving drafts and queueing the PDF. AI calls get the
+ * rest, so a run always ends before pg-boss expires the job and hands it to a second worker.
+ */
+const SAVE_MARGIN_MS = 15_000;
+export const TAILOR_BUDGET_MS = QUEUE_SETTINGS["ai.tailor"].expireInSeconds * 1000 - SAVE_MARGIN_MS;
 
 /**
  * ai.tailor: drafts a tailored resume and answers (fact-checked against the profile), then queues
@@ -28,12 +34,15 @@ export async function handleTailor(
   const { userId, applicationId, taskId } = job.data;
   const log = getLogger().child({ queue: "ai.tailor", jobId: job.id, taskId });
   const db = scopedDb(userId);
-  await markTaskWorking(db, taskId, job.retryCount + 1);
+  if (!(await markTaskWorking(db, taskId, job.retryCount + 1))) {
+    log.info("task already finished or removed; skipping");
+    return;
+  }
 
   try {
-    const generateDrafts = deps.generateDrafts ?? resolveGenerateDrafts();
+    const generateDrafts = deps.generateDrafts ?? coreGenerateDrafts;
     const started = Date.now();
-    const result = await generateDrafts({ db, ai: deps.ai }, applicationId);
+    const result = await generateDrafts({ db, ai: deps.ai, deadline: started + TAILOR_BUDGET_MS }, applicationId);
     await enqueuePdf(db, result.resumeDocumentId, { fromWorker: true });
     await markTaskDone(db, taskId, {
       documentId: result.resumeDocumentId,

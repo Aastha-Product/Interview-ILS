@@ -3,7 +3,7 @@ import "../src/env";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { createAiClient, createMockProvider } from "@pathfinder/ai";
-import { enqueueTailor, getTasks, saveProfile, stopBoss, UserFacingError } from "@pathfinder/core";
+import { enqueueTailor, getTasks, QUEUE_SETTINGS, saveProfile, stopBoss, UserFacingError } from "@pathfinder/core";
 import { scopedDb } from "@pathfinder/db";
 import { getPrisma } from "@pathfinder/db/raw";
 import { dedupeKey } from "@pathfinder/feeds";
@@ -12,7 +12,7 @@ import { createUser, resetDatabase } from "../../../packages/db/test/helpers";
 import { fullProfile } from "../../../packages/core/test/fixtures";
 import { sampleResume } from "../../../packages/core/test/resume-html.test";
 import { handlePdf, pdfStorageKey } from "../src/handlers/pdf";
-import { handleTailor, type GenerateDrafts } from "../src/handlers/tailor";
+import { handleTailor, TAILOR_BUDGET_MS, type GenerateDrafts } from "../src/handlers/tailor";
 
 const ai = createAiClient({ provider: createMockProvider() });
 const roomy = { dailyTailorLimit: 100, concurrentPerUser: 100 };
@@ -83,6 +83,37 @@ describe("handleTailor", () => {
     const failed = (await getTasks(db, applicationId))[0]!;
     expect(failed).toMatchObject({ state: "failed", reason: "We couldn't prepare this draft. Please try again." });
     expect(failed.reason).not.toContain("secret");
+  });
+
+  it("gives drafting a deadline that ends before the queue would expire the job", async () => {
+    const db = scopedDb(userId);
+    const task = await enqueueTailor(db, applicationId, { limits: roomy });
+    const doc = await resumeDoc();
+    let deadline: number | undefined;
+    const before = Date.now();
+    const generateDrafts: GenerateDrafts = async (deps) => {
+      deadline = deps.deadline;
+      return { resumeDocumentId: doc.id, answersDocumentId: "a", needsInput: false, removedCount: 0 };
+    };
+    await handleTailor(jobFor(task.id), { ai, generateDrafts });
+    expect(TAILOR_BUDGET_MS).toBeLessThan(QUEUE_SETTINGS["ai.tailor"].expireInSeconds * 1000);
+    expect(deadline! - before).toBeGreaterThanOrEqual(TAILOR_BUDGET_MS - 1000);
+    expect(deadline! - Date.now()).toBeLessThanOrEqual(TAILOR_BUDGET_MS);
+  });
+
+  it("skips a redelivered job whose task already finished, without drafting again", async () => {
+    const db = scopedDb(userId);
+    const task = await enqueueTailor(db, applicationId, { limits: roomy });
+    const doc = await resumeDoc();
+    let calls = 0;
+    const generateDrafts: GenerateDrafts = async () => {
+      calls++;
+      return { resumeDocumentId: doc.id, answersDocumentId: "a", needsInput: false, removedCount: 0 };
+    };
+    await handleTailor(jobFor(task.id), { ai, generateDrafts });
+    await handleTailor(jobFor(task.id, 1), { ai, generateDrafts });
+    expect(calls).toBe(1);
+    expect((await getTasks(db, applicationId)).filter((t) => t.kind === "pdf")).toHaveLength(1);
   });
 });
 

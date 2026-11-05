@@ -5,6 +5,7 @@ import {
   DEFAULT_QUESTIONS,
   resumeTailorTask,
   roleQuestions,
+  withDeadline,
   type AiClient,
   type DraftingRequirements,
   type ResumeTailorOutput,
@@ -22,6 +23,8 @@ import type { AnswersContent, FactCheckReport, ProfileFact, ResumeContent } from
 export interface GenerateDraftsDeps {
   db: ScopedDb;
   ai: AiClient;
+  /** Epoch ms by which every AI call must finish (the worker sets it inside the queue's expiry). */
+  deadline?: number;
 }
 
 export interface GenerateDraftsResult {
@@ -42,7 +45,9 @@ const MAX_BULLETS = 4;
  * dropped and reported → short answers with the same checks → saved as new document versions.
  * Job requirements the profile doesn't cover are listed as gaps, never written into the draft.
  */
-export async function generateDrafts({ db, ai }: GenerateDraftsDeps, applicationId: string): Promise<GenerateDraftsResult> {
+export async function generateDrafts(deps: GenerateDraftsDeps, applicationId: string): Promise<GenerateDraftsResult> {
+  const { db } = deps;
+  const ai = deps.deadline === undefined ? deps.ai : withDeadline(deps.ai, deps.deadline);
   const log = getLogger().child({ op: "ai.tailor" });
   const recorder = createAiRecorder(db);
 
@@ -116,12 +121,15 @@ export async function generateDrafts({ db, ai }: GenerateDraftsDeps, application
     passed: checked.passed + answersChecked.passed,
   };
 
-  const nextVersion = async (kind: "RESUME" | "ANSWERS") =>
-    ((await db.generatedDocument.aggregate({ where: { applicationId, kind }, _max: { version: true } }))._max.version ?? 0) + 1;
-  const [resumeVersion, answersVersion] = [await nextVersion("RESUME"), await nextVersion("ANSWERS")];
   const json = (value: unknown) => value as Prisma.InputJsonValue;
 
-  const [resumeDoc, answersDoc] = await db.$transaction(async (tx) => {
+  // Versions are numbered inside the transaction. If two runs for the same application ever
+  // overlap, the unique (applicationId, kind, version) index rejects one; it renumbers and retries once.
+  const save = () => db.$transaction(async (tx) => {
+    const nextVersion = async (kind: "RESUME" | "ANSWERS") =>
+      ((await tx.generatedDocument.aggregate({ where: { applicationId, kind }, _max: { version: true } }))._max.version ?? 0) + 1;
+    const resumeVersion = await nextVersion("RESUME");
+    const answersVersion = await nextVersion("ANSWERS");
     const r = await tx.generatedDocument.create({
       data: {
         userId: db.userId,
@@ -147,6 +155,14 @@ export async function generateDrafts({ db, ai }: GenerateDraftsDeps, application
     await tx.applicationEvent.create({ data: { userId: db.userId, applicationId, type: "DRAFT_READY" } });
     return [r, a] as const;
   });
+  let saved: Awaited<ReturnType<typeof save>>;
+  try {
+    saved = await save();
+  } catch (error) {
+    if ((error as { code?: string }).code !== "P2002") throw error;
+    saved = await save();
+  }
+  const [resumeDoc, answersDoc] = saved;
 
   const needsInput = answersContent.answers.some((a) => a.needsInput);
   log.info(

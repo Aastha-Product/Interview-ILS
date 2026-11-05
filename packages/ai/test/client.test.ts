@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
-import { createAiClient } from "../src/client";
+import { createAiClient, withDeadline } from "../src/client";
 import { AiError } from "../src/errors";
 import type { AiProvider, AiRunRecord, TaskDefinition } from "../src/types";
 
@@ -93,5 +93,34 @@ describe("AI client", () => {
     const error = await client.run(task, { q: "x" }).catch((e: unknown) => e);
     expect(error).toBeInstanceOf(AiError);
     expect((error as AiError).kind).toBe("timeout");
+  });
+
+  it("cuts a call short at the deadline, even when the task allows longer", async () => {
+    const provider = scriptedProvider([() => new Promise<string>(() => {})]);
+    const client = createAiClient({ provider, timeoutMs: 60_000 });
+    const started = Date.now();
+    const error = await client.run(task, { q: "x" }, { deadline: started + 30 }).catch((e: unknown) => e);
+    expect((error as AiError).kind).toBe("timeout");
+    expect(Date.now() - started).toBeLessThan(5_000);
+    expect(provider.calls).toBe(1);
+  });
+
+  it("does not start a retry or back off past the deadline", async () => {
+    let clock = 0;
+    const sleep = vi.fn(async (ms: number) => void (clock += ms));
+    const provider = scriptedProvider([
+      async () => Promise.reject(Object.assign(new Error("boom"), { status: 503 })),
+      async () => '{"answer":"too late"}',
+    ]);
+    const client = createAiClient({ provider, sleep, now: () => clock, random: () => 0 });
+    await expect(client.run(task, { q: "x" }, { deadline: 500 })).rejects.toMatchObject({ kind: "server_error" });
+    expect(provider.calls).toBe(1);
+    expect(sleep).not.toHaveBeenCalled();
+  });
+
+  it("withDeadline adds the deadline to every call", async () => {
+    const provider = scriptedProvider([() => new Promise<string>(() => {})]);
+    const client = withDeadline(createAiClient({ provider, maxAttempts: 1, timeoutMs: 60_000 }), Date.now() + 20);
+    await expect(client.run(task, { q: "x" })).rejects.toMatchObject({ kind: "timeout" });
   });
 });

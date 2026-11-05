@@ -137,8 +137,10 @@ async function enqueue(
 
   try {
     const bossJobId = await sendJob(args.queue, args.data(task.id), singletonKey, db.userId);
-    if (bossJobId) task = await db.applicationTask.update({ where: { id: task.id }, data: { bossJobId } });
-    else log.warn({ taskId: task.id }, "queue returned no job id (already queued)");
+    // No id means pg-boss kept an older job with this singleton key. That job carries another
+    // task's id, so nothing would ever pick this task up: fail it rather than leave it "queued".
+    if (!bossJobId) throw new Error("queue returned no job id");
+    task = await db.applicationTask.update({ where: { id: task.id }, data: { bossJobId } });
   } catch (error) {
     log.error({ taskId: task.id, errName: (error as Error).name }, "could not enqueue");
     await db.applicationTask.update({
@@ -213,13 +215,18 @@ export async function getTasks(db: ScopedDb, applicationId: string): Promise<Tas
 
 // ---------- worker helpers ----------
 
-export async function markTaskWorking(db: ScopedDb, taskId: string, attempt: number): Promise<void> {
-  const task = await db.applicationTask.findUnique({ where: { id: taskId }, select: { startedAt: true } });
-  if (!task) return;
+/**
+ * Marks a task as being worked on. Returns false when the job should be skipped: the task is gone
+ * (its application was deleted) or already finished (a redelivered job must not draft twice).
+ */
+export async function markTaskWorking(db: ScopedDb, taskId: string, attempt: number): Promise<boolean> {
+  const task = await db.applicationTask.findUnique({ where: { id: taskId }, select: { startedAt: true, state: true } });
+  if (!task || task.state === "DONE" || task.state === "NEEDS_INPUT") return false;
   await db.applicationTask.update({
     where: { id: taskId },
     data: { state: "WORKING", attempts: attempt, startedAt: task.startedAt ?? new Date() },
   });
+  return true;
 }
 
 export async function markTaskDone(

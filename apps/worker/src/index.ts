@@ -12,7 +12,7 @@ import {
   type PdfJobData,
   type TailorJobData,
 } from "@pathfinder/core";
-import { scopedDb } from "@pathfinder/db";
+import { failStaleTasks, scopedDb } from "@pathfinder/db";
 import { getPrisma } from "@pathfinder/db/raw";
 import { handlePdf } from "./handlers/pdf";
 import { handleTailor } from "./handlers/tailor";
@@ -27,6 +27,10 @@ function info<T>(job: { id: string; data: T; retryCount: number }, queue: keyof 
 }
 const config = getConfig();
 const ai = createAiClientFromEnv(config);
+
+const STALE_TASK_MS = 30 * 60 * 1000;
+const SWEEP_EVERY_MS = 5 * 60 * 1000;
+let sweepTimer: NodeJS.Timeout | null = null;
 
 async function main() {
   const boss = await getBoss({ supervise: true });
@@ -65,6 +69,21 @@ async function main() {
     });
   }
 
+  // A crashed worker or a lost job leaves a task "queued" or "working" forever, holding one of the
+  // student's concurrent slots. Every few minutes, fail tasks that have been stuck far longer than
+  // any run can take (expiry × attempts plus backoff is well under this).
+  const sweep = async () => {
+    try {
+      const failed = await failStaleTasks({ olderThanMs: STALE_TASK_MS });
+      if (failed > 0) log.warn({ failed }, "failed stale tasks");
+    } catch (error) {
+      log.error({ errName: (error as Error).name }, "stale task sweep failed");
+    }
+  };
+  await sweep();
+  sweepTimer = setInterval(() => void sweep(), SWEEP_EVERY_MS);
+  sweepTimer.unref();
+
   log.info({ ai: ai.providerName }, "worker started");
   process.stdout.write("Worker ready\n");
 }
@@ -74,6 +93,7 @@ async function shutdown(signal: string) {
   if (stopping) return;
   stopping = true;
   log.info({ signal }, "worker stopping");
+  if (sweepTimer) clearInterval(sweepTimer);
   await stopBoss();
   await closeBrowser();
   await getPrisma().$disconnect().catch(() => {});
