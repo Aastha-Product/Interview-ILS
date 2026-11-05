@@ -72,3 +72,20 @@ export async function runRetention(options: { now?: Date } = {}): Promise<Retent
     usageRecords: usageRecords.count,
   };
 }
+
+/** For health checks: true when the database answers a trivial query within `timeoutMs`. */
+export async function databaseIsUp(timeoutMs = 2_000): Promise<boolean> {
+  let timer: NodeJS.Timeout | undefined;
+  try {
+    return await Promise.race([
+      getPrisma().$queryRaw`SELECT 1`.then(() => true),
+      new Promise<boolean>((resolve) => {
+        timer = setTimeout(() => resolve(false), timeoutMs);
+      }),
+    ]);
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timer);
+  }
+}

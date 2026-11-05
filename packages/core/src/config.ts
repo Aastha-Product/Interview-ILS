@@ -40,6 +40,8 @@ const schema = z
     S3_SECRET_KEY: optional,
     SENTRY_DSN: optional,
     APP_URL: z.url().default("http://localhost:3000"),
+    /** Proxies in front of the app that append to X-Forwarded-For (1 on most container hosts; 2 behind a CDN too). */
+    TRUSTED_PROXY_HOPS: z.coerce.number().int().min(0).max(5).default(1),
     LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]).default("info"),
   })
   .superRefine((env, ctx) => {

@@ -33,6 +33,7 @@ describe("parseConfig", () => {
     expect(defaults.FALLBACK_AI_BASE_URL).toBeUndefined();
     expect(defaults.RATE_LIMIT_API_PER_MINUTE).toBe(60);
     expect(defaults.RATE_LIMIT_SIGNIN_PER_MINUTE).toBe(10);
+    expect(defaults.TRUSTED_PROXY_HOPS).toBe(1);
   });
 
   it("requires bucket and keys when storage is S3", () => {

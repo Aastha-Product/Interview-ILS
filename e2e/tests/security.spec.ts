@@ -68,3 +68,10 @@ test("a resume upload without Content-Length is refused before it is read", asyn
   });
   expect(status).toBe(411);
 });
+
+test("the health check answers without sign-in and gives nothing away", async ({ request }) => {
+  const response = await request.get("/api/health");
+  expect(response.status()).toBe(200);
+  expect(await response.json()).toEqual({ status: "ok" });
+  expect(response.headers()["cache-control"]).toContain("no-store");
+});
