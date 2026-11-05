@@ -47,16 +47,15 @@ RUN mkdir /tools && node -e ' \
   const resolutions = require("/app/package.json").resolutions ?? {}; \
   require("node:fs").writeFileSync("/tools/package.json", JSON.stringify({ \
     private: true, \
-    dependencies: { prisma: version("prisma"), dotenv: version("dotenv"), "better-sqlite3": version("better-sqlite3") }, \
+    dependencies: { prisma: version("prisma"), dotenv: version("dotenv") }, \
     overrides: Object.fromEntries(Object.entries(resolutions).map(([from, to]) => [from.split("@npm:")[0], to])), \
   }));' \
   && cd /tools && npm install --omit=dev --no-audit --no-fund \
   && cp -r /app/prisma7.config.ts /app/prisma /tools/
 # The seed as one JavaScript file, so it runs without tsx (E12-3). Bundled
-# CommonJS packages (pg) need a real require; SQLite's native module is
-# installed in /tools above instead.
+# CommonJS packages (pg) need a real require. (Pathfinder runs on PostgreSQL only.)
 RUN node_modules/.bin/esbuild prisma/seed.ts --bundle --platform=node --format=esm --target=node24 \
-  --external:pg-native --external:better-sqlite3 --outfile=/tools/seed.mjs \
+  --external:pg-native --outfile=/tools/seed.mjs \
   --banner:js='import { createRequire } from "node:module"; const require = createRequire(import.meta.url);'
 # `hash-password`, which makes the hash for DOSSIER_PASSWORD, as one file too.
 RUN node_modules/.bin/esbuild scripts/hash-password.ts --bundle --platform=node --format=esm --target=node24 \
