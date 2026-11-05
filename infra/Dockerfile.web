@@ -1,0 +1,24 @@
+# The web image: Next.js app and API (docs/deploy.md).
+#
+#   docker build -f infra/Dockerfile.web -t pathfinder-web .
+#
+# Holds the whole workspace (the Prisma CLI is needed for the migration release step), so it is
+# simple rather than small. No secrets are baked in: every setting comes from the host at run time.
+FROM node:22-bookworm-slim
+ENV CI=true NEXT_TELEMETRY_DISABLED=1
+RUN npm install -g pnpm@10.34.9
+WORKDIR /app
+COPY . .
+# postinstall runs `prisma generate` (no database needed).
+RUN pnpm install --frozen-lockfile && pnpm --filter @pathfinder/web build
+# Next.js writes its cache under .next at run time.
+RUN chown -R node:node /app/apps/web/.next
+
+ENV NODE_ENV=production PORT=3000
+USER node
+WORKDIR /app/apps/web
+EXPOSE 3000
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+  CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||3000)+'/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+# `exec` so the server receives SIGTERM directly and shuts down cleanly. Hosts set PORT.
+CMD ["sh", "-c", "exec ./node_modules/.bin/next start --port ${PORT:-3000}"]

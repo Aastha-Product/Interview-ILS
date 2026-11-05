@@ -109,3 +109,94 @@ jobs:
       - name: Postgres log on failure
         if: failure()
         run: cat .local/pg.log || true
+
+  # Pilot readiness (docs/deploy.md, docs/backup-restore.md): builds both container images, runs them
+  # against a real Postgres 17, and does a backup-and-restore drill. Nothing is pushed or deployed.
+  images:
+    name: Container images and restore drill
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: pathfinder
+          POSTGRES_PASSWORD: pathfinder
+          POSTGRES_DB: pathfinder
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U pathfinder"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://pathfinder:pathfinder@localhost:5432/pathfinder
+      ADMIN_URL: postgresql://pathfinder:pathfinder@localhost:5432/postgres
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build the web image
+        run: docker build -f infra/Dockerfile.web -t pathfinder-web .
+
+      - name: Build the worker image
+        run: docker build -f infra/Dockerfile.worker -t pathfinder-worker .
+
+      - name: Apply migrations from the image (the deploy-time release step)
+        run: >
+          docker run --rm --network host -e DATABASE_URL pathfinder-web
+          sh -c "cd /app/packages/db && ./node_modules/.bin/prisma migrate deploy"
+
+      - name: Start the web image with staging-style settings
+        run: |
+          docker run -d --name web --network host \
+            -e DATABASE_URL -e APP_ENV=staging -e AUTH_SECRET="$(openssl rand -hex 32)" \
+            -e AUTH_GOOGLE_ID=ci-placeholder -e AUTH_GOOGLE_SECRET=ci-placeholder \
+            -e STORAGE_DRIVER=s3 -e S3_ENDPOINT=http://127.0.0.1:9 -e S3_BUCKET=ci -e S3_ACCESS_KEY=ci -e S3_SECRET_KEY=ci \
+            -e APP_URL=http://localhost:3000 pathfinder-web
+          curl --fail --silent --show-error --retry 30 --retry-delay 2 --retry-all-errors http://localhost:3000/api/health
+          echo
+          # Saved to files first: under pipefail, `curl | grep -q` can fail when grep exits early.
+          curl --fail --silent --dump-header /tmp/signin.headers --output /tmp/signin.html http://localhost:3000/signin
+          grep -q "Staging site: test data only" /tmp/signin.html
+          grep -qi "^content-security-policy:.*'strict-dynamic'" /tmp/signin.headers
+          if grep -qi "^content-security-policy:.*unsafe-eval" /tmp/signin.headers; then echo "production CSP allows eval"; exit 1; fi
+          test "$(docker inspect --format '{{.Config.User}}' pathfinder-web)" = "node"
+
+      - name: Seed demo data with the worker image
+        # Development mode inside the container so the seed may create its own user and use local files.
+        run: >
+          docker run --rm --network host -e DATABASE_URL -e AUTH_SECRET="$(openssl rand -hex 32)"
+          -e NODE_ENV=development -e APP_ENV=development -e STORAGE_DRIVER=local -e STORAGE_LOCAL_DIR=/tmp/storage
+          pathfinder-worker ./node_modules/.bin/tsx src/seed.ts
+
+      - name: Start the worker image and wait for it to render the demo PDFs with Chromium
+        run: |
+          docker run -d --name worker --network host -e DATABASE_URL -e AUTH_SECRET="$(openssl rand -hex 32)" \
+            -e NODE_ENV=development -e APP_ENV=development -e STORAGE_DRIVER=local -e STORAGE_LOCAL_DIR=/tmp/storage \
+            pathfinder-worker
+          for i in $(seq 1 60); do
+            docker logs worker 2>&1 | grep -q "Worker ready" && break
+            sleep 2
+          done
+          docker logs worker 2>&1 | grep -q "Worker ready"
+          for i in $(seq 1 60); do
+            rendered=$(docker run --rm --network host postgres:17 psql "$DATABASE_URL" -At -c \
+              'SELECT count(*) FROM "GeneratedDocument" WHERE "pdfStorageKey" IS NOT NULL')
+            echo "PDFs rendered: $rendered"
+            [ "$rendered" -ge 3 ] && break
+            sleep 3
+          done
+          [ "$rendered" -ge 3 ]
+          docker stop worker
+
+      - name: Backup and restore drill
+        run: scripts/backup-drill.sh
+        env:
+          SOURCE_URL: ${{ env.DATABASE_URL }}
+
+      - name: Container logs on failure
+        if: failure()
+        run: |
+          docker logs web 2>&1 | tail -100 || true
+          docker logs worker 2>&1 | tail -100 || true

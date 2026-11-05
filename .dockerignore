@@ -1,0 +1,17 @@
+# Never send secrets, local data or build output into the image build.
+.env
+.env.*
+!.env.example
+!.env.staging.example
+.local/
+**/node_modules/
+**/.next/
+**/dist/
+**/coverage/
+**/*.tsbuildinfo
+packages/db/src/generated/
+e2e/test-results/
+e2e/playwright-report/
+.git/
+.github/
+.claude/
