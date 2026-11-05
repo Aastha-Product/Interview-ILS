@@ -12,7 +12,8 @@ export async function currentUserId(): Promise<string> {
   if (fromContext) return fromContext;
   // Imported here, not at the top: the session module reads request cookies (next/headers).
   const { getSession } = await import("@/lib/auth/session");
-  const session = await getSession();
+  // Outside a request (startup, timers) there are no cookies to read: no student either.
+  const session = await getSession().catch(() => null);
   if (session?.userId) return session.userId;
   throw new OwnerScopeError("No signed-in student for this database call");
 }

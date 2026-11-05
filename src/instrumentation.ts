@@ -31,12 +31,16 @@ export async function register() {
     startStartupsSchedule();
 
     // DOSSIER_JOBS_SOURCE=arbeitsagentur: the log says what that choice means (#223).
+    // Pathfinder: settings belong to students, so this reads the first one's, only when it matters.
     const { arbeitsagenturStartupNotice, loadJobSearchConfig } = await import("@/lib/job-search/config");
-    try {
-      const notice = arbeitsagenturStartupNotice(await loadJobSearchConfig());
-      if (notice) console.log(notice);
-    } catch (error) {
-      logServerError("job search", error);
+    const { forEachStudent } = await import("@/lib/owner/students");
+    if (process.env.DOSSIER_JOBS_SOURCE) {
+      let shown = false;
+      await forEachStudent("job search", async () => {
+        const notice = shown ? null : arbeitsagenturStartupNotice(await loadJobSearchConfig());
+        if (notice) console.log(notice);
+        shown = true;
+      }).catch((error: unknown) => logServerError("job search", error));
     }
 
     // The usage ping (#172) is off unless DOSSIER_TELEMETRY=on (Pathfinder). When it's on,
