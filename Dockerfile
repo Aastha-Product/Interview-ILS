@@ -38,6 +38,10 @@ RUN yarn install --immutable
 
 FROM deps AS build
 ENV NEXT_TELEMETRY_DISABLED=1
+# The type check in `next build` needs more memory than Node allows by default on a small
+# server (Pathfinder: a 2 GB Lightsail instance ran out of heap). Swap covers the rest there.
+ARG BUILD_MEMORY_MB=3072
+ENV NODE_OPTIONS=--max-old-space-size=${BUILD_MEMORY_MB}
 COPY . .
 RUN yarn generate && yarn build
 # Prisma's CLI for `migrate deploy`, at the version in yarn.lock, with the

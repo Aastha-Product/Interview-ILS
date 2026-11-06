@@ -25,14 +25,20 @@ if [ "$(id -u)" -ne 0 ]; then
 fi
 
 say "Swap space"
-if ! swapon --show | grep -q .; then
-  fallocate -l 2G /swapfile
+# 4 GB: building the app's type check needs about 3 GB of memory, more than the server has.
+SWAP_BYTES=$((4 * 1024 * 1024 * 1024))
+current=$(stat -c %s /swapfile 2>/dev/null || echo 0)
+if [ "$current" -lt "$SWAP_BYTES" ]; then
+  swapoff /swapfile 2>/dev/null || true
+  rm -f /swapfile
+  fallocate -l 4G /swapfile
   chmod 600 /swapfile
   mkswap /swapfile >/dev/null
   swapon /swapfile
   grep -q '^/swapfile ' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab
-  echo "Added 2 GB of swap."
+  echo "Swap is now 4 GB."
 else
+  swapon /swapfile 2>/dev/null || true
   echo "Already there."
 fi
 
