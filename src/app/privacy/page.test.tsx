@@ -29,7 +29,7 @@ describe("the privacy notice", () => {
       expect(screen.getByRole("heading", { level: 2, name: title })).toBeInTheDocument();
     }
     const text = document.body.textContent ?? "";
-    expect(text).toContain("Mumbai, India");
+    expect(text).toContain("Sydney, Australia");
     expect(text).toContain("AWS Lightsail");
     expect(text).toContain("Settings → AI provider");
     expect(text).toContain("Settings → Google");

@@ -19,7 +19,7 @@ You'll need:
 ## 1. Create the instance
 
 1. Open the [Lightsail console](https://lightsail.aws.amazon.com/) and choose **Create instance**.
-2. **Region:** Mumbai (ap-south-1), close to your students.
+2. **Region:** the one your account allows. Pathfinder's server is in Sydney (ap-southeast-2): this AWS account is fixed to it. If yours offers Mumbai (ap-south-1) and your students are in India, that one is closer.
 3. **Platform:** Linux/Unix. **Blueprint:** *OS Only* → **Ubuntu 24.04 LTS**.
 4. **Plan:** the one with **2 GB** of memory. Smaller plans can't run the app and its PDF
    printer together.

@@ -102,7 +102,8 @@ export default function PrivacyPage() {
           </p>
           <p>
             This notice explains what personal data Pathfinder keeps, why, where, who else receives it, how long it&apos;s
-            kept, and your rights under India&apos;s Digital Personal Data Protection Act, 2023.
+            kept, and your rights under India&apos;s Digital Personal Data Protection Act, 2023. If you live outside
+            India, the data protection law where you live may give you further rights; write to us to use them.
           </p>
         </header>
 
@@ -185,9 +186,9 @@ export default function PrivacyPage() {
         <Section title="5. Where your data is stored">
           <p>
             Pathfinder runs on one server rented from <strong>Amazon Web Services (AWS Lightsail)</strong> in its{" "}
-            <strong>Mumbai, India</strong> region. Your data, its files and its backups are kept on that server. AWS
-            provides the machine; it doesn&apos;t use your data. Everything between your browser and the server is
-            encrypted (HTTPS).
+            <strong>Sydney, Australia</strong> region. Your data, its files and its backups are kept on that server, so
+            unless you live in Australia, your data is stored outside your country. AWS provides the machine; it
+            doesn&apos;t use your data. Everything between your browser and the server is encrypted (HTTPS).
           </p>
         </Section>
 
@@ -208,7 +209,7 @@ export default function PrivacyPage() {
                   Anthropic, Mistral AI, or a model on your own computer. With your own key, that provider&apos;s terms
                   between you and them apply.
                   {sharedAi ? <> If you don&apos;t add your own, this server uses {sharedAi}.</> : null} The provider may
-                  process the text outside India.
+                  process the text in other countries.
                 </>,
               ],
               [
@@ -288,7 +289,8 @@ export default function PrivacyPage() {
             </li>
             <li>
               <strong>Have a grievance addressed:</strong> write to our grievance officer, <Contact field="grievance" />.
-              If you&apos;re not satisfied with the answer, you can complain to the Data Protection Board of India.
+              If you&apos;re not satisfied with the answer, you can complain to the Data Protection Board of India, or to
+              the data protection authority where you live.
             </li>
           </ul>
         </Section>
