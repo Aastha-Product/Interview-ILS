@@ -24,7 +24,8 @@ const STARTUPS_PATHS = /^\/startups(?:\/|$)/;
  */
 export async function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
-  if (pathname === "/login" || SIGN_IN_PATHS.test(pathname)) return pass(request);
+  // The privacy notice (Pathfinder) is read before signing up, so it needs no session.
+  if (pathname === "/login" || pathname === "/privacy" || SIGN_IN_PATHS.test(pathname)) return pass(request);
   // The Claude connector (#221) brings its own credentials, an OAuth token,
   // which its routes check; they answer 404 while it's off.
   if (CONNECTOR_PATHS.test(pathname)) return NextResponse.next();

@@ -58,16 +58,23 @@ describe("session checks (E11-5)", () => {
     expect(inline).toEqual([]);
   });
 
-  it("checks the session on every page but the sign-in page", () => {
+  it("checks the session on every page but the sign-in page and the privacy notice", () => {
     // The (app) layout checks for everything inside it; print pages take the renderer's token too.
     expect(read("src/app/(app)/layout.tsx")).toContain("await verifySession()");
     const unchecked = globSync("src/app/**/page.tsx").filter(
       (file) =>
         !file.startsWith("src/app/(app)/") &&
         !file.startsWith("src/app/login/") &&
+        // Pathfinder: read before signing up (DPDP Act), so open; it shows nothing private.
+        file !== "src/app/privacy/page.tsx" &&
         !/await (verifySession|verifyPrintAccess)\(/.test(read(file)),
     );
     expect(unchecked).toEqual([]);
+  });
+
+  it("shows nothing private on the privacy notice (Pathfinder)", () => {
+    const source = read("src/app/privacy/page.tsx");
+    expect(source).not.toMatch(/prisma|getSession|verifySession|currentUserId|cookies\(/);
   });
 
   it("checks the session in Google's callback itself", () => {

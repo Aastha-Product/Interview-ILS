@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { headers } from "next/headers";
 
 import { loadAiConfig, loadAiSettingsView } from "@/lib/ai/config";
+import { signInMode } from "@/lib/auth/google-sign-in";
 import { jobSearchView, loadJobSearchConfig } from "@/lib/job-search/config";
 import { COUNTRIES } from "@/lib/job-search/countries";
 import { loadSearch } from "@/lib/posting-searches";
@@ -9,7 +10,6 @@ import { providerOption } from "@/lib/ai/provider-options";
 import { lastNightlyBackup } from "@/lib/backup-schedule";
 import { backupsDir } from "@/lib/backups";
 import { exportFileName } from "@/lib/data-export";
-import { isSqliteUrl } from "@/lib/database";
 import { formatShortDate } from "@/lib/dates";
 import { env } from "@/lib/env";
 import { googleConnection } from "@/lib/google/account";
@@ -189,35 +189,20 @@ function whenRan(date: Date | null, now = new Date()): string | null {
   return `on ${formatShortDate(date, now)} at ${time}`;
 }
 
-/** "12.4 MB" */
-function formatBytes(bytes: number): string {
-  const units = ["B", "KB", "MB", "GB", "TB"];
-  let value = bytes;
-  let unit = 0;
-  while (value >= 1024 && unit < units.length - 1) {
-    value /= 1024;
-    unit += 1;
-  }
-  return `${unit === 0 ? value : value.toFixed(1)} ${units[unit]}`;
-}
-
-/** The About rows (SET-12). */
+/**
+ * The About rows (SET-12). Pathfinder: the database is shared by every student, so its size isn't
+ * shown (and the student's own client can't run the raw query it needs); sign-in is by Google or,
+ * on a trial server, the access code.
+ */
 async function aboutFacts(): Promise<AboutFacts> {
   const requestHeaders = await headers();
   const host = requestHeaders.get("x-forwarded-host")?.split(",")[0]?.trim() || requestHeaders.get("host") || "Unknown";
-  const sqlite = isSqliteUrl(env.DATABASE_URL);
-  const [[database], ai, applications] = await Promise.all([
-    sqlite
-      ? prisma.$queryRaw<{ size: bigint }[]>`SELECT page_count * page_size AS size FROM pragma_page_count(), pragma_page_size()`
-      : prisma.$queryRaw<{ size: bigint }[]>`SELECT pg_database_size(current_database()) AS size`,
-    loadAiConfig(),
-    prisma.application.count({ where: { awaitingReview: false } }),
-  ]);
+  const [ai, applications] = await Promise.all([loadAiConfig(), prisma.application.count({ where: { awaitingReview: false } })]);
   return [
     { label: "Version", value: appVersion },
     { label: "Server", value: host },
-    { label: "Database", value: `${sqlite ? "SQLite" : "PostgreSQL"} · ${formatBytes(Number(database.size))}` },
-    { label: "Sign-in", value: "set via DOSSIER_PASSWORD" },
+    { label: "Database", value: "PostgreSQL" },
+    { label: "Sign-in", value: signInMode() === "google" ? "Google" : "Access code (trial)" },
     { label: "AI", value: [providerOption(ai.provider).name, ai.model].filter(Boolean).join(" · ") },
     { label: "Applications", value: String(applications) },
   ];

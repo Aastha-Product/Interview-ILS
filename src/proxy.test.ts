@@ -124,6 +124,14 @@ describe("proxy", () => {
     expect((await proxy(request("/api/auth/googlex"))).status).toBe(401);
   });
 
+  it("lets signed-out visitors read the privacy notice, and nothing beside it (Pathfinder)", async () => {
+    const response = await proxy(request("/privacy"));
+    expect(response.headers.get("x-middleware-next")).toBe("1");
+    expect(response.headers.get("content-security-policy")).toMatch(/'nonce-/);
+    expect(getRedirectUrl(await proxy(request("/privacy/more")))).toBe("http://localhost:3000/login?next=%2Fprivacy%2Fmore");
+    expect(getRedirectUrl(await proxy(request("/privacyx")))).toBe("http://localhost:3000/login?next=%2Fprivacyx");
+  });
+
   it("shows the not-found page for Startups while PATHFINDER_STARTUPS is off, and the screen while it's on (Pathfinder)", async () => {
     const token = await encodeSession({ persistent: false, userId: "test-student" }, { key, fingerprint });
     for (const path of ["/startups", "/startups?status=SAVED", "/startups/anything"]) {

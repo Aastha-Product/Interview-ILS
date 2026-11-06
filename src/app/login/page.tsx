@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { BrandMark } from "@/components/brand-mark";
@@ -46,6 +47,14 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
               <code className="font-mono text-label">DOSSIER_PASSWORD</code>, and anyone who has it can sign in.
             </>
           )}
+        </p>
+        {/* Pathfinder: the DPDP Act asks for the notice before students sign up. */}
+        <p className="text-meta leading-[1.6] text-pretty text-muted">
+          By signing in, you agree to how Pathfinder uses your data, as described in the{" "}
+          <Link href="/privacy" className="font-medium text-ink underline underline-offset-2">
+            privacy notice
+          </Link>
+          .
         </p>
       </div>
       </div>

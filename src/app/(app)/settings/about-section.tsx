@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 
 import { useTrackSave } from "@/components/save-tracker";
@@ -94,7 +95,14 @@ export function AboutSection({ facts, usagePing, updates }: { facts: AboutFacts;
 
   return (
     <>
-      <SettingsSectionIntro title="About this install">Free and open source. No accounts, no subscriptions.</SettingsSectionIntro>
+      <SettingsSectionIntro title="About this install">Free and open source. No subscriptions.</SettingsSectionIntro>
+      {/* Pathfinder: what this server keeps about students, and their rights (DPDP Act). */}
+      <p className="text-control text-muted">
+        What this server keeps about you, where, and your rights:{" "}
+        <Link href="/privacy" className={LINK}>
+          Privacy notice
+        </Link>
+      </p>
       <Card padding="none" className="px-7 py-2">
         <dl>
           {facts.map(({ label, value }) => (

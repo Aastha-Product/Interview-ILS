@@ -26,7 +26,9 @@ describe("About (E10-9)", () => {
   it("lists the install's facts", () => {
     render(<AboutSection facts={facts} usagePing={ping} updates={updates} />);
     expect(screen.getByRole("heading", { name: "About this install" })).toBeInTheDocument();
-    expect(screen.getByText("Free and open source. No accounts, no subscriptions.")).toBeInTheDocument();
+    expect(screen.getByText("Free and open source. No subscriptions.")).toBeInTheDocument();
+    // Pathfinder: the privacy notice (DPDP Act).
+    expect(screen.getByRole("link", { name: "Privacy notice" })).toHaveAttribute("href", "/privacy");
     expect(screen.getAllByRole("definition").map((value) => value.textContent)).toEqual(["0.1.0", "PostgreSQL · 9.0 MB"]);
     expect(screen.getByText("PostgreSQL · 9.0 MB")).toHaveClass("font-mono");
     expect(checkUpdates).not.toHaveBeenCalled();
