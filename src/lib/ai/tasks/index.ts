@@ -11,4 +11,5 @@ export { WRITE_COVER_LETTER_VERSION, writeCoverLetter } from "./write-cover-lett
 export { WRITE_EMAIL_VERSION, writeEmail } from "./write-email";
 export { CLASSIFY_REPLY_VERSION, classifyReply, type Classified } from "./classify-reply";
 export { DRAFT_REPLY_VERSION, draftReply, type DraftedReply } from "./draft-reply";
+export { REVIEW_RESUME_VERSION, reviewResume, type ResumeReview } from "./review-resume";
 export { SCORE_POSTING_VERSION, scorePosting, type PostingScore } from "./score-posting";

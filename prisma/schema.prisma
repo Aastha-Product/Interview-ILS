@@ -67,6 +67,7 @@ model User {
   jobs             Job[]
   feedback         Feedback[]
   aiUsage          AiUsage[]
+  resumeAnalyses   ResumeAnalysis[]
 }
 
 model ProfileField {
@@ -1132,4 +1133,26 @@ model AiUsage {
   updatedAt DateTime @updatedAt
 
   @@id([userId, day])
+}
+
+/// Pathfinder: a resume analysis (upload → results): what was read from the resume and the review.
+/// The resume's text itself isn't kept here.
+model ResumeAnalysis {
+  /// The student this belongs to.
+  userId        String   @default(dbgenerated("current_setting('app.user_id')"))
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id            String   @id @default(cuid())
+  /// The uploaded file's name, e.g. "Asha Rao CV.pdf".
+  fileName      String   @default("")
+  /// The profile read from the resume (importedProfileSchema).
+  profile       Json
+  /// The review (resumeReviewSchema).
+  review        Json
+  /// The prompt versions that made it.
+  readWith      String   @default("")
+  /// Whether the student's empty profile was filled from this resume.
+  profileFilled Boolean  @default(false)
+  createdAt     DateTime @default(now())
+
+  @@index([userId, createdAt])
 }

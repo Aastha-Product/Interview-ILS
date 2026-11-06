@@ -25,9 +25,10 @@ describe("NavLinks", () => {
   it("lists the sections in the prototype's order", () => {
     render(<NavLinks />);
     expect(screen.getAllByRole("link").map((link) => link.textContent)).toEqual([
-      "Dashboard",
+      "Analyse resume",
       "Profile",
       "Base resume",
+      "Dashboard",
       "Find jobs",
       "Startups",
       "Agent",
@@ -41,11 +42,13 @@ describe("NavLinks", () => {
     render(<NavLinks hidden={["/startups"]} />);
     const labels = screen.getAllByRole("link").map((link) => link.textContent);
     expect(labels).not.toContain("Startups");
-    expect(labels).toEqual(["Dashboard", "Profile", "Base resume", "Find jobs", "Agent", "Applications", "Inbox", "Settings"]);
+    expect(labels).toEqual(["Analyse resume", "Profile", "Base resume", "Dashboard", "Find jobs", "Agent", "Applications", "Inbox", "Settings"]);
   });
 
   it("marks exactly one current section", () => {
     expect(currentItem("/")).toEqual(["Dashboard"]);
+    expect(currentItem("/analyze")).toEqual(["Analyse resume"]);
+    expect(currentItem("/analyze/abc123")).toEqual(["Analyse resume"]);
     expect(currentItem("/profile")).toEqual(["Profile"]);
     expect(currentItem("/resume")).toEqual(["Base resume"]);
     expect(currentItem("/jobs")).toEqual(["Find jobs"]);

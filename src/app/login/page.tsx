@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 
 import { BrandMark } from "@/components/brand-mark";
 import { signInMode } from "@/lib/auth/google-sign-in";
+import { HOME_PATH } from "@/lib/auth/next-path";
 import { getSession } from "@/lib/auth/session";
 
 import { GoogleSignInForm } from "./google-sign-in-form";
@@ -16,7 +17,7 @@ export const metadata: Metadata = { title: "Sign in" };
  * an email and the shared access code (PATHFINDER_SIGN_IN).
  */
 export default async function LoginPage({ searchParams }: PageProps<"/login">) {
-  if (await getSession()) redirect("/");
+  if (await getSession()) redirect(HOME_PATH);
   const { next, error } = await searchParams;
   const withGoogle = signInMode() === "google";
   const nextPath = typeof next === "string" ? next : undefined;
@@ -30,7 +31,7 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
           <BrandMark className="size-10" />
           <div className="flex flex-col">
             <div className="font-serif text-[30px] font-medium tracking-[-0.01em]">Dossier</div>
-            <div className="text-sm text-muted">Your job search, on your server</div>
+            <div className="text-sm text-muted">Resume analysis for students and graduates</div>
           </div>
         </div>
         {withGoogle ? (

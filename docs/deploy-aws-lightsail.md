@@ -113,10 +113,11 @@ can still add their own key in **Settings → AI provider**, which isn't limited
    DOSSIER_AI_PROVIDER=anthropic
    DOSSIER_AI_MODEL=claude-opus-5-5
    DOSSIER_AI_KEY=<your key>
-   PATHFINDER_AI_DAILY_LIMIT=15
+   PATHFINDER_AI_DAILY_LIMIT=10
    ```
 
-   `PATHFINDER_AI_DAILY_LIMIT` counts AI requests per student per day; it resets at midnight
+   `PATHFINDER_AI_DAILY_LIMIT` counts AI requests per student per day (one resume analysis uses 2,
+   so 10 allows 5 analyses); it resets at midnight
    IST. Leave it out for no limit.
 3. Run the setup command from step 5 again to apply it.
 

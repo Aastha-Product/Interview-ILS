@@ -9,11 +9,11 @@ describe("safeNextPath", () => {
   });
 
   it("falls back to the dashboard when there's nothing to go back to", () => {
-    expect(safeNextPath(undefined)).toBe("/");
-    expect(safeNextPath(null)).toBe("/");
-    expect(safeNextPath("")).toBe("/");
-    expect(safeNextPath("/login")).toBe("/");
-    expect(safeNextPath("/login?next=/profile")).toBe("/");
+    expect(safeNextPath(undefined)).toBe("/analyze");
+    expect(safeNextPath(null)).toBe("/analyze");
+    expect(safeNextPath("")).toBe("/analyze");
+    expect(safeNextPath("/login")).toBe("/analyze");
+    expect(safeNextPath("/login?next=/profile")).toBe("/analyze");
   });
 
   it("never leaves the site", () => {
@@ -25,7 +25,7 @@ describe("safeNextPath", () => {
       "javascript:alert(1)",
       "evil.example",
     ]) {
-      expect(safeNextPath(next), next).toBe("/");
+      expect(safeNextPath(next), next).toBe("/analyze");
     }
   });
 });

@@ -26,7 +26,7 @@ describe("LoginForm", () => {
     expect(email).toHaveAttribute("type", "email");
     expect(email).toHaveAttribute("autocomplete", "email");
     expect(email).toHaveAttribute("name", "email");
-    const password = screen.getByLabelText("Password");
+    const password = screen.getByLabelText("Access code");
     expect(password).toHaveAttribute("type", "password");
     expect(password).toHaveAttribute("autocomplete", "current-password");
     expect(screen.queryAllByRole("textbox")).toHaveLength(1);
@@ -35,7 +35,7 @@ describe("LoginForm", () => {
 
   it("names its fields, so the browser can post them before scripts run", () => {
     const { container } = render(<LoginForm next="/profile" />);
-    expect(screen.getByLabelText("Password")).toHaveAttribute("name", "password");
+    expect(screen.getByLabelText("Access code")).toHaveAttribute("name", "password");
     expect(screen.getByRole("checkbox", { name: "Keep me signed in for 30 days" })).toHaveAttribute("name", "remember");
     expect(container.querySelector('input[type="hidden"][name="next"]')).toHaveValue("/profile");
   });
@@ -43,10 +43,10 @@ describe("LoginForm", () => {
   it("shows and hides the password", async () => {
     const user = userEvent.setup();
     render(<LoginForm />);
-    await user.click(screen.getByRole("button", { name: "Show password" }));
-    expect(screen.getByLabelText("Password")).toHaveAttribute("type", "text");
-    await user.click(screen.getByRole("button", { name: "Hide password" }));
-    expect(screen.getByLabelText("Password")).toHaveAttribute("type", "password");
+    await user.click(screen.getByRole("button", { name: "Show access code" }));
+    expect(screen.getByLabelText("Access code")).toHaveAttribute("type", "text");
+    await user.click(screen.getByRole("button", { name: "Hide access code" }));
+    expect(screen.getByLabelText("Access code")).toHaveAttribute("type", "password");
   });
 
   it("asks for the email, then the password, on an empty submit without calling the server", async () => {
@@ -60,8 +60,8 @@ describe("LoginForm", () => {
     await user.type(screen.getByLabelText("Email"), "jane@example.com");
     await user.click(screen.getByRole("button", { name: "Sign in" }));
     expect(screen.getByRole("alert")).toHaveTextContent(loginMessages.empty);
-    expect(screen.getByLabelText("Password")).toBeInvalid();
-    expect(screen.getByLabelText("Password")).toHaveFocus();
+    expect(screen.getByLabelText("Access code")).toBeInvalid();
+    expect(screen.getByLabelText("Access code")).toHaveFocus();
     expect(signIn).not.toHaveBeenCalled();
   });
 
@@ -70,11 +70,11 @@ describe("LoginForm", () => {
     vi.mocked(signIn).mockResolvedValue({ ok: false, error: loginMessages.wrong });
     render(<LoginForm />);
     await user.type(screen.getByLabelText("Email"), "jane@example.com");
-    await user.type(screen.getByLabelText("Password"), "hunter2{Enter}");
+    await user.type(screen.getByLabelText("Access code"), "hunter2{Enter}");
     expect(await screen.findByRole("alert")).toHaveTextContent(loginMessages.wrong);
-    expect(screen.getByLabelText("Password")).toHaveAccessibleDescription(loginMessages.wrong);
+    expect(screen.getByLabelText("Access code")).toHaveAccessibleDescription(loginMessages.wrong);
 
-    await user.type(screen.getByLabelText("Password"), "x");
+    await user.type(screen.getByLabelText("Access code"), "x");
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
@@ -86,7 +86,7 @@ describe("LoginForm", () => {
 
     await user.click(screen.getByRole("checkbox", { name: "Keep me signed in for 30 days" }));
     await user.type(screen.getByLabelText("Email"), " jane@example.com ");
-    await user.type(screen.getByLabelText("Password"), "correct horse{Enter}");
+    await user.type(screen.getByLabelText("Access code"), "correct horse{Enter}");
     expect(screen.getByRole("button", { name: "Signing in…" })).toBeDisabled();
     expect(signIn).toHaveBeenCalledWith({ email: "jane@example.com", password: "correct horse", remember: true, next: "/profile" });
 

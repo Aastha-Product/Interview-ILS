@@ -104,7 +104,7 @@ describe("signIn", () => {
     vi.mocked(loadProfileName).mockResolvedValue("");
     await expect(
       signIn({ email: "Jane@Example.com", password: "correct horse", remember: false, next: "https://evil.example" }),
-    ).resolves.toMatchObject({ data: { redirectTo: "/" }, toast: "Welcome back, there." });
+    ).resolves.toMatchObject({ data: { redirectTo: "/analyze" }, toast: "Welcome back, there." });
     expect(startSession).toHaveBeenCalledWith({ persistent: false, userId: "student-1" });
   });
 });
@@ -136,9 +136,9 @@ describe("signInWithForm", () => {
     expect(startSession).toHaveBeenCalledWith({ persistent: true, userId: "student-1" });
   });
 
-  it("goes to the dashboard when there's no next page, and remembers only when ticked", async () => {
+  it("goes to the resume analysis when there's no next page, and remembers only when ticked", async () => {
     await expect(signInWithForm({ error: loginMessages.wrong }, form({ email: "jane@example.com", password: "correct horse" }))).rejects.toThrow(
-      /^redirect \/$/,
+      /^redirect \/analyze$/,
     );
     expect(startSession).toHaveBeenCalledWith({ persistent: false, userId: "student-1" });
   });

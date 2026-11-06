@@ -13,8 +13,11 @@ export function GoogleSignInForm({ next, error }: { next?: string; error?: strin
     <form method="get" action={SIGN_IN_PATH} className="flex flex-col gap-5">
       {next && <input type="hidden" name="next" value={next} />}
       <div className="flex flex-col gap-1.5">
-        <h1 className="font-serif text-[28px] leading-[1.15] tracking-[-0.01em]">Welcome</h1>
-        <p className="text-sm text-muted">Sign in with your Google account to pick up where you left off, or to start.</p>
+        <h1 className="font-serif text-[28px] leading-[1.15] tracking-[-0.01em]">Upload your resume and get an instant analysis</h1>
+        <p className="text-sm text-muted">
+          See what works, what to improve and what&apos;s missing. Sign in with Google to start: your first sign-in creates your
+          account, and your resume stays private to you.
+        </p>
       </div>
 
       {message && (

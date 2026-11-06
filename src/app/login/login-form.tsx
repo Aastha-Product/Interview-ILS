@@ -59,8 +59,8 @@ export function LoginForm({ next }: { next?: string }) {
     >
       {next && <input type="hidden" name="next" value={next} />}
       <div className="flex flex-col gap-1.5">
-        <h1 className="font-serif text-[28px] leading-[1.15] tracking-[-0.01em]">Welcome back</h1>
-        <p className="text-sm text-muted">Sign in to pick up where you left off.</p>
+        <h1 className="font-serif text-[28px] leading-[1.15] tracking-[-0.01em]">Upload your resume and get an instant analysis</h1>
+        <p className="text-sm text-muted">Sign in with your email and the access code. Your first sign-in creates your account.</p>
       </div>
 
       <div className="flex flex-col gap-[7px]">
@@ -92,10 +92,10 @@ export function LoginForm({ next }: { next?: string }) {
 
       <div className="flex flex-col gap-[7px]">
         <div className="flex justify-between text-label text-muted">
-          <label htmlFor="password">Password</label>
+          <label htmlFor="password">Access code</label>
           <button
             type="button"
-            aria-label={visible ? "Hide password" : "Show password"}
+            aria-label={visible ? "Hide access code" : "Show access code"}
             aria-controls="password"
             onClick={() => setVisible((shown) => !shown)}
             className="underline underline-offset-3 hover:text-ink"

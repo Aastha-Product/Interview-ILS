@@ -7,7 +7,7 @@ setup("sign in", async ({ page }) => {
   await resetData();
   await page.goto("/login");
   await page.getByLabel("Email").fill(E2E_EMAIL);
-  await page.getByLabel("Password", { exact: true }).fill(PASSWORD);
+  await page.getByLabel("Access code", { exact: true }).fill(PASSWORD);
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page).toHaveURL("/");
   await page.context().storageState({ path: STORAGE_STATE });

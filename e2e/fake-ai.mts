@@ -135,6 +135,18 @@ const answers: Record<string, (messages: Message[]) => unknown> = {
     return { reply: "Done. I made the summary shorter.", edits: [{ document: "RESUME", unitId: "summary", text: shorter }], tone: null, declined: false };
   },
 
+  // Pathfinder: a resume review. Its strength quotes a real line of the resume, as a model must.
+  resume_review: (messages: Message[]) => {
+    const resume = messages[messages.length - 1].content.replace(/<\/?resume>/g, "");
+    const line = resume.split("\n").map((text) => text.trim()).filter(Boolean).sort((a, b) => b.length - a.length)[0] ?? "";
+    const quote = line.split(/\s+/).slice(0, 8).join(" ");
+    return {
+      overview: "A clear resume that shows your design leadership. A few details would make it stronger.",
+      strengths: [{ point: "Your experience is described in concrete terms.", quote }],
+      improvements: [{ point: "Show the results of your work.", suggestion: "Add a number for one outcome, such as time saved, if you know it.", quote: null }],
+    };
+  },
+
   extracted_profile: () => ({
     basics: {
       name: "John Doe",

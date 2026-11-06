@@ -1,4 +1,4 @@
-import { Bot, BriefcaseBusiness, FileText, House, Inbox, Rocket, Search, Settings, UserRound, type LucideIcon } from "lucide-react";
+import { Bot, BriefcaseBusiness, FileSearch, FileText, House, Inbox, Rocket, Search, Settings, UserRound, type LucideIcon } from "lucide-react";
 
 // The app's sections, shared by the sidebar and the page bar so they always agree.
 
@@ -15,7 +15,8 @@ const within = (pathname: string, base: string) =>
 
 /** The sections in groups; the last group sits at the bottom. */
 export const NAV: { label?: string; items: NavItem[] }[] = [
-  { items: [{ href: "/", label: "Dashboard", icon: House, isActive: (pathname) => pathname === "/" }] },
+  // Pathfinder: the resume analysis is the main thing; the job tools follow under More tools.
+  { items: [{ href: "/analyze", label: "Analyse resume", icon: FileSearch }] },
   {
     label: "You",
     items: [
@@ -24,8 +25,9 @@ export const NAV: { label?: string; items: NavItem[] }[] = [
     ],
   },
   {
-    label: "Job search",
+    label: "More tools",
     items: [
+      { href: "/", label: "Dashboard", icon: House, isActive: (pathname) => pathname === "/" },
       { href: "/jobs", label: "Find jobs", icon: Search },
       { href: "/startups", label: "Startups", icon: Rocket },
       { href: "/agent", label: "Agent", icon: Bot },

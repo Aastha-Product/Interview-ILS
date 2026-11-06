@@ -13,11 +13,11 @@ test("sends a signed-out visitor to sign in, then on to where they were going", 
   await page.goto("/applications");
   await expect(page).toHaveURL("/login?next=%2Fapplications");
   await page.getByLabel("Email").fill(E2E_EMAIL);
-  await page.getByLabel("Password", { exact: true }).fill("not it");
+  await page.getByLabel("Access code", { exact: true }).fill("not it");
   await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(page.getByText("That's not the password set on the server. Try again.")).toBeVisible();
+  await expect(page.getByText("That's not the access code set on the server. Try again.")).toBeVisible();
   await page.getByLabel("Email").fill(E2E_EMAIL);
-  await page.getByLabel("Password", { exact: true }).fill(PASSWORD);
+  await page.getByLabel("Access code", { exact: true }).fill(PASSWORD);
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page).toHaveURL("/applications");
   await expect(page.getByRole("heading", { level: 1, name: "Applications" })).toBeVisible();
@@ -26,11 +26,11 @@ test("sends a signed-out visitor to sign in, then on to where they were going", 
 test("slows down guessing after five wrong passwords", async ({ page }) => {
   await page.goto("/login");
   await page.getByLabel("Email").fill(E2E_EMAIL);
-  const password = page.getByLabel("Password", { exact: true });
+  const password = page.getByLabel("Access code", { exact: true });
   for (let attempt = 1; attempt <= 5; attempt++) {
     await password.fill(`guess ${attempt}`);
     await page.getByRole("button", { name: "Sign in" }).click();
-    await expect(page.getByText("That's not the password set on the server. Try again.")).toBeVisible();
+    await expect(page.getByText("That's not the access code set on the server. Try again.")).toBeVisible();
   }
   // Even the right password has to wait now.
   await password.fill(PASSWORD);
@@ -49,15 +49,15 @@ test.describe("without scripts", () => {
   test("posts the password and still signs in", async ({ page }) => {
     await page.goto("/login");
     await page.getByLabel("Email").fill(E2E_EMAIL);
-    await page.getByLabel("Password", { exact: true }).fill("not it");
+    await page.getByLabel("Access code", { exact: true }).fill("not it");
     await page.getByRole("button", { name: "Sign in" }).click();
-    await expect(page.getByText("That's not the password set on the server. Try again.")).toBeVisible();
+    await expect(page.getByText("That's not the access code set on the server. Try again.")).toBeVisible();
     // No query string: the password went in the request's body.
     await expect(page).toHaveURL("/login");
 
     await page.getByLabel("Email").fill(E2E_EMAIL);
 
-    await page.getByLabel("Password", { exact: true }).fill(PASSWORD);
+    await page.getByLabel("Access code", { exact: true }).fill(PASSWORD);
     await page.getByRole("button", { name: "Sign in" }).click();
     await expect(page).toHaveURL("/");
     await expect(page.getByRole("button", { name: "Sign out" })).toBeVisible();
@@ -67,7 +67,7 @@ test.describe("without scripts", () => {
     await page.goto("/applications");
     await expect(page).toHaveURL("/login?next=%2Fapplications");
     await page.getByLabel("Email").fill(E2E_EMAIL);
-    await page.getByLabel("Password", { exact: true }).fill(PASSWORD);
+    await page.getByLabel("Access code", { exact: true }).fill(PASSWORD);
     await page.getByRole("button", { name: "Sign in" }).click();
     await expect(page).toHaveURL("/applications");
     await expect(page.getByRole("button", { name: "Sign out" })).toBeVisible();
@@ -87,18 +87,18 @@ test("a submit before the scripts have loaded posts too, and the page it lands o
 
   await page.getByLabel("Email").fill(E2E_EMAIL);
 
-  await page.getByLabel("Password", { exact: true }).fill("not it");
+  await page.getByLabel("Access code", { exact: true }).fill("not it");
   const posted = page.waitForRequest((request) => request.isNavigationRequest() && request.method() === "POST");
   await page.getByRole("button", { name: "Sign in" }).click();
   await posted;
   await expect(page).toHaveURL("/login");
-  const error = page.getByText("That's not the password set on the server. Try again.");
+  const error = page.getByText("That's not the access code set on the server. Try again.");
   await expect(error).toBeVisible();
 
   // This time the scripts load, and typing clears the error as usual.
   await page.waitForLoadState("networkidle");
   await page.getByLabel("Email").fill(E2E_EMAIL);
-  await page.getByLabel("Password", { exact: true }).fill("x");
+  await page.getByLabel("Access code", { exact: true }).fill("x");
   await expect(error).toBeHidden();
   expect(errors).toEqual([]);
 });
