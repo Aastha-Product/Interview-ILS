@@ -3,6 +3,7 @@ import "server-only";
 import { AiProvider } from "@/generated/prisma/enums";
 
 import { loadAiConfig, type AiConfig } from "./config";
+import { withDailyLimit } from "./daily-limit";
 import { AiError } from "./errors";
 import { providerOption } from "./provider-options";
 import type { AIProvider } from "./provider";
@@ -35,5 +36,7 @@ export function createProvider(config: AiConfig): AIProvider {
 
 /** The provider configured in Settings, or by the DOSSIER_AI_* variables. */
 export async function getAiProvider(): Promise<AIProvider> {
-  return createProvider(await loadAiConfig());
+  const config = await loadAiConfig();
+  // Pathfinder: requests on the server's shared key count towards the student's daily limit.
+  return withDailyLimit(createProvider(config), config.sharedKey);
 }

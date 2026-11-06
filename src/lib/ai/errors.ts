@@ -14,7 +14,8 @@ export type AiErrorKind =
   | "config"
   | "invalid-output"
   | "cut-off"
-  | "provider";
+  | "provider"
+  | "daily-limit";
 
 const MESSAGES: Record<Exclude<AiErrorKind, "model" | "config">, string> = {
   unreachable: "Couldn't reach the server. Check the address and that it's running.",
@@ -27,6 +28,7 @@ const MESSAGES: Record<Exclude<AiErrorKind, "model" | "config">, string> = {
   "invalid-output": "The model's answer didn't come back in the expected shape. Try again.",
   "cut-off": "The model's answer was cut off before it was finished. Try again, or pick another model in Settings → AI provider.",
   provider: "The AI provider ran into a problem. Try again in a moment.",
+  "daily-limit": "You've used today's AI limit; it resets at midnight IST, or add your own key in Settings → AI provider.",
 };
 
 /** An AI failure with a message for people; `retryable` says whether Retry can help. */
@@ -43,7 +45,7 @@ export class AiError extends Error {
   }
 
   get retryable(): boolean {
-    return this.kind !== "config" && this.kind !== "cancelled";
+    return this.kind !== "config" && this.kind !== "cancelled" && this.kind !== "daily-limit";
   }
 
   static of(kind: Exclude<AiErrorKind, "model" | "config">, detail?: string): AiError {

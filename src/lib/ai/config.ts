@@ -17,6 +17,8 @@ export type AiConfig = {
   apiKey: string | null;
   /** Why the saved key can't be used, e.g. DOSSIER_SECRET changed. */
   apiKeyProblem: string | null;
+  /** Whether the key is the server's own (DOSSIER_AI_KEY), shared by every student (Pathfinder). */
+  sharedKey: boolean;
   timeoutMs: number;
 };
 
@@ -80,6 +82,7 @@ export function resolveAiConfig(saved: SavedSettings | null, source: AiEnv, secr
     model: (useSaved ? saved!.model : source.DOSSIER_AI_MODEL) || defaults.model,
     apiKey,
     apiKeyProblem,
+    sharedKey: Boolean(apiKey) && apiKey === (source.DOSSIER_AI_KEY ?? null) && !(useSaved && saved!.apiKeyEnc),
     timeoutMs: (source.DOSSIER_AI_TIMEOUT_SECONDS ?? defaults.timeoutSeconds) * 1000,
   };
 }

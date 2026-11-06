@@ -34,6 +34,13 @@ describe("parseEnv", () => {
     });
   });
 
+  it("reads the daily AI limit for the shared key (Pathfinder)", () => {
+    expect(parseEnv(valid).PATHFINDER_AI_DAILY_LIMIT).toBeUndefined();
+    expect(parseEnv({ ...valid, PATHFINDER_AI_DAILY_LIMIT: " 15 " }).PATHFINDER_AI_DAILY_LIMIT).toBe(15);
+    expect(problems({ ...valid, PATHFINDER_AI_DAILY_LIMIT: "five" })).toEqual(['PATHFINDER_AI_DAILY_LIMIT must be a whole number (got "five").']);
+    expect(problems({ ...valid, PATHFINDER_AI_DAILY_LIMIT: "0" })).toEqual(["PATHFINDER_AI_DAILY_LIMIT must be at least 1."]);
+  });
+
   it("reads whether Startups is offered (Pathfinder)", () => {
     expect(parseEnv(valid).PATHFINDER_STARTUPS).toBe("off");
     expect(parseEnv({ ...valid, PATHFINDER_STARTUPS: "" }).PATHFINDER_STARTUPS).toBe("off");

@@ -66,6 +66,7 @@ model User {
   emailMessages    EmailMessage[]
   jobs             Job[]
   feedback         Feedback[]
+  aiUsage          AiUsage[]
 }
 
 model ProfileField {
@@ -1117,4 +1118,18 @@ model Feedback {
 
   @@index([userId])
   @@index([createdAt])
+}
+
+/// Pathfinder: AI requests a student made on the server's shared key, per day (Asia/Kolkata), for
+/// PATHFINDER_AI_DAILY_LIMIT. Kept when the student deletes everything, so that doesn't reset it.
+model AiUsage {
+  /// The student this belongs to.
+  userId    String   @default(dbgenerated("current_setting('app.user_id')"))
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// The day in India, e.g. "2026-11-06".
+  day       String
+  count     Int      @default(0)
+  updatedAt DateTime @updatedAt
+
+  @@id([userId, day])
 }

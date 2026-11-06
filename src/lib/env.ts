@@ -160,6 +160,17 @@ const schema = z.object({
   PATHFINDER_SIGN_IN: optional(
     z.enum(["google", "code"], { error: (issue) => `PATHFINDER_SIGN_IN must be google or code (got "${String(issue.input)}").` }),
   ),
+  // Pathfinder: how many AI requests each student may make per day on the server's shared key
+  // (DOSSIER_AI_KEY); the count resets at midnight IST. Students with their own key in Settings
+  // aren't limited. Unset means no limit.
+  PATHFINDER_AI_DAILY_LIMIT: optional(
+    z
+      .string()
+      .trim()
+      .regex(/^\d+$/, { error: (issue) => `PATHFINDER_AI_DAILY_LIMIT must be a whole number (got "${String(issue.input)}").` })
+      .transform(Number)
+      .pipe(z.number().min(1, { error: "PATHFINDER_AI_DAILY_LIMIT must be at least 1." })),
+  ),
   // Pathfinder: Startups (#222) reads YC's job pages, Hacker News and
   // startups' own sites, but Pathfinder's jobs come only from licensed APIs or
   // what the student pastes. Unset means off: no menu item, its pages and

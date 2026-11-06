@@ -52,6 +52,8 @@ services:
       DOSSIER_AI_URL: ${DOSSIER_AI_URL:-}
       DOSSIER_AI_MODEL: ${DOSSIER_AI_MODEL:-}
       DOSSIER_AI_KEY: ${DOSSIER_AI_KEY:-}
+      # AI requests per student per day on the shared key above; resets at midnight IST.
+      PATHFINDER_AI_DAILY_LIMIT: ${PATHFINDER_AI_DAILY_LIMIT:-}
       DOSSIER_BACKUP_RETENTION_DAYS: ${DOSSIER_BACKUP_RETENTION_DAYS:-}
     # Not published: only Caddy reaches it, over the compose network.
     expose:

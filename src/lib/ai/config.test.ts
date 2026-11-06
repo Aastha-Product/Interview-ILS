@@ -21,6 +21,7 @@ describe("resolveAiConfig", () => {
       model: null,
       apiKey: null,
       apiKeyProblem: null,
+      sharedKey: false,
       timeoutMs: 300_000,
     });
   });
@@ -36,6 +37,8 @@ describe("resolveAiConfig", () => {
       baseUrl: "https://api.anthropic.com",
       model: "claude-sonnet-5",
       apiKey: "sk-env",
+      // Pathfinder: the server's key, shared by every student (the daily limit applies).
+      sharedKey: true,
       timeoutMs: 90_000,
     });
   });
@@ -62,7 +65,7 @@ describe("resolveAiConfig", () => {
   it("prefers what's saved in Settings, with its own key", () => {
     const saved = { provider: "OPENAI" as const, baseUrl: "https://llm.example/v1", model: "gpt-x", apiKeyEnc: encryptApiKey("sk-saved") };
     const config = resolveAiConfig(saved, { DOSSIER_AI_PROVIDER: "local", DOSSIER_AI_URL: "http://ollama:11434", DOSSIER_AI_KEY: "sk-env" });
-    expect(config).toMatchObject({ provider: "OPENAI", baseUrl: "https://llm.example/v1", model: "gpt-x", apiKey: "sk-saved", timeoutMs: 120_000 });
+    expect(config).toMatchObject({ provider: "OPENAI", baseUrl: "https://llm.example/v1", model: "gpt-x", apiKey: "sk-saved", sharedKey: false, timeoutMs: 120_000 });
   });
 
   it("lends the env key only to a saved provider of the same kind", () => {
@@ -81,7 +84,7 @@ describe("resolveAiConfig", () => {
 
 describe("createProvider", () => {
   it("picks the implementation for the provider", () => {
-    const base = { baseUrl: "http://x", model: "m", apiKey: "k", apiKeyProblem: null, timeoutMs: 1000 };
+    const base = { baseUrl: "http://x", model: "m", apiKey: "k", apiKeyProblem: null, sharedKey: false, timeoutMs: 1000 };
     expect(createProvider({ ...base, provider: "LOCAL" }).kind).toBe("LOCAL");
     expect(createProvider({ ...base, provider: "OPENAI" }).kind).toBe("OPENAI");
     expect(createProvider({ ...base, provider: "ANTHROPIC" }).kind).toBe("ANTHROPIC");

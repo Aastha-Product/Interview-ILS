@@ -102,9 +102,28 @@ If Google refuses an `sslip.io` redirect address, use your own domain instead (s
 
 ## 8. AI provider
 
-Each student chooses an AI provider and enters their own key in **Settings → AI provider**. To
-give everyone a default, add `DOSSIER_AI_PROVIDER`, `DOSSIER_AI_URL`, `DOSSIER_AI_MODEL` and
-`DOSSIER_AI_KEY` to the `.env` file (see `.env.example`) and run setup again.
+Pathfinder's server provides Claude for every student, so they only upload and read. Students
+can still add their own key in **Settings → AI provider**, which isn't limited.
+
+1. In the [Claude Console](https://console.anthropic.com/), create an API key and add billing.
+   Keep the key private.
+2. Add these lines to the settings file (`sudo nano /opt/pathfinder/deploy/lightsail/.env`):
+
+   ```bash
+   DOSSIER_AI_PROVIDER=anthropic
+   DOSSIER_AI_MODEL=claude-opus-5-5
+   DOSSIER_AI_KEY=<your key>
+   PATHFINDER_AI_DAILY_LIMIT=15
+   ```
+
+   `PATHFINDER_AI_DAILY_LIMIT` counts AI requests per student per day; it resets at midnight
+   IST. Leave it out for no limit.
+3. Run the setup command from step 5 again to apply it.
+
+### Students' own keys
+
+Without the lines above, each student has to choose a provider and enter their own key in
+**Settings → AI provider** before anything that uses AI works.
 
 ## Reading testers' feedback
 
