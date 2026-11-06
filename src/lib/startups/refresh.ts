@@ -8,6 +8,7 @@ import { prisma } from "@/lib/prisma";
 import { loadProfile } from "@/lib/profile-data";
 import { saveSettings } from "@/lib/settings-data";
 
+import { startupsEnabled, StartupsOffError } from "./enabled";
 import { SourceError } from "./http";
 import { placeOf } from "./place";
 import { fetchHnStartups } from "./sources/hn";
@@ -84,11 +85,16 @@ export const refreshStartupsJob = defineJob({
   type: "startups-refresh",
   input: z.object({}),
   result: startupsRefreshSchema,
-  run: (_input, { step, signal }) => refreshStartups(step, signal),
+  run: async (_input, { step, signal }) => {
+    // Pathfinder: a refresh queued before Startups was turned off fetches nothing.
+    if (!startupsEnabled()) throw new StartupsOffError();
+    return refreshStartups(step, signal);
+  },
 });
 
 /** Starts a refresh unless one is under way; returns its job. */
 export async function startStartupsRefresh(): Promise<string> {
+  if (!startupsEnabled()) throw new StartupsOffError();
   const [running] = await findUnfinishedJobs(STARTUPS_JOB_KEY);
   return running?.id ?? startJob(refreshStartupsJob, {}, { key: STARTUPS_JOB_KEY });
 }

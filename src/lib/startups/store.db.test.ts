@@ -36,6 +36,8 @@ const profile = vi.hoisted(() => ({
 }));
 vi.mock("@/lib/profile-data", () => ({ loadProfile: async () => profile }));
 vi.mock("@/lib/log", () => ({ logServerError: vi.fn() }));
+// Pathfinder: Startups is off unless PATHFINDER_STARTUPS=on; these tests are for when it's on.
+vi.mock("./enabled", async (importOriginal) => ({ ...(await importOriginal<typeof import("./enabled")>()), startupsEnabled: () => true }));
 // Startups' sites and the sources answer from here, never the internet.
 const web = vi.hoisted(() => ({ emails: [] as StartupEmail[], noApplicationsFrom: "", looked: [] as string[] }));
 vi.mock("./emails", async (importOriginal) => ({

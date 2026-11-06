@@ -6,6 +6,7 @@ import type { SettingsData } from "@/lib/settings";
 import { forEachStudent } from "@/lib/owner/students";
 import { loadSettings } from "@/lib/settings-data";
 
+import { startupsEnabled } from "./enabled";
 import { startStartupsRefresh, STARTUPS_JOB_KEY } from "./refresh";
 
 // Startups' daily refresh (#222): a timer in this process, like the job
@@ -38,7 +39,8 @@ const globalForStartups = globalThis as unknown as { startupsTimer?: ReturnType<
 
 /** Starts the timer, once per process (dev reloads keep the one they have). */
 export function startStartupsSchedule(): void {
-  if (globalForStartups.startupsTimer) return;
+  // Pathfinder: no timer at all while Startups is off (PATHFINDER_STARTUPS).
+  if (globalForStartups.startupsTimer || !startupsEnabled()) return;
   // For each student, on their own settings (Pathfinder: private accounts).
   const check = () =>
     void forEachStudent("startups schedule", () => startDueStartupsRefresh()).catch((error: unknown) => logServerError("startups schedule", error));

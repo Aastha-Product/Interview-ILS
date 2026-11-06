@@ -160,6 +160,17 @@ const schema = z.object({
   PATHFINDER_SIGN_IN: optional(
     z.enum(["google", "code"], { error: (issue) => `PATHFINDER_SIGN_IN must be google or code (got "${String(issue.input)}").` }),
   ),
+  // Pathfinder: Startups (#222) reads YC's job pages, Hacker News and
+  // startups' own sites, but Pathfinder's jobs come only from licensed APIs or
+  // what the student pastes. Unset means off: no menu item, its pages and
+  // actions answer 404, and nothing is fetched. on brings it back.
+  PATHFINDER_STARTUPS: optional(
+    z
+      .string()
+      .trim()
+      .toLowerCase()
+      .pipe(z.enum(["on", "off"], { error: (issue) => `PATHFINDER_STARTUPS must be on or off (got "${String(issue.input)}").` })),
+  ).transform((value) => value ?? "off"),
   // The address Dossier is reached at, e.g. https://dossier.example.com, for
   // Google's redirect. Defaults to the address of the request that connects.
   DOSSIER_PUBLIC_URL: optional(

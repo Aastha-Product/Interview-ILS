@@ -30,7 +30,16 @@ describe("parseEnv", () => {
       DOSSIER_DATA_DIR: "/data",
       DOSSIER_BACKUP_RETENTION_DAYS: 14,
       DOSSIER_TELEMETRY: "off", // Pathfinder: unset means off
+      PATHFINDER_STARTUPS: "off", // Pathfinder: unset means off
     });
+  });
+
+  it("reads whether Startups is offered (Pathfinder)", () => {
+    expect(parseEnv(valid).PATHFINDER_STARTUPS).toBe("off");
+    expect(parseEnv({ ...valid, PATHFINDER_STARTUPS: "" }).PATHFINDER_STARTUPS).toBe("off");
+    expect(parseEnv({ ...valid, PATHFINDER_STARTUPS: " On " }).PATHFINDER_STARTUPS).toBe("on");
+    expect(parseEnv({ ...valid, PATHFINDER_STARTUPS: "off" }).PATHFINDER_STARTUPS).toBe("off");
+    expect(problems({ ...valid, PATHFINDER_STARTUPS: "yes" })).toEqual(['PATHFINDER_STARTUPS must be on or off (got "yes").']);
   });
 
   it("reads whether the usage ping is on", () => {

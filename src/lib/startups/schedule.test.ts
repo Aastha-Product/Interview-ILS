@@ -11,6 +11,8 @@ vi.mock("@/lib/jobs/runner", () => ({ findUnfinishedJobs: async () => state.unfi
 vi.mock("@/lib/log", () => ({ logServerError: vi.fn() }));
 const start = vi.hoisted(() => vi.fn(async () => "job-1"));
 vi.mock("./refresh", () => ({ STARTUPS_JOB_KEY: "startups-refresh", startStartupsRefresh: start }));
+const enabled = vi.hoisted(() => ({ value: true }));
+vi.mock("./enabled", () => ({ startupsEnabled: () => enabled.value }));
 
 afterEach(() => {
   start.mockClear();
@@ -40,7 +42,17 @@ describe("Startups' daily refresh (#222)", () => {
     expect(start).toHaveBeenCalledTimes(1);
   });
 
-  it("starts one timer per process", () => {
+  it("starts no timer while Startups is off (Pathfinder: PATHFINDER_STARTUPS)", () => {
+    enabled.value = false;
+    const timer = vi.spyOn(globalThis, "setInterval");
+    startStartupsSchedule();
+    expect(timer).not.toHaveBeenCalled();
+    expect(start).not.toHaveBeenCalled();
+    timer.mockRestore();
+    enabled.value = true;
+  });
+
+  it("starts one timer per process while Startups is on", () => {
     const timer = vi.spyOn(globalThis, "setInterval");
     startStartupsSchedule();
     startStartupsSchedule();

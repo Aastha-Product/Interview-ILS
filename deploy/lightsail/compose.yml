@@ -43,6 +43,8 @@ services:
       PATHFINDER_SIGN_IN: ${PATHFINDER_SIGN_IN:-}
       DOSSIER_GOOGLE_CLIENT_ID: ${DOSSIER_GOOGLE_CLIENT_ID:-}
       DOSSIER_GOOGLE_CLIENT_SECRET: ${DOSSIER_GOOGLE_CLIENT_SECRET:-}
+      # Startups reads company websites, so it's off unless set to on in .env.
+      PATHFINDER_STARTUPS: ${PATHFINDER_STARTUPS:-off}
       # No usage ping from this server.
       DOSSIER_TELEMETRY: "off"
       # Optional defaults for Settings → AI provider; each student can set their own.

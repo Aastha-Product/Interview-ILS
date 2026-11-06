@@ -43,6 +43,8 @@ export function appEnv(): Record<string, string> {
     DOSSIER_PASSWORD: PASSWORD_HASH,
     // Pathfinder: the runs sign in with an email and the access code.
     PATHFINDER_SIGN_IN: "code",
+    // Startups is off by default in Pathfinder; its specs run against the fake sources.
+    PATHFINDER_STARTUPS: "on",
     DOSSIER_SECRET: "e2e-secret-e2e-secret-e2e-secret-e2e",
     DOSSIER_DATA_DIR: "/tmp/dossier-e2e",
     DOSSIER_AI_PROVIDER: "openai",

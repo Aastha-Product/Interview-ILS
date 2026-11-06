@@ -10,8 +10,15 @@ import { PRINT_TOKEN_HEADER, signPrintToken } from "@/lib/pdf/print-token";
 
 import { config, proxy } from "./proxy";
 
+const flags = vi.hoisted(() => ({ startups: "off" as "on" | "off" }));
 vi.mock("@/lib/env", () => ({
-  env: { DOSSIER_SECRET: "a".repeat(32), DOSSIER_PASSWORD: "correct horse" },
+  env: {
+    DOSSIER_SECRET: "a".repeat(32),
+    DOSSIER_PASSWORD: "correct horse",
+    get PATHFINDER_STARTUPS() {
+      return flags.startups;
+    },
+  },
 }));
 
 const key = deriveKey("session", "a".repeat(32));
@@ -115,6 +122,25 @@ describe("proxy", () => {
     }
     expect((await proxy(request("/api/auth/google/other"))).status).toBe(401);
     expect((await proxy(request("/api/auth/googlex"))).status).toBe(401);
+  });
+
+  it("shows the not-found page for Startups while PATHFINDER_STARTUPS is off, and the screen while it's on (Pathfinder)", async () => {
+    const token = await encodeSession({ persistent: false, userId: "test-student" }, { key, fingerprint });
+    for (const path of ["/startups", "/startups?status=SAVED", "/startups/anything"]) {
+      const response = await proxy(request(path, { cookie: token }));
+      expect(response.headers.get("x-middleware-rewrite"), path).toBe("http://localhost:3000/_not-found");
+      expect(response.headers.get("content-security-policy"), path).toMatch(/'nonce-/);
+    }
+    // Only Startups' own paths.
+    expect((await proxy(request("/startupsx", { cookie: token }))).headers.get("x-middleware-rewrite")).toBeNull();
+    flags.startups = "on";
+    try {
+      const response = await proxy(request("/startups", { cookie: token }));
+      expect(response.headers.get("x-middleware-rewrite")).toBeNull();
+      expect(response.headers.get("x-middleware-next")).toBe("1");
+    } finally {
+      flags.startups = "off";
+    }
   });
 
   it("answers API requests with 401 JSON instead of a redirect", async () => {

@@ -12,6 +12,9 @@ const SIGN_IN_PATHS = /^\/api\/auth\/google(?:\/callback)?$/;
 /** The Claude connector's endpoint, its sign-in and the metadata that points to them. */
 const CONNECTOR_PATHS = /^\/(?:api\/(?:mcp|oauth)(?:\/|$)|\.well-known\/oauth-(?:authorization-server|protected-resource)(?:\/|$))/;
 
+/** Startups' screen (#222); Pathfinder answers 404 for it unless PATHFINDER_STARTUPS=on. */
+const STARTUPS_PATHS = /^\/startups(?:\/|$)/;
+
 /**
  * Sends signed-out visitors to /login before a page renders (PRD AUTH-1),
  * and gives every page its Content-Security-Policy (E11-5). The sign-in check
@@ -25,6 +28,9 @@ export async function proxy(request: NextRequest) {
   // The Claude connector (#221) brings its own credentials, an OAuth token,
   // which its routes check; they answer 404 while it's off.
   if (CONNECTOR_PATHS.test(pathname)) return NextResponse.next();
+  // Pathfinder: Startups is off unless PATHFINDER_STARTUPS=on. Its layout answers 404 too, but
+  // only after the loading screen has started streaming, with a 200; this is a real 404.
+  if (STARTUPS_PATHS.test(pathname) && env.PATHFINDER_STARTUPS !== "on") return pass(request, new URL("/_not-found", request.url));
 
   const session = await decodeSession(
     request.cookies.get(SESSION_COOKIE)?.value,
@@ -56,9 +62,9 @@ export async function proxy(request: NextRequest) {
 /**
  * Lets the request through. Pages get the policy on the response, and on the
  * request too: that's where Next.js finds the nonce for its scripts. API
- * answers (JSON, files) need none.
+ * answers (JSON, files) need none. With `rewrite`, the page shown is that one instead.
  */
-function pass(request: NextRequest): NextResponse {
+function pass(request: NextRequest, rewrite?: URL): NextResponse {
   if (request.nextUrl.pathname.startsWith("/api/")) return NextResponse.next();
   // Behind a reverse proxy that ends TLS, only the forwarded header knows.
   const protocol = request.headers.get("x-forwarded-proto")?.split(",")[0].trim() ?? request.nextUrl.protocol.replace(/:$/, "");
@@ -67,7 +73,7 @@ function pass(request: NextRequest): NextResponse {
   const policy = contentSecurityPolicy(createNonce(), { dev: process.env.NODE_ENV === "development", https: protocol === "https", formTargets });
   const headers = new Headers(request.headers);
   headers.set("content-security-policy", policy);
-  const response = NextResponse.next({ request: { headers } });
+  const response = rewrite ? NextResponse.rewrite(rewrite, { request: { headers } }) : NextResponse.next({ request: { headers } });
   response.headers.set("content-security-policy", policy);
   return response;
 }

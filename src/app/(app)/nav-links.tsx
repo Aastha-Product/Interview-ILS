@@ -8,8 +8,8 @@ import { isCurrent, NAV } from "@/lib/nav";
 
 import { useSidebarCollapsed } from "./sidebar-frame";
 
-/** The sidebar's navigation, with the current section highlighted. */
-export function NavLinks({ counts }: { counts?: Record<string, number> } = {}) {
+/** The sidebar's navigation, with the current section highlighted; `hidden` leaves sections out by their path. */
+export function NavLinks({ counts, hidden = [] }: { counts?: Record<string, number>; hidden?: readonly string[] } = {}) {
   const pathname = usePathname();
   const collapsed = useSidebarCollapsed();
   return (
@@ -29,7 +29,7 @@ export function NavLinks({ counts }: { counts?: Record<string, number> } = {}) {
             ) : (
               <div className="mt-1.5 mb-1 px-3 py-1 text-xs font-medium text-muted">{label}</div>
             ))}
-          {items.map((item) => {
+          {items.filter((item) => !hidden.includes(item.href)).map((item) => {
             const { href, label, icon: Icon } = item;
             const active = isCurrent(item, pathname);
             return (

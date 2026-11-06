@@ -37,6 +37,13 @@ describe("NavLinks", () => {
     ]);
   });
 
+  it("leaves out the sections this server doesn't offer (Pathfinder: Startups while it's off)", () => {
+    render(<NavLinks hidden={["/startups"]} />);
+    const labels = screen.getAllByRole("link").map((link) => link.textContent);
+    expect(labels).not.toContain("Startups");
+    expect(labels).toEqual(["Dashboard", "Profile", "Base resume", "Find jobs", "Agent", "Applications", "Inbox", "Settings"]);
+  });
+
   it("marks exactly one current section", () => {
     expect(currentItem("/")).toEqual(["Dashboard"]);
     expect(currentItem("/profile")).toEqual(["Profile"]);
