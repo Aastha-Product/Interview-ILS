@@ -1,0 +1,88 @@
+# Handoff
+
+Read this first, update it last. Several Claude accounts work on Pathfinder from the same laptop and
+the same folder, one at a time. This file is how one session tells the next what happened.
+
+## Where things are
+
+- **Repository:** https://github.com/Aastha-Product/Interview-ILS (`origin`). Push here.
+- **Local folder:** `C:\Users\Aastha Pandey\Downloads\Deepa F\Pathfinder\code`, a link to
+  `D:\Pathfinder\dossier` (the C: drive is full, so the code and its packages live on D:).
+- **Other remotes:** `dossier-fork` (Aastha-Product/dossier, the earlier home of this code) and
+  `upstream` (AienTech/dossier, the original project; pushing to it is disabled). The local branch
+  `upstream-dossier-main` is upstream's `main`, kept for reference: never push it to `origin`.
+- **Licence:** AGPL-3.0 (from Dossier). Keep the notices; the source stays public.
+- **Rules and the remaining v1 tasks:** `docs/pathfinder-v1-plan.md`. Never automate job portals or
+  scrape them, never invent experience, never log resume or prompt text, never commit secrets,
+  don't deploy or use real API keys without asking.
+
+## How every session works
+
+1. **Start:** make sure no other account is working in this folder. Then `git status` (anything
+   uncommitted? ask before touching it), `git fetch origin`, check out your branch and
+   `git pull`, and read the latest entry below.
+2. **Work on a branch,** never on `main`: one per task, from the latest `main`, named
+   `fix/...`, `feature/...` or `chore/...`. Commit small, with clear messages.
+3. **Before a pull request,** run the checks (below) and merge the latest `main` into your branch,
+   so any conflicts are solved on the branch.
+4. **Code reaches `main` only through a pull request** that passes CI, merged by the owner.
+   Never force-push, never rewrite history, never push straight to `main`.
+5. **End:** commit everything, push your branch, and add an entry at the top of the log below.
+   Nothing stays only in the folder.
+
+## Checks (Windows)
+
+Use Yarn through corepack, and keep temp files on D: (C: is full):
+
+```powershell
+$env:COREPACK_HOME='D:\Pathfinder\.corepack'; $env:TEMP='D:\Pathfinder\tmp'; $env:TMP='D:\Pathfinder\tmp'
+corepack yarn typecheck
+corepack yarn lint
+corepack yarn test
+```
+
+The database tests need `TEST_DATABASE_URL` set (it's in the local `.env`, which vitest doesn't
+load by itself). The local Postgres runs on port 5432: start it from `D:\Pathfinder\pathfinder`
+with `pnpm services:up`. Six tests in `env.test.ts` and `session-audit.test.ts` fail on Windows
+only (path separators); everything else must pass. The browser tests (`yarn test:e2e`) don't run
+on Windows yet; they need Linux or CI.
+
+## Current state (7 November 2026)
+
+| Branch | What it holds |
+| --- | --- |
+| `main` | The earlier Pathfinder app (Next.js monorepo, Phases 1–5). Vercel project interview-ils-7cfy deploys it. To be replaced by `pathfinder-redesign` through a pull request. |
+| `pathfinder-multiuser` | This app with private student accounts and the QA fixes below |
+| `pathfinder-redesign` | All of the above, plus the UI redesign. Heading to `main`. |
+
+**Done:** QA audit (report: https://claude.ai/artifact/NszT6XWfFbikbb3syqmxZz) and fixes for
+C-1 (shared AI key leak), C-2/H-2 (jobs stuck with two students, schedulers failing), H-1 (PDFs),
+H-3 (sign-in lockout), M-3 (account deletion), M-4 (sign-out ends sessions). UI redesign on the
+reference design (report: https://claude.ai/artifact/4DwdbGGvd2MtBhCryBeXPN).
+
+**Open, in priority order:**
+
+1. **Live server (owner, on AWS Lightsail):** switch sign-in from the shared access code to
+   Firebase or Google (QA C-3), rotate the shared AI key, check the nightly backup log. The live
+   server still runs an older build.
+2. **C-3 in code:** refuse to start in production on the access code unless
+   `PATHFINDER_SIGN_IN=code` is set; never let the code open an account linked to Google or
+   Firebase. Started and stopped on 7 November at the owner's request: ask before resuming.
+3. **M-6:** CI (`.github/workflows/ci.yml`) runs on every pull request, but it will be red until
+   the 3 tests in `google-sign-in.test.ts` stop depending on env that CI doesn't set, and the
+   browser tests are brought up to date with the student mode. Once it's green, make "CI passes"
+   a required check on `main`. Also make the browser-test harness run on Windows.
+4. **M-1:** several uploads at once by a new student fail (profile-fill race).
+5. **M-2:** address guard for AI provider URLs; **M-5:** bind the Gmail OAuth state to the student.
+6. Low items L-1 to L-8 in the QA report.
+7. Before a public launch: legal review of the privacy notice (DPDP Act).
+
+## Log
+
+Newest first. One entry per session: date, account, branch, what changed, what's next.
+
+- **2026-11-07 · account 1 · `pathfinder-redesign`** — Moved the work to Interview-ILS: pushed
+  `pathfinder-multiuser` and `pathfinder-redesign`, made Interview-ILS `origin`, linked the code
+  into the Pathfinder folder, added this file. Next: owner sets the GitHub default branch and the
+  `main` protection rules, then merges the pull request that makes `pathfinder-redesign` the new
+  `main`.
