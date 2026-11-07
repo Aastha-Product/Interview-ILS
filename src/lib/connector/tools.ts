@@ -127,7 +127,7 @@ async function resolvePosting(source: PostingSource): Promise<ResolvedPosting | 
 export function createDossierServer(origin: string): McpServer {
   const linkTo = (path: string) => `${origin}${path}`;
   const server = new McpServer(
-    { name: "dossier", title: "Dossier", version: appVersion },
+    { name: "dossier", title: "Pathfinder", version: appVersion },
     {
       instructions:
         "Dossier is the user's own job search app: one profile, tailored resumes and cover letters, and every application tracked. " +

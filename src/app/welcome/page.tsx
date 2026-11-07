@@ -32,7 +32,7 @@ export default async function WelcomePage() {
       <header className="mx-auto flex max-w-[1080px] items-center justify-between gap-4 px-4 py-5 sm:px-8">
         <Link href="/" className="flex items-center gap-2.5 text-ink hover:text-ink">
           <BrandMark className="size-8" />
-          <span className="font-serif text-[22px] font-medium tracking-[-0.01em]">Dossier</span>
+          <span className="font-serif text-[22px] font-medium tracking-[-0.01em]">Pathfinder</span>
         </Link>
         <nav aria-label="Main" className="flex items-center gap-1 sm:gap-3">
           <a href="#plans" className="hidden px-2 text-sm text-muted hover:text-ink sm:inline">
@@ -150,7 +150,7 @@ export default async function WelcomePage() {
 
       <footer className="border-t border-line">
         <div className="mx-auto flex max-w-[1080px] flex-wrap items-center justify-between gap-3 px-4 py-6 text-meta text-muted sm:px-8">
-          <span>Dossier · Resume analysis for students and graduates</span>
+          <span>Pathfinder · Resume analysis for students and graduates</span>
           <Link href="/privacy" className="hover:text-ink">
             Privacy notice
           </Link>

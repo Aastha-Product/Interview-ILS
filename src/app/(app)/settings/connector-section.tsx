@@ -91,7 +91,7 @@ export function ConnectorSection({ initial, address }: { initial: { on: boolean;
                 Open <strong>Settings → Connectors</strong> and choose <strong>Add custom connector</strong>.
               </li>
               <li>
-                Name it <strong>Dossier</strong>, paste the address and press <strong>Add</strong>, then <strong>Connect</strong>.
+                Name it <strong>Pathfinder</strong>, paste the address and press <strong>Add</strong>, then <strong>Connect</strong>.
               </li>
               <li>
                 Claude opens Dossier: sign in if it asks, check what Claude may do, and press <strong>Allow</strong>.

@@ -16,7 +16,7 @@ export function AuthShell({ children, footnote }: { children: ReactNode; footnot
           <Link href="/" className="flex flex-col items-start gap-2 text-ink hover:text-ink">
             <BrandMark className="size-10" />
             <span className="flex flex-col">
-              <span className="font-serif text-[30px] font-medium tracking-[-0.01em]">Dossier</span>
+              <span className="font-serif text-[30px] font-medium tracking-[-0.01em]">Pathfinder</span>
               <span className="text-sm text-muted">Resume analysis for students and graduates</span>
             </span>
           </Link>
