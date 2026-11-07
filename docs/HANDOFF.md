@@ -51,9 +51,13 @@ on Windows yet; they need Linux or CI.
 
 | Branch | What it holds |
 | --- | --- |
-| `main` | The earlier Pathfinder app (Next.js monorepo, Phases 1–5). Vercel project interview-ils-7cfy deploys it. To be replaced by `pathfinder-redesign` through a pull request. |
-| `pathfinder-multiuser` | This app with private student accounts and the QA fixes below |
-| `pathfinder-redesign` | All of the above, plus the UI redesign. Heading to `main`. |
+| `main` | **This app:** private student accounts, the QA fixes and the UI redesign (pull request #1, merged 7 November). Start every new branch from here. |
+| `pathfinder-v1` | The earlier Pathfinder app (Next.js monorepo, Phases 1–5), kept for reference; also in `main`'s history. |
+| `pathfinder-multiuser`, `pathfinder-redesign`, `release/new-main` | Merged into `main`; no new work here. |
+
+Vercel (projects interview-ils-7cfy and resume-optimiser) still builds this repo and fails on the
+new code, which has no `apps/web`: set their production branch to `pathfinder-v1` or disconnect
+them. The app itself is deployed on AWS Lightsail (`docs/deploy-aws-lightsail.md`).
 
 **Done:** QA audit (report: https://claude.ai/artifact/NszT6XWfFbikbb3syqmxZz) and fixes for
 C-1 (shared AI key leak), C-2/H-2 (jobs stuck with two students, schedulers failing), H-1 (PDFs),
@@ -88,6 +92,11 @@ reference design (report: https://claude.ai/artifact/4DwdbGGvd2MtBhCryBeXPN).
 ## Log
 
 Newest first. One entry per session: date, account, branch, what changed, what's next.
+
+- **2026-11-07 · account 1 · `chore/handoff-after-merge`** — Merged pull request #1: `main` is now
+  this app (old app kept as `pathfinder-v1`). Made the Pages workflow manual-only (site/ is
+  upstream Dossier's website). Next: the open list above, starting with the live server (owner)
+  and M-6 so CI goes green.
 
 - **2026-11-07 · account 1 · `pathfinder-redesign`** — Checked Interview-ILS: default branch is
   `main`, the protect-main ruleset is active, all work is pushed. Next: the owner opens the pull
