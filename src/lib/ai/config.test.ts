@@ -74,6 +74,27 @@ describe("resolveAiConfig", () => {
     expect(resolveAiConfig(saved, { DOSSIER_AI_PROVIDER: "openai", DOSSIER_AI_KEY: "sk-env" }).apiKey).toBeNull();
   });
 
+  it("sends the server's shared key only to the server's own address and model (QA C-1)", () => {
+    const env = { DOSSIER_AI_PROVIDER: "openai" as const, DOSSIER_AI_URL: "https://ai.server.example/v1", DOSSIER_AI_MODEL: "server-model", DOSSIER_AI_KEY: "sk-env" };
+    // A student saves (or imports) the same kind of provider, pointing somewhere else, with no key of their own.
+    const saved = { provider: "OPENAI" as const, baseUrl: "https://attacker.example/v1", model: "expensive-model", apiKeyEnc: null };
+    expect(resolveAiConfig(saved, env)).toMatchObject({
+      apiKey: "sk-env",
+      sharedKey: true,
+      baseUrl: "https://ai.server.example/v1",
+      model: "server-model",
+    });
+    // Without DOSSIER_AI_URL, the provider's public default, never the saved address.
+    const { DOSSIER_AI_URL: _url, ...noUrl } = env;
+    expect(resolveAiConfig(saved, noUrl).baseUrl).toBe("https://api.openai.com/v1");
+  });
+
+  it("keeps a student's own address and model when they bring their own key", () => {
+    const env = { DOSSIER_AI_PROVIDER: "openai" as const, DOSSIER_AI_URL: "https://ai.server.example/v1", DOSSIER_AI_KEY: "sk-env" };
+    const saved = { provider: "OPENAI" as const, baseUrl: "https://mine.example/v1", model: "my-model", apiKeyEnc: encryptApiKey("sk-mine") };
+    expect(resolveAiConfig(saved, env)).toMatchObject({ apiKey: "sk-mine", sharedKey: false, baseUrl: "https://mine.example/v1", model: "my-model" });
+  });
+
   it("reports a saved key it can't read instead of failing", () => {
     const saved = { provider: "ANTHROPIC" as const, baseUrl: null, model: null, apiKeyEnc: encryptApiKey("sk", "b".repeat(32)) };
     const config = resolveAiConfig(saved, noEnv);

@@ -56,6 +56,12 @@ type AiEnv = Pick<
  * Settings win once a provider is saved there; until then the environment
  * decides. The two are never mixed, except that an env key still serves a
  * saved provider of the same kind that has no key of its own.
+ *
+ * Pathfinder: the env key is the server's, shared by every student, so it only
+ * ever goes to the address and model the server set (DOSSIER_AI_URL and
+ * DOSSIER_AI_MODEL, or the provider's defaults). A saved address or model
+ * applies only with the student's own key; otherwise a student could send the
+ * server's key to an address of their choosing (QA C-1).
  */
 export function resolveAiConfig(saved: SavedSettings | null, source: AiEnv, secret?: string): AiConfig {
   const envProvider = source.DOSSIER_AI_PROVIDER ? FROM_ENV[source.DOSSIER_AI_PROVIDER] : null;
@@ -76,13 +82,16 @@ export function resolveAiConfig(saved: SavedSettings | null, source: AiEnv, secr
     apiKey = source.DOSSIER_AI_KEY ?? null;
   }
 
+  const sharedKey = Boolean(apiKey) && apiKey === (source.DOSSIER_AI_KEY ?? null) && !(useSaved && saved!.apiKeyEnc);
+  // The saved address and model, unless the server's own key would go with them.
+  const fromSaved = useSaved && !sharedKey;
   return {
     provider,
-    baseUrl: (useSaved ? saved!.baseUrl : source.DOSSIER_AI_URL) || defaults.baseUrl,
-    model: (useSaved ? saved!.model : source.DOSSIER_AI_MODEL) || defaults.model,
+    baseUrl: (fromSaved ? saved!.baseUrl : source.DOSSIER_AI_URL) || defaults.baseUrl,
+    model: (fromSaved ? saved!.model : source.DOSSIER_AI_MODEL) || defaults.model,
     apiKey,
     apiKeyProblem,
-    sharedKey: Boolean(apiKey) && apiKey === (source.DOSSIER_AI_KEY ?? null) && !(useSaved && saved!.apiKeyEnc),
+    sharedKey,
     timeoutMs: (source.DOSSIER_AI_TIMEOUT_SECONDS ?? defaults.timeoutSeconds) * 1000,
   };
 }
