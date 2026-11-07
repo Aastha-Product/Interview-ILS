@@ -24,7 +24,15 @@ export type CompletionRequest = {
   /** Cancels the call, e.g. when the user leaves or cancels the job. */
   signal?: AbortSignal;
   maxTokens?: number;
+  /**
+   * Pathfinder: told the tokens of every call the request makes (a retry for a malformed answer
+   * is a second call), where the provider reports them; for the AI cost log.
+   */
+  onUsage?: (usage: TokenUsage) => void;
 };
+
+/** Tokens one call took, as the provider reported them. */
+export type TokenUsage = { model: string; input: number; output: number };
 
 export type JsonCompletionRequest<T> = CompletionRequest & {
   /** The shape the answer must have; the provider asks for it natively where it can. */
@@ -62,7 +70,7 @@ export type ChatCall = {
 };
 
 /** What one chat call got back; `cutOff` when the model hit its token limit mid-answer. */
-export type ChatAnswer = { text: string; cutOff: boolean };
+export type ChatAnswer = { text: string; cutOff: boolean; usage?: { input: number; output: number } };
 
 /** SET-3 creativity as a sampling temperature. */
 export const TEMPERATURES: Record<Creativity, number> = {
@@ -102,8 +110,8 @@ export abstract class BaseProvider implements AIProvider {
     const model = this.requireModel();
     const schema = "schema" in request ? request.schema : undefined;
     const schemaName = ("schemaName" in request && request.schemaName) || "result";
-    const call = (messages: ChatMessage[]) =>
-      this.guard(model, request.signal, (signal) =>
+    const call = async (messages: ChatMessage[]) => {
+      const answer = await this.guard(model, request.signal, (signal) =>
         this.chat({
           model,
           system: request.system,
@@ -115,6 +123,9 @@ export abstract class BaseProvider implements AIProvider {
           signal,
         }),
       );
+      if (answer.usage) request.onUsage?.({ model, ...answer.usage });
+      return answer;
+    };
 
     const answer = await call(request.messages);
     if (!schema) return answer.text;

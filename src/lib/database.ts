@@ -23,7 +23,7 @@ const OWNER_OMIT = Object.fromEntries(
     "education", "publication", "reference", "fact", "theme", "setting", "application", "statusEvent",
     "document", "documentVersion", "chatMessage", "note", "posting", "claudePaste", "agentCandidate",
     "postingScore", "postingSearch", "startup", "startupBlock", "googleAccount", "emailMessage", "job",
-    "feedback", "aiUsage", "resumeAnalysis",
+    "feedback", "aiUsage", "resumeAnalysis", "aiCall",
   ].map((model) => [model, { userId: true }]),
 );
 

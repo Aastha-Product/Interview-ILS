@@ -6,6 +6,7 @@ import { loadAiConfig, type AiConfig } from "./config";
 import { withDailyLimit } from "./daily-limit";
 import { AiError } from "./errors";
 import { providerOption } from "./provider-options";
+import { modelRoutes, routedProvider, routesApply } from "./routing";
 import type { AIProvider } from "./provider";
 import { AnthropicProvider } from "./providers/anthropic";
 import { LocalProvider } from "./providers/local";
@@ -37,6 +38,11 @@ export function createProvider(config: AiConfig): AIProvider {
 /** The provider configured in Settings, or by the DOSSIER_AI_* variables. */
 export async function getAiProvider(): Promise<AIProvider> {
   const config = await loadAiConfig();
+  // Pathfinder: on the server's own Claude key, each task gets its model, a busy model hands
+  // over to a backup, and every call is logged with its cost.
+  const provider = routesApply(config)
+    ? routedProvider((model) => createProvider({ ...config, model }), modelRoutes(config.model!))
+    : createProvider(config);
   // Pathfinder: requests on the server's shared key count towards the student's daily limit.
-  return withDailyLimit(createProvider(config), config.sharedKey);
+  return withDailyLimit(provider, config.sharedKey);
 }

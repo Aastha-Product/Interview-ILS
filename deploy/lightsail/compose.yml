@@ -60,6 +60,9 @@ services:
       DOSSIER_AI_KEY: ${DOSSIER_AI_KEY:-}
       # AI requests per student per day on the shared key above; resets at midnight IST.
       PATHFINDER_AI_DAILY_LIMIT: ${PATHFINDER_AI_DAILY_LIMIT:-}
+      # On the shared Claude key: the model that reads resumes, and the backup for a busy model.
+      PATHFINDER_AI_READING_MODEL: ${PATHFINDER_AI_READING_MODEL:-}
+      PATHFINDER_AI_FALLBACK_MODEL: ${PATHFINDER_AI_FALLBACK_MODEL:-}
       DOSSIER_BACKUP_RETENTION_DAYS: ${DOSSIER_BACKUP_RETENTION_DAYS:-}
     # Not published: only Caddy reaches it, over the compose network.
     expose:

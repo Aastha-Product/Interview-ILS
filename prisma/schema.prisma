@@ -69,6 +69,7 @@ model User {
   jobs             Job[]
   feedback         Feedback[]
   aiUsage          AiUsage[]
+  aiCalls          AiCall[]
   resumeAnalyses   ResumeAnalysis[]
 }
 
@@ -1135,6 +1136,28 @@ model AiUsage {
   updatedAt DateTime @updatedAt
 
   @@id([userId, day])
+}
+
+/// Pathfinder: one call to the AI provider on the server's shared key, for the cost log: which
+/// task, which model, the tokens it took and what it cost. Never the prompt or the answer.
+model AiCall {
+  id           String   @id @default(cuid())
+  /// The student this belongs to.
+  userId       String   @default(dbgenerated("current_setting('app.user_id')"))
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// The task's schema name, e.g. "resume_review", or "text" for a plain answer.
+  task         String
+  model        String
+  inputTokens  Int      @default(0)
+  outputTokens Int      @default(0)
+  /// In millionths of a US dollar, from the model's list price; null for a model without one.
+  costMicroUsd Int?
+  /// "ok", or the error's kind, e.g. "busy" (the backup model's call is a row of its own).
+  outcome      String
+  createdAt    DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([createdAt])
 }
 
 /// Pathfinder: a resume analysis (upload → results): what was read from the resume and the review.

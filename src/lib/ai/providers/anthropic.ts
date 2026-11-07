@@ -87,6 +87,7 @@ export class AnthropicProvider extends BaseProvider {
     return {
       text: message.content.flatMap((block) => (block.type === "text" ? [block.text] : [])).join(""),
       cutOff: message.stop_reason === "max_tokens" || message.stop_reason === "model_context_window_exceeded",
+      usage: { input: message.usage.input_tokens, output: message.usage.output_tokens },
     };
   }
 

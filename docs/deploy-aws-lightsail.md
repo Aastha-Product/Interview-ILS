@@ -157,6 +157,17 @@ can still add their own key in **Settings → AI provider**, which isn't limited
    IST. Leave it out for no limit.
 3. Run the setup command from step 5 again to apply it.
 
+On this key, reading a resume into fields runs on `claude-sonnet-5-5` and the review on
+`DOSSIER_AI_MODEL`. When a model is overloaded or limiting requests, the call is tried once more
+on `claude-sonnet-5-5`. Change either with `PATHFINDER_AI_READING_MODEL` and
+`PATHFINDER_AI_FALLBACK_MODEL` (`off` for no backup). Every call on the server's key is logged in
+the `AiCall` table with its model, tokens and cost (from list prices), never the prompt or answer.
+To see what the AI cost today:
+
+```bash
+cd /opt/pathfinder/deploy/lightsail && sudo docker compose exec -T db psql -U pathfinder pathfinder -c "select model, count(*), sum(\"costMicroUsd\")/1e6 as usd from \"AiCall\" where \"createdAt\" > now() - interval '1 day' group by model"
+```
+
 ### Students' own keys
 
 Without the lines above, each student has to choose a provider and enter their own key in

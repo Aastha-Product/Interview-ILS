@@ -200,6 +200,13 @@ const schema = z.object({
       .transform(Number)
       .pipe(z.number().min(1, { error: "PATHFINDER_AI_DAILY_LIMIT must be at least 1." })),
   ),
+  // Pathfinder: on the server's own Claude key (DOSSIER_AI_PROVIDER=anthropic), the model for
+  // reading a resume or posting into fields; DOSSIER_AI_MODEL does the rest, e.g. the review.
+  // Unset means claude-sonnet-5-5.
+  PATHFINDER_AI_READING_MODEL: optional(z.string().trim()),
+  // Pathfinder: the model tried once when the first one is overloaded, limiting requests or
+  // failing; "off" for none. Unset means claude-sonnet-5-5.
+  PATHFINDER_AI_FALLBACK_MODEL: optional(z.string().trim()),
   // Pathfinder: Startups (#222) reads YC's job pages, Hacker News and
   // startups' own sites, but Pathfinder's jobs come only from licensed APIs or
   // what the student pastes. Unset means off: no menu item, its pages and
