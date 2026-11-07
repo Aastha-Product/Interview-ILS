@@ -1,6 +1,12 @@
-# Caddy gets and renews the HTTPS certificate for PATHFINDER_DOMAIN by itself (Let's Encrypt),
-# sends plain HTTP on to HTTPS, and passes requests to the app.
+# Caddy gets and renews the HTTPS certificates for PATHFINDER_DOMAIN and its www. name by itself
+# (Let's Encrypt), sends plain HTTP on to HTTPS, and passes requests to the app.
 {$PATHFINDER_DOMAIN} {
 	encode zstd gzip
 	reverse_proxy app:3000
+}
+
+# www. goes to the main address, keeping the path, so there's one address for sign-in and links.
+# Its DNS record must point at this server too (an A record for www, or a CNAME to the domain).
+www.{$PATHFINDER_DOMAIN} {
+	redir https://{$PATHFINDER_DOMAIN}{uri} permanent
 }
