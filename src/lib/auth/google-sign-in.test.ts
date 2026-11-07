@@ -47,6 +47,20 @@ describe("signInMode (Pathfinder)", () => {
     expect(signInMode({ DOSSIER_GOOGLE_CLIENT_ID: "id", DOSSIER_GOOGLE_CLIENT_SECRET: "secret", PATHFINDER_SIGN_IN: "code" })).toBe("code");
     expect(signInMode({ DOSSIER_GOOGLE_CLIENT_ID: undefined, DOSSIER_GOOGLE_CLIENT_SECRET: undefined, PATHFINDER_SIGN_IN: "google" })).toBe("google");
   });
+
+  it("uses Firebase once its project is set, before Google, unless PATHFINDER_SIGN_IN says otherwise", () => {
+    const firebase = {
+      PATHFINDER_FIREBASE_API_KEY: "key",
+      PATHFINDER_FIREBASE_AUTH_DOMAIN: "p.firebaseapp.com",
+      PATHFINDER_FIREBASE_PROJECT_ID: "p",
+      DOSSIER_GOOGLE_CLIENT_ID: "id",
+      DOSSIER_GOOGLE_CLIENT_SECRET: "secret",
+      PATHFINDER_SIGN_IN: undefined,
+    };
+    expect(signInMode(firebase)).toBe("firebase");
+    expect(signInMode({ ...firebase, PATHFINDER_FIREBASE_PROJECT_ID: undefined })).toBe("google");
+    expect(signInMode({ ...firebase, PATHFINDER_SIGN_IN: "code" })).toBe("code");
+  });
 });
 
 describe("starting a Google sign-in", () => {

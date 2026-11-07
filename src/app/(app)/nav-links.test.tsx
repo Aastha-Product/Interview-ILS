@@ -25,10 +25,10 @@ describe("NavLinks", () => {
   it("lists the sections in the prototype's order", () => {
     render(<NavLinks />);
     expect(screen.getAllByRole("link").map((link) => link.textContent)).toEqual([
-      "Analyse resume",
+      "Home",
       "Profile",
       "Base resume",
-      "Dashboard",
+      "Job dashboard",
       "Find jobs",
       "Startups",
       "Agent",
@@ -42,13 +42,19 @@ describe("NavLinks", () => {
     render(<NavLinks hidden={["/startups"]} />);
     const labels = screen.getAllByRole("link").map((link) => link.textContent);
     expect(labels).not.toContain("Startups");
-    expect(labels).toEqual(["Analyse resume", "Profile", "Base resume", "Dashboard", "Find jobs", "Agent", "Applications", "Inbox", "Settings"]);
+    expect(labels).toEqual(["Home", "Profile", "Base resume", "Job dashboard", "Find jobs", "Agent", "Applications", "Inbox", "Settings"]);
+  });
+
+  it("leaves out a group whose sections are all hidden (Pathfinder: the job-search tools while they're off)", () => {
+    render(<NavLinks hidden={["/", "/resume", "/jobs", "/startups", "/agent", "/applications", "/inbox"]} />);
+    expect(screen.getAllByRole("link").map((link) => link.textContent)).toEqual(["Home", "Profile", "Settings"]);
+    expect(screen.queryByText("More tools")).toBeNull();
   });
 
   it("marks exactly one current section", () => {
-    expect(currentItem("/")).toEqual(["Dashboard"]);
-    expect(currentItem("/analyze")).toEqual(["Analyse resume"]);
-    expect(currentItem("/analyze/abc123")).toEqual(["Analyse resume"]);
+    expect(currentItem("/")).toEqual(["Job dashboard"]);
+    expect(currentItem("/analyze")).toEqual(["Home"]);
+    expect(currentItem("/analyze/abc123")).toEqual(["Home"]);
     expect(currentItem("/profile")).toEqual(["Profile"]);
     expect(currentItem("/resume")).toEqual(["Base resume"]);
     expect(currentItem("/jobs")).toEqual(["Find jobs"]);

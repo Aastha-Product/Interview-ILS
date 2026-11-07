@@ -9,6 +9,7 @@ import { Card } from "@/components/ui/card";
 import { formatDateRange } from "@/lib/profile";
 import { getResumeAnalysis } from "@/lib/resume-analysis";
 
+import { DeleteAnalysisButton } from "./delete-button";
 import { PrintButton } from "./print-button";
 
 export const metadata: Metadata = { title: "Your resume analysis" };
@@ -37,7 +38,8 @@ export default async function AnalysisPage({ params }: PageProps<"/analyze/[id]"
         title="Your resume analysis"
         description={`${analysis.fileName || "Your resume"} · ${dateFormat.format(analysis.createdAt)}`}
         actions={
-          <div className="flex items-center gap-2 print:hidden">
+          <div className="flex flex-wrap items-center gap-2 print:hidden">
+            <DeleteAnalysisButton id={analysis.id} />
             <PrintButton />
             <Link href="/analyze" className={buttonClassName("primary")}>
               Analyse another

@@ -1,4 +1,4 @@
-/** The settings sections, in order (PRD §6.8). */
+/** The settings sections, in order (PRD §6.8), where the job-search tools are on. */
 export const SETTINGS_SECTIONS = [
   { id: "ai", label: "AI provider" },
   { id: "jobs", label: "Job search" },
@@ -12,11 +12,23 @@ export const SETTINGS_SECTIONS = [
   { id: "about", label: "About" },
 ] as const;
 
-export type SettingsSectionId = (typeof SETTINGS_SECTIONS)[number]["id"];
+/**
+ * Pathfinder: what students see where the tools are off (PATHFINDER_TOOLS). Nothing technical:
+ * the server runs the AI, so there's no provider, model or key to choose.
+ */
+export const STUDENT_SETTINGS_SECTIONS = [
+  { id: "account", label: "Account" },
+  { id: "plan", label: "Plan" },
+  { id: "privacy", label: "Privacy and data" },
+  { id: "help", label: "Help" },
+] as const;
 
-/** The section in `?section=`, or AI provider when it's missing or unknown. */
-export function settingsSectionFromParam(value: string | string[] | undefined): SettingsSectionId {
-  return SETTINGS_SECTIONS.find((section) => section.id === value)?.id ?? "ai";
+export type SettingsSectionId = (typeof SETTINGS_SECTIONS)[number]["id"] | (typeof STUDENT_SETTINGS_SECTIONS)[number]["id"];
+export type SettingsSections = readonly { id: SettingsSectionId; label: string }[];
+
+/** The section in `?section=`, or the first one when it's missing or unknown. */
+export function settingsSectionFromParam(value: string | string[] | undefined, sections: SettingsSections = SETTINGS_SECTIONS): SettingsSectionId {
+  return sections.find((section) => section.id === value)?.id ?? sections[0].id;
 }
 
 export const settingsSectionHref = (id: SettingsSectionId) => `/settings?section=${id}`;

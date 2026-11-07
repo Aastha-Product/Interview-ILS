@@ -32,6 +32,7 @@ export function Sidebar({
   colorScheme,
   counts,
   hiddenSections,
+  tools = true,
 }: {
   userName: string;
   update: Release | null;
@@ -44,6 +45,8 @@ export function Sidebar({
   counts?: Record<string, number>;
   /** Sections this server doesn't offer, by path, e.g. /startups (Pathfinder). */
   hiddenSections?: readonly string[];
+  /** Pathfinder: whether the job-search tools are on; without them there's no "New application". */
+  tools?: boolean;
 }) {
   return (
     <SidebarFrame
@@ -53,13 +56,14 @@ export function Sidebar({
           <BrandMark />
           <div className="flex min-w-0 flex-col group-data-collapsed/sidebar:hidden">
             <span className="font-serif text-2xl leading-none font-medium tracking-[-0.01em]">Dossier</span>
-            <span className="truncate text-xs text-muted">Resume analysis and job search</span>
+            <span className="truncate text-xs text-muted">{tools ? "Resume analysis and job search" : "Resume analysis"}</span>
           </div>
         </>
       }
     >
       <div className="flex flex-1 flex-col gap-1 p-2 group-data-collapsed/sidebar:px-1">
         {/* Always a fresh start, whatever an open draft holds (E7-7). */}
+        {tools && (
         <Link
           href="/new?fresh=1"
           title="New application"
@@ -69,6 +73,7 @@ export function Sidebar({
           {/* Hidden while collapsed, but still the link's name. */}
           <span className="group-data-collapsed/sidebar:sr-only">New application</span>
         </Link>
+        )}
 
         <NavLinks counts={counts} hidden={hiddenSections} />
       </div>
@@ -95,7 +100,7 @@ export function Sidebar({
         </span>
         <span className="flex min-w-0 flex-1 flex-col group-data-collapsed/sidebar:hidden">
           <span className="truncate text-xs font-medium">{userName}</span>
-          <span className="truncate text-[11px] text-muted">Self-hosted · v{currentVersion}</span>
+          <span className="truncate text-[11px] text-muted">{tools ? `Self-hosted · v${currentVersion}` : "Free plan"}</span>
         </span>
         <form action={signOut}>
           <button

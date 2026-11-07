@@ -7,6 +7,7 @@ import { inboxCount } from "@/lib/google/inbox-data";
 import { loadProfileName } from "@/lib/profile-data";
 import { loadSettings } from "@/lib/settings-data";
 import { startupsEnabled } from "@/lib/startups/enabled";
+import { TOOL_PATHS, toolsEnabled } from "@/lib/tools";
 import { COLOR_SCHEME_COOKIE, parseColorScheme, parseSidebarCollapsed, SIDEBAR_COOKIE } from "@/lib/ui-preferences";
 import { rememberBrowserTimeZone, userTimeZone } from "@/lib/time-zone";
 import { checkForUpdatesDaily, updateNotice } from "@/lib/update-check";
@@ -51,8 +52,9 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
         collapsed={parseSidebarCollapsed(jar.get(SIDEBAR_COOKIE)?.value)}
         counts={{ ...(waiting > 0 ? { "/inbox": waiting } : {}), ...(agent > 0 ? { "/agent": agent } : {}) }}
         colorScheme={parseColorScheme(jar.get(COLOR_SCHEME_COOKIE)?.value)}
-        // Pathfinder: Startups only where PATHFINDER_STARTUPS=on.
-        hiddenSections={startupsEnabled() ? [] : ["/startups"]}
+        // Pathfinder: the job-search tools only where PATHFINDER_TOOLS=on, Startups only where PATHFINDER_STARTUPS=on.
+        hiddenSections={[...(toolsEnabled() ? [] : TOOL_PATHS), ...(startupsEnabled() ? [] : ["/startups"])]}
+        tools={toolsEnabled()}
       />
       {/* The screen sits in a white panel inset from the shell. Each screen
           starts with its page bar (PageHeader or PageBar), which draws the

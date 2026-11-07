@@ -5,7 +5,7 @@ import { rawClientOf } from "@/lib/owner/scope";
 import { createTestClient, resetDatabase, TEST_USER_ID } from "@/test/db";
 
 import { resolveAiConfig } from "./config";
-import { chargeSharedAi, limitDay, sharedAiUsedToday, withDailyLimit } from "./daily-limit";
+import { analysesLeftToday, analysesPerDay, chargeSharedAi, limitDay, sharedAiUsedToday, withDailyLimit } from "./daily-limit";
 import { AiError } from "./errors";
 import type { AIProvider } from "./provider";
 
@@ -51,6 +51,20 @@ describe("the daily AI limit (Pathfinder)", () => {
     });
     // The refused requests never reached the provider.
     expect(complete).toHaveBeenCalledTimes(2);
+  });
+
+  it("tells the student how many analyses (two requests each) the limit allows, and how many are left today", async () => {
+    expect(analysesPerDay(10)).toBe(5);
+    expect(analysesPerDay(1)).toBe(1);
+    expect(analysesPerDay(undefined)).toBeNull();
+    expect(await analysesLeftToday(true, 10)).toBe(5);
+    await chargeSharedAi(10);
+    await chargeSharedAi(10);
+    await chargeSharedAi(10);
+    expect(await analysesLeftToday(true, 10)).toBe(3);
+    // Their own key, or no limit: nothing to count.
+    expect(await analysesLeftToday(false, 10)).toBeNull();
+    expect(await analysesLeftToday(true, undefined)).toBeNull();
   });
 
   it("counts per student: one student's use leaves another's untouched", async () => {

@@ -14,7 +14,7 @@ export function NavLinks({ counts, hidden = [] }: { counts?: Record<string, numb
   const collapsed = useSidebarCollapsed();
   return (
     <nav aria-label="Main" className="flex flex-1 flex-col gap-1">
-      {NAV.map(({ label, items }, index) => (
+      {NAV.map(({ label, items }, index) => items.every((item) => hidden.includes(item.href)) ? null : (
         <div
           key={label ?? index}
           className={cn(

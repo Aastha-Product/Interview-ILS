@@ -38,7 +38,8 @@ export class GoogleSignInError extends Error {
   }
 }
 
-type SignInEnv = Pick<Env, "DOSSIER_GOOGLE_CLIENT_ID" | "DOSSIER_GOOGLE_CLIENT_SECRET" | "PATHFINDER_SIGN_IN">;
+type SignInEnv = Pick<Env, "DOSSIER_GOOGLE_CLIENT_ID" | "DOSSIER_GOOGLE_CLIENT_SECRET" | "PATHFINDER_SIGN_IN"> &
+  Partial<Pick<Env, "PATHFINDER_FIREBASE_API_KEY" | "PATHFINDER_FIREBASE_AUTH_DOMAIN" | "PATHFINDER_FIREBASE_PROJECT_ID">>;
 
 /** The server's OAuth client for sign-in, or null while it isn't set. */
 export function signInClient(source: SignInEnv = env): { id: string; secret: string } | null {
@@ -47,9 +48,14 @@ export function signInClient(source: SignInEnv = env): { id: string; secret: str
   return id && secret ? { id, secret } : null;
 }
 
-/** How students sign in: PATHFINDER_SIGN_IN, else Google once its client is set, else the access code. */
-export function signInMode(source: SignInEnv = env): "google" | "code" {
-  return source.PATHFINDER_SIGN_IN ?? (signInClient(source) ? "google" : "code");
+/**
+ * How students sign in: PATHFINDER_SIGN_IN, else Firebase once its project is set, else Google
+ * once its client is set, else the access code.
+ */
+export function signInMode(source: SignInEnv = env): "firebase" | "google" | "code" {
+  if (source.PATHFINDER_SIGN_IN) return source.PATHFINDER_SIGN_IN;
+  if (source.PATHFINDER_FIREBASE_API_KEY && source.PATHFINDER_FIREBASE_AUTH_DOMAIN && source.PATHFINDER_FIREBASE_PROJECT_ID) return "firebase";
+  return signInClient(source) ? "google" : "code";
 }
 
 /** Where Google sends the browser back to: DOSSIER_PUBLIC_URL, else the address in use. */

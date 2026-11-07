@@ -8,26 +8,37 @@ import { SavedIndicator } from "@/components/saved-indicator";
 import { TrackSaveContext, useSaveTracker } from "@/components/save-tracker";
 import { cn } from "@/lib/cn";
 
-import { SETTINGS_SECTIONS, settingsSectionHref, type SettingsSectionId } from "./sections";
+import { SETTINGS_SECTIONS, settingsSectionHref, type SettingsSectionId, type SettingsSections } from "./sections";
 
 /**
  * The Settings frame (E10-1): the section list on the left, the section on
  * the right, stacked on narrow windows. Every control saves on its own; the
  * header says when it's done.
  */
-export function SettingsScreen({ section, children }: { section: SettingsSectionId; children: ReactNode }) {
+export function SettingsScreen({
+  section,
+  sections = SETTINGS_SECTIONS,
+  description = "It's your server, so it's your call. Choose which AI writes for you, set your document defaults, and take your data with you whenever you like.",
+  children,
+}: {
+  section: SettingsSectionId;
+  /** Pathfinder: students see fewer sections where the tools are off. */
+  sections?: SettingsSections;
+  description?: string;
+  children: ReactNode;
+}) {
   const saves = useSaveTracker();
 
   return (
     <TrackSaveContext value={saves.track}>
       <PageHeader
         title="Settings"
-        description="It's your server, so it's your call. Choose which AI writes for you, set your document defaults, and take your data with you whenever you like."
+        description={description}
         actions={<SavedIndicator status={saves.status} savedAt={saves.savedAt} />}
       />
-      <div className="flex flex-wrap items-start gap-x-12 gap-y-8 px-10 pb-20">
+      <div className="flex flex-wrap items-start gap-x-12 gap-y-8 px-4 pb-20 sm:px-10">
         <nav aria-label="Settings sections" className="flex max-w-[220px] min-w-[200px] flex-[1_1_200px] flex-col gap-0.5">
-          {SETTINGS_SECTIONS.map((entry) => (
+          {sections.map((entry) => (
             <Link
               key={entry.id}
               href={settingsSectionHref(entry.id)}

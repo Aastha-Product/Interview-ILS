@@ -32,6 +32,8 @@ model User {
   email     String   @unique @db.Citext
   /// The Google account the student signs in with: Google's stable id ("sub"), which outlives an email change.
   googleSub String?  @unique
+  /// The Firebase Authentication account the student signs in with: Firebase's stable user id.
+  firebaseUid String? @unique
   name      String   @default("")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

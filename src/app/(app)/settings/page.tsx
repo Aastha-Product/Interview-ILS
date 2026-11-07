@@ -2,6 +2,10 @@ import type { Metadata } from "next";
 import { headers } from "next/headers";
 
 import { loadAiConfig, loadAiSettingsView } from "@/lib/ai/config";
+import { analysesLeftToday, analysesPerDay } from "@/lib/ai/daily-limit";
+import { verifySession } from "@/lib/auth/session";
+import { listResumeAnalyses } from "@/lib/resume-analysis";
+import { toolsEnabled } from "@/lib/tools";
 import { signInMode } from "@/lib/auth/google-sign-in";
 import { jobSearchView, loadJobSearchConfig } from "@/lib/job-search/config";
 import { COUNTRIES } from "@/lib/job-search/countries";
@@ -16,7 +20,7 @@ import { googleConnection } from "@/lib/google/account";
 import { loadGoogleClientConfig, redirectUri } from "@/lib/google/oauth";
 import { lastKnownTimeZone, userTimeZone } from "@/lib/time-zone";
 import { appVersion } from "@/lib/version";
-import { prisma } from "@/lib/prisma";
+import { prisma, systemPrisma } from "@/lib/prisma";
 import { loadProfileName } from "@/lib/profile-data";
 import { scoringProblem } from "@/lib/scoring";
 import { loadScoringConfig, scoringView } from "@/lib/scoring/config";
@@ -34,14 +38,17 @@ import { GoogleNotice } from "./google-notice";
 import { JobSearchSection } from "./job-search-section";
 import { ScoringSection } from "./scoring-section";
 import { AboutSection, type AboutFacts, type UsagePingView } from "./about-section";
-import { settingsSectionFromParam } from "./sections";
+import { settingsSectionFromParam, STUDENT_SETTINGS_SECTIONS } from "./sections";
 import { SettingsScreen } from "./settings-screen";
+import { AccountSection, HelpSection, PlanSection, PrivacySection } from "./student-sections";
 
 export const metadata: Metadata = { title: "Settings" };
 
 /** Settings (PRD §6.8); the section is in `?section=` (E10-1). */
 export default async function SettingsPage({ searchParams }: PageProps<"/settings">) {
   const params = await searchParams;
+  // Pathfinder: without the job-search tools, students get a short Settings with nothing technical.
+  if (!toolsEnabled()) return <StudentSettings param={params.section} />;
   const section = settingsSectionFromParam(params.section);
   const settings = await loadSettings();
 
@@ -212,4 +219,37 @@ async function aboutFacts(): Promise<AboutFacts> {
 async function usagePingView(): Promise<UsagePingView> {
   const settings = await loadSettings();
   return { host: USAGE_PING_HOST, ...usagePingChoice(settings), id: settings.usagePingId, production: process.env.NODE_ENV === "production" };
+}
+
+/** Settings for students (Pathfinder, PATHFINDER_TOOLS off): account, plan, privacy and help. */
+async function StudentSettings({ param }: { param: string | string[] | undefined }) {
+  const section = settingsSectionFromParam(param, STUDENT_SETTINGS_SECTIONS);
+  const session = await verifySession();
+  const [user, profileName, ai, analyses] = await Promise.all([
+    systemPrisma.user.findUnique({ where: { id: session.userId }, select: { email: true, name: true, firebaseUid: true } }),
+    loadProfileName(),
+    loadAiConfig(),
+    listResumeAnalyses(),
+  ]);
+  return (
+    <SettingsScreen
+      section={section}
+      sections={STUDENT_SETTINGS_SECTIONS}
+      description="Your account, your plan, and your data."
+    >
+      {section === "plan" ? (
+        <PlanSection perDay={analysesPerDay()} left={await analysesLeftToday(ai.sharedKey)} />
+      ) : section === "privacy" ? (
+        <PrivacySection analyses={analyses.length} />
+      ) : section === "help" ? (
+        <HelpSection />
+      ) : (
+        <AccountSection
+          email={user?.email ?? ""}
+          name={profileName.trim() || user?.name.trim() || ""}
+          canResetPassword={signInMode() === "firebase" && Boolean(user?.firebaseUid)}
+        />
+      )}
+    </SettingsScreen>
+  );
 }

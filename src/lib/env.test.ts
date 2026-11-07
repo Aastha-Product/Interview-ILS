@@ -31,6 +31,7 @@ describe("parseEnv", () => {
       DOSSIER_BACKUP_RETENTION_DAYS: 14,
       DOSSIER_TELEMETRY: "off", // Pathfinder: unset means off
       PATHFINDER_STARTUPS: "off", // Pathfinder: unset means off
+      PATHFINDER_TOOLS: "off", // Pathfinder: the job-search tools, unset means off
     });
   });
 

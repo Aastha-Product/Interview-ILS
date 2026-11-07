@@ -39,12 +39,18 @@ services:
       DOSSIER_PUBLIC_URL: https://${PATHFINDER_DOMAIN:?Set PATHFINDER_DOMAIN in .env}
       # Nightly backups run at 03:00 in this time zone.
       TZ: ${TZ:-Asia/Kolkata}
-      # Students sign in with Google once its client is set; until then, with the access code.
+      # Students sign in with Firebase once its project is set (email and password, or Google),
+      # else with Google once its client is set; until then, with the access code.
       PATHFINDER_SIGN_IN: ${PATHFINDER_SIGN_IN:-}
+      PATHFINDER_FIREBASE_API_KEY: ${PATHFINDER_FIREBASE_API_KEY:-}
+      PATHFINDER_FIREBASE_AUTH_DOMAIN: ${PATHFINDER_FIREBASE_AUTH_DOMAIN:-}
+      PATHFINDER_FIREBASE_PROJECT_ID: ${PATHFINDER_FIREBASE_PROJECT_ID:-}
       DOSSIER_GOOGLE_CLIENT_ID: ${DOSSIER_GOOGLE_CLIENT_ID:-}
       DOSSIER_GOOGLE_CLIENT_SECRET: ${DOSSIER_GOOGLE_CLIENT_SECRET:-}
       # Startups reads company websites, so it's off unless set to on in .env.
       PATHFINDER_STARTUPS: ${PATHFINDER_STARTUPS:-off}
+      # Dossier's job-search tools, off unless set to on: students see the resume analysis only.
+      PATHFINDER_TOOLS: ${PATHFINDER_TOOLS:-off}
       # No usage ping from this server.
       DOSSIER_TELEMETRY: "off"
       # Optional defaults for Settings → AI provider; each student can set their own.

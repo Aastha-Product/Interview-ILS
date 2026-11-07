@@ -317,7 +317,12 @@ export function DataRow({
 const CONFIRMATION = "DELETE";
 
 /** "Delete everything" (E10-8, SET-11): typed confirmation, then gone for good. */
-function DangerZone() {
+export function DangerZone({
+  description = "Removes your profile, all applications and documents, your settings and the backups from this server. This can't be undone, so export first if you might want it back.",
+}: {
+  /** Pathfinder: students get plainer words. */
+  description?: string;
+} = {}) {
   const [confirming, setConfirming] = useState(false);
   const [typed, setTyped] = useState("");
   const [deleting, setDeleting] = useState(false);
@@ -341,10 +346,7 @@ function DangerZone() {
         <h3 id="danger-heading" className="text-[15px] font-medium text-error-strong">
           Delete everything
         </h3>
-        <p className="text-control text-muted">
-          Removes your profile, all applications and documents, your settings and the backups from this server. This can&apos;t be
-          undone, so export first if you might want it back.
-        </p>
+        <p className="text-control text-muted">{description}</p>
       </div>
       {confirming ? (
         <div className="flex flex-wrap items-center gap-2">

@@ -10,13 +10,23 @@ import { PRINT_TOKEN_HEADER, signPrintToken } from "@/lib/pdf/print-token";
 
 import { config, proxy } from "./proxy";
 
-const flags = vi.hoisted(() => ({ startups: "off" as "on" | "off" }));
+const flags = vi.hoisted(() => ({ startups: "off" as "on" | "off", firebase: false }));
 vi.mock("@/lib/env", () => ({
   env: {
     DOSSIER_SECRET: "a".repeat(32),
     DOSSIER_PASSWORD: "correct horse",
     get PATHFINDER_STARTUPS() {
       return flags.startups;
+    },
+    // Pathfinder: a Firebase project, while a test turns it on.
+    get PATHFINDER_FIREBASE_API_KEY() {
+      return flags.firebase ? "test-api-key" : undefined;
+    },
+    get PATHFINDER_FIREBASE_AUTH_DOMAIN() {
+      return flags.firebase ? "pathfinder-test.firebaseapp.com" : undefined;
+    },
+    get PATHFINDER_FIREBASE_PROJECT_ID() {
+      return flags.firebase ? "pathfinder-test" : undefined;
     },
   },
 }));
@@ -91,7 +101,40 @@ describe("proxy", () => {
     expect(getRedirectUrl(await proxy(request("/applications/abc?tab=letter")))).toBe(
       "http://localhost:3000/login?next=%2Fapplications%2Fabc%3Ftab%3Dletter",
     );
-    expect(getRedirectUrl(await proxy(request("/")))).toBe("http://localhost:3000/login");
+  });
+
+  it("shows signed-out visitors the homepage at the site's address, and signed-in ones the app (Pathfinder)", async () => {
+    const response = await proxy(request("/"));
+    expect(getRedirectUrl(response)).toBeNull();
+    expect(response.headers.get("x-middleware-rewrite")).toBe("http://localhost:3000/welcome");
+    expect(response.headers.get("content-security-policy")).toMatch(/'nonce-/);
+    const token = await encodeSession({ persistent: false, userId: "test-student" }, { key, fingerprint });
+    const signedIn = await proxy(request("/", { cookie: token }));
+    expect(signedIn.headers.get("x-middleware-rewrite")).toBeNull();
+    expect(signedIn.headers.get("x-middleware-next")).toBe("1");
+  });
+
+  it("lets signed-out visitors reach the homepage, signing in, up and resetting a password (Pathfinder)", async () => {
+    for (const path of ["/welcome", "/login", "/signup", "/reset-password"]) {
+      const response = await proxy(request(path));
+      expect(response.headers.get("x-middleware-next"), path).toBe("1");
+      expect(response.headers.get("content-security-policy"), path).toMatch(/'nonce-/);
+    }
+    expect(getRedirectUrl(await proxy(request("/signup/more")))).toBe("http://localhost:3000/login?next=%2Fsignup%2Fmore");
+  });
+
+  it("lets pages talk to Firebase only where students sign in with it (Pathfinder)", async () => {
+    const plain = (await proxy(request("/login"))).headers.get("content-security-policy")!;
+    expect(plain).toContain("connect-src 'self';");
+    expect(plain).not.toContain("frame-src");
+    flags.firebase = true;
+    try {
+      const policy = (await proxy(request("/login"))).headers.get("content-security-policy")!;
+      expect(policy).toContain("connect-src 'self' https://identitytoolkit.googleapis.com https://securetoken.googleapis.com;");
+      expect(policy).toContain("frame-src 'self' https://pathfinder-test.firebaseapp.com;");
+    } finally {
+      flags.firebase = false;
+    }
   });
 
   it("treats an expired, forged or pre-password-change cookie as signed out", async () => {

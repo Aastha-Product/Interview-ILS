@@ -6,7 +6,10 @@ import { z } from "zod";
 
 import { ActionError, publicAction } from "@/lib/action";
 import { clientIp } from "@/lib/auth/client-ip";
+import { firebaseIdentity, FirebaseSignInError } from "@/lib/auth/firebase";
 import { signInMode } from "@/lib/auth/google-sign-in";
+import { studentForFirebase } from "@/lib/auth/students";
+import { logServerError } from "@/lib/log";
 import { loginWaitMs, recordLoginFailure, recordLoginSuccess } from "@/lib/auth/login-throttle";
 import { safeNextPath } from "@/lib/auth/next-path";
 import { passwordMatches, startSession } from "@/lib/auth/session";
@@ -52,6 +55,38 @@ export const signIn = publicAction(
     await startSession({ persistent: remember, userId: user.id });
     const firstName = (await runAsUser(user.id, () => loadProfileName())).trim().split(/\s+/)[0] || "there";
     toast(`Welcome back, ${firstName}.`);
+    return { redirectTo: safeNextPath(next) };
+  },
+);
+
+/**
+ * Signs a student in with the ID token Firebase gave their browser (Pathfinder): checks it, links
+ * or creates the student (their email address must be verified) and starts the session. Tokens
+ * that don't check out count as failed attempts, like a wrong access code.
+ */
+export const signInWithFirebase = publicAction(
+  z.object({ idToken: z.string().min(1).max(8192), remember: z.boolean(), next: z.string().optional() }),
+  async ({ idToken, remember, next }, { toast }) => {
+    if (signInMode() !== "firebase") throw new ActionError(loginMessages.notFirebase);
+    const ip = clientIp(await headers());
+    const wait = await loginWaitMs(systemPrisma, ip);
+    if (wait > 0) throw new ActionError(tooManyAttemptsMessage(wait));
+
+    let userId: string;
+    try {
+      userId = await studentForFirebase(await firebaseIdentity(idToken));
+    } catch (error) {
+      if (!(error instanceof FirebaseSignInError)) {
+        logServerError("firebase sign-in", error);
+        throw new ActionError(loginMessages.firebaseFailed);
+      }
+      if (error.kind === "invalid") await recordLoginFailure(systemPrisma, ip);
+      throw new ActionError(error.message);
+    }
+    await recordLoginSuccess(systemPrisma, ip);
+    await startSession({ persistent: remember, userId });
+    const firstName = (await runAsUser(userId, () => loadProfileName())).trim().split(/\s+/)[0];
+    toast(firstName ? `Welcome, ${firstName}.` : "Welcome.");
     return { redirectTo: safeNextPath(next) };
   },
 );

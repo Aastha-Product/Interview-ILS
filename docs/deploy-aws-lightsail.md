@@ -64,15 +64,50 @@ The first run takes 15–25 minutes, mostly building the app. It ends with
 
 ## 6. Sign in for the first time
 
-Until Google sign-in is set up, the server is in **trial mode**: anyone with the access code can
+Until sign-in is set up (step 7), the server is in **trial mode**: anyone with the access code can
 sign in, under any email.
 
 1. Show the access code: `sudo cat /root/pathfinder-access-code.txt`
 2. Open your address in a browser, and sign in with your email and that code.
 
-Don't give the access code to students: set up Google sign-in first (step 7).
+Don't give the access code to students: set up sign-in first (step 7).
 
-## 7. Turn on Google sign-in
+## 7. Turn on sign-in with Firebase (recommended)
+
+Students then create an account with their email and a password, or continue with Google. Firebase
+sends the verification and password reset emails. It's free up to 50,000 monthly users.
+
+1. In the [Firebase console](https://console.firebase.google.com/), create a project (or pick
+   one). Google Analytics isn't needed.
+2. **Build → Authentication → Get started → Sign-in method:** enable **Email/Password** (not the
+   passwordless email link) and **Google** (choose a support email).
+3. **Authentication → Settings → Authorized domains:** add your address, e.g.
+   `pathfinder.yourdomain.com` (or `52-64-48-163.sslip.io`).
+4. **Project settings (gear icon) → General → Your apps:** add a **Web app** (no hosting needed).
+   From the config it shows, copy `apiKey`, `authDomain` and `projectId`. None of them is a
+   secret.
+5. On the server, put them in the settings file:
+
+   ```bash
+   sudo nano /opt/pathfinder/deploy/lightsail/.env
+   ```
+
+   ```bash
+   PATHFINDER_FIREBASE_API_KEY=<apiKey>
+   PATHFINDER_FIREBASE_AUTH_DOMAIN=<authDomain>
+   PATHFINDER_FIREBASE_PROJECT_ID=<projectId>
+   ```
+
+   Save (Ctrl+O, Enter, Ctrl+X), then run the setup command from step 5 again. The sign-in page
+   now offers **Continue with Google**, email and password, **Create a free account** and
+   **Forgot your password?**, and the access code no longer works.
+6. Optional: **Authentication → Templates** lets you change the sender name and wording of the
+   verification and reset emails.
+
+A student who signed in before with the access code or Google keeps their account: the first
+Firebase sign-in with the same verified email address links to it.
+
+## 7b. Or: Google sign-in without Firebase
 
 1. In [Google Cloud Console](https://console.cloud.google.com/), create a project (or pick one).
 2. **APIs & Services → OAuth consent screen:** user type **External**; fill in the app name,
@@ -96,7 +131,8 @@ Don't give the access code to students: set up Google sign-in first (step 7).
    Fill in `DOSSIER_GOOGLE_CLIENT_ID=` and `DOSSIER_GOOGLE_CLIENT_SECRET=`, then save
    (Ctrl+O, Enter, Ctrl+X).
 6. Apply it by running the setup command from step 5 again. From now on the sign-in page shows
-   **Continue with Google** only, and the access code no longer works.
+   **Continue with Google** only, and the access code no longer works. (With Firebase set up too,
+   Firebase is used; set `PATHFINDER_SIGN_IN=google` to use this instead.)
 
 If Google refuses an `sslip.io` redirect address, use your own domain instead (step 4).
 

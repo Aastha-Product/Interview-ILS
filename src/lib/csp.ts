@@ -22,9 +22,27 @@ export function createNonce(): string {
  */
 export const GOOGLE_SIGN_IN_ORIGIN = "https://accounts.google.com";
 
+/**
+ * Pathfinder, Firebase Authentication: the browser calls Firebase's sign-in APIs (or the local
+ * emulator), and Google sign-in runs through a hidden frame on the project's auth domain.
+ */
+export const FIREBASE_API_ORIGINS = ["https://identitytoolkit.googleapis.com", "https://securetoken.googleapis.com"];
+
+export function firebaseSources(config: { authDomain: string; emulatorUrl: string | null } | null): { connect: string[]; frame: string[] } {
+  if (!config) return { connect: [], frame: [] };
+  if (config.emulatorUrl) return { connect: [config.emulatorUrl], frame: [config.emulatorUrl] };
+  return { connect: FIREBASE_API_ORIGINS, frame: [`https://${config.authDomain}`] };
+}
+
 export function contentSecurityPolicy(
   nonce: string,
-  { dev = false, https = false, formTargets = [GOOGLE_SIGN_IN_ORIGIN] }: { dev?: boolean; https?: boolean; formTargets?: string[] } = {},
+  {
+    dev = false,
+    https = false,
+    formTargets = [GOOGLE_SIGN_IN_ORIGIN],
+    connectTargets = [],
+    frameTargets = [],
+  }: { dev?: boolean; https?: boolean; formTargets?: string[]; connectTargets?: string[]; frameTargets?: string[] } = {},
 ): string {
   return [
     "default-src 'self'",
@@ -32,7 +50,8 @@ export function contentSecurityPolicy(
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' blob: data:",
     "font-src 'self'",
-    "connect-src 'self'",
+    ["connect-src 'self'", ...connectTargets].join(" "),
+    ...(frameTargets.length > 0 ? [["frame-src 'self'", ...frameTargets].join(" ")] : []),
     "object-src 'none'",
     "base-uri 'self'",
     ["form-action 'self'", ...formTargets].join(" "),

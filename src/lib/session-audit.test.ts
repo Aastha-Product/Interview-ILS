@@ -7,9 +7,12 @@ import { describe, expect, it } from "vitest";
 // route handlers through route(); these are the only exceptions.
 const SIGNED_OUT_ACTIONS = new Map([
   // publicAction: signing in, and the same through the form's own submit (#187)
-  ["src/app/login/actions.ts", ["signIn", "signInWithForm"]],
+  // Pathfinder: signInWithFirebase checks Firebase's ID token itself before starting a session.
+  ["src/app/login/actions.ts", ["signIn", "signInWithForm", "signInWithFirebase"]],
   ["src/lib/auth/actions.ts", ["signOut"]], // only clears the cookie
 ]);
+/** Pages for visitors who aren't signed in (Pathfinder). The homepage only asks whether there's a session, to offer the dashboard. */
+const OPEN_PAGES = ["src/app/welcome/page.tsx", "src/app/signup/page.tsx", "src/app/reset-password/page.tsx"];
 const OPEN_ROUTES = new Set([
   "src/app/api/health/route.ts", // for health checks; says nothing private
   // Google's redirect comes from Google's site, so route()'s same-origin check
@@ -67,9 +70,15 @@ describe("session checks (E11-5)", () => {
         !file.startsWith("src/app/login/") &&
         // Pathfinder: read before signing up (DPDP Act), so open; it shows nothing private.
         file !== "src/app/privacy/page.tsx" &&
+        // Pathfinder: the homepage, signing up and resetting a password come before a session.
+        !OPEN_PAGES.includes(file.replaceAll("\\", "/")) &&
         !/await (verifySession|verifyPrintAccess)\(/.test(read(file)),
     );
     expect(unchecked).toEqual([]);
+  });
+
+  it("shows nothing private on the homepage, sign-up and password reset pages (Pathfinder)", () => {
+    for (const file of OPEN_PAGES) expect(read(file), file).not.toMatch(/prisma|currentUserId|cookies\(/);
   });
 
   it("shows nothing private on the privacy notice (Pathfinder)", () => {

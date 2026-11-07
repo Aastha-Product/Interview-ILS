@@ -59,3 +59,20 @@ export function withDailyLimit(provider: AIProvider, sharedKey: boolean, limit =
     test: (signal) => provider.test(signal),
   };
 }
+
+/** AI requests one resume analysis makes: reading the resume, then reviewing it. */
+export const REQUESTS_PER_ANALYSIS = 2;
+
+/** How many resume analyses the daily limit allows, or null when there's no limit. */
+export function analysesPerDay(limit = env.PATHFINDER_AI_DAILY_LIMIT): number | null {
+  return limit ? Math.max(1, Math.floor(limit / REQUESTS_PER_ANALYSIS)) : null;
+}
+
+/**
+ * How many more analyses the current student can run today on the server's key, as the
+ * dashboard shows it; null when they aren't limited (no limit, or their own key).
+ */
+export async function analysesLeftToday(sharedKey: boolean, limit = env.PATHFINDER_AI_DAILY_LIMIT, now: Date = new Date()): Promise<number | null> {
+  if (!sharedKey || !limit) return null;
+  return Math.max(0, Math.floor((limit - (await sharedAiUsedToday(now))) / REQUESTS_PER_ANALYSIS));
+}

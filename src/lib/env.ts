@@ -154,12 +154,41 @@ const schema = z.object({
   // Never echo the secret.
   DOSSIER_GOOGLE_CLIENT_ID: optional(z.string().trim()),
   DOSSIER_GOOGLE_CLIENT_SECRET: optional(z.string().trim()),
-  // Pathfinder: how students sign in. "google" (the default once the client
-  // above is set) uses their Google account; "code" lets anyone with the
-  // DOSSIER_PASSWORD access code in under any email, for trials only.
+  // Pathfinder: how students sign in. "firebase" (the default once PATHFINDER_FIREBASE_* are set)
+  // uses Firebase Authentication: email and password, password reset and Google. "google" (the
+  // default once the client above is set) uses their Google account through this server's own
+  // client; "code" lets anyone with the DOSSIER_PASSWORD access code in under any email, for
+  // trials only.
   PATHFINDER_SIGN_IN: optional(
-    z.enum(["google", "code"], { error: (issue) => `PATHFINDER_SIGN_IN must be google or code (got "${String(issue.input)}").` }),
+    z.enum(["firebase", "google", "code"], {
+      error: (issue) => `PATHFINDER_SIGN_IN must be firebase, google or code (got "${String(issue.input)}").`,
+    }),
   ),
+  // Pathfinder: the Firebase project students sign in with (Firebase console → Project settings →
+  // Your apps → Web app). None of these is a secret: the browser gets them. The server checks
+  // the ID token Firebase gives the browser against the project ID.
+  PATHFINDER_FIREBASE_API_KEY: optional(z.string().trim()),
+  PATHFINDER_FIREBASE_AUTH_DOMAIN: optional(z.string().trim()),
+  PATHFINDER_FIREBASE_PROJECT_ID: optional(z.string().trim()),
+  // For local testing only: the Firebase Auth emulator's host:port, as firebase-tools names it.
+  // With it set, the browser signs in at the emulator and the server asks the emulator who
+  // that is, instead of checking Google's signature (the emulator signs nothing).
+  FIREBASE_AUTH_EMULATOR_HOST: optional(
+    z
+      .string()
+      .trim()
+      .regex(/^(?:localhost|127\.0\.0\.1):\d+$/, { error: "FIREBASE_AUTH_EMULATOR_HOST must be a local host:port, e.g. 127.0.0.1:9099." }),
+  ),
+  // Pathfinder: Dossier's job-search tools (dashboard, Find jobs, Agent, Applications, Inbox, the
+  // base resume) and their settings. Unset means off: students see the resume analysis, their
+  // profile and a short Settings. on brings the rest back.
+  PATHFINDER_TOOLS: optional(
+    z
+      .string()
+      .trim()
+      .toLowerCase()
+      .pipe(z.enum(["on", "off"], { error: (issue) => `PATHFINDER_TOOLS must be on or off (got "${String(issue.input)}").` })),
+  ).transform((value) => value ?? "off"),
   // Pathfinder: how many AI requests each student may make per day on the server's shared key
   // (DOSSIER_AI_KEY); the count resets at midnight IST. Students with their own key in Settings
   // aren't limited. Unset means no limit.

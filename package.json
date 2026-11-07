@@ -25,6 +25,7 @@
     "@prisma/adapter-pg": "^7.10.1",
     "@prisma/client": "^7.10.1",
     "fflate": "^0.8.3",
+    "firebase": "^12.19.0",
     "jose": "^6.2.13",
     "lucide-react": "^1.61.0",
     "mammoth": "^1.13.0",

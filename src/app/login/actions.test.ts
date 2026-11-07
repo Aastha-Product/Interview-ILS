@@ -5,7 +5,10 @@ import { passwordMatches, startSession } from "@/lib/auth/session";
 import { systemPrisma } from "@/lib/prisma";
 import { loadProfileName } from "@/lib/profile-data";
 
-import { signIn, signInWithForm } from "./actions";
+import { firebaseIdentity, FirebaseSignInError } from "@/lib/auth/firebase";
+import { studentForFirebase } from "@/lib/auth/students";
+
+import { signIn, signInWithFirebase, signInWithForm } from "./actions";
 import { loginMessages } from "./messages";
 
 vi.mock("next/headers", () => ({
@@ -31,7 +34,13 @@ vi.mock("@/lib/prisma", () => ({
   systemPrisma: { user: { upsert: vi.fn(async ({ create }: { create: { email: string } }) => ({ id: "student-1", email: create.email })) } },
 }));
 vi.mock("@/lib/profile-data", () => ({ loadProfileName: vi.fn() }));
-const mode = vi.hoisted(() => ({ value: "code" as "code" | "google" }));
+vi.mock("@/lib/auth/firebase", async (original) => ({
+  ...(await original<typeof import("@/lib/auth/firebase")>()),
+  firebaseIdentity: vi.fn(),
+}));
+vi.mock("@/lib/auth/students", () => ({ studentForFirebase: vi.fn() }));
+vi.mock("@/lib/log", () => ({ logServerError: vi.fn() }));
+const mode = vi.hoisted(() => ({ value: "code" as "code" | "google" | "firebase" }));
 vi.mock("@/lib/auth/google-sign-in", () => ({ signInMode: () => mode.value }));
 
 describe("signIn", () => {
@@ -141,5 +150,55 @@ describe("signInWithForm", () => {
       /^redirect \/analyze$/,
     );
     expect(startSession).toHaveBeenCalledWith({ persistent: false, userId: "student-1" });
+  });
+});
+
+describe("signInWithFirebase (Pathfinder)", () => {
+  const asha = { uid: "firebase-asha", email: "asha@example.com", emailVerified: true, name: "Asha Rao" };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mode.value = "firebase";
+    vi.mocked(loginWaitMs).mockResolvedValue(0);
+    vi.mocked(loadProfileName).mockResolvedValue("");
+    vi.mocked(firebaseIdentity).mockResolvedValue(asha);
+    vi.mocked(studentForFirebase).mockResolvedValue("student-1");
+  });
+
+  it("checks the token, starts the student's session and goes on to the next page", async () => {
+    await expect(signInWithFirebase({ idToken: "token", remember: true, next: "/analyze/abc" })).resolves.toEqual({
+      ok: true,
+      data: { redirectTo: "/analyze/abc" },
+      toast: "Welcome.",
+    });
+    expect(firebaseIdentity).toHaveBeenCalledWith("token");
+    expect(studentForFirebase).toHaveBeenCalledWith(asha);
+    expect(startSession).toHaveBeenCalledWith({ persistent: true, userId: "student-1" });
+    expect(recordLoginSuccess).toHaveBeenCalledWith(systemPrisma, "203.0.113.7");
+  });
+
+  it("counts a token that doesn't check out as a failed attempt", async () => {
+    vi.mocked(firebaseIdentity).mockRejectedValue(new FirebaseSignInError("invalid"));
+    await expect(signInWithFirebase({ idToken: "forged", remember: false })).resolves.toEqual({ ok: false, error: "That sign-in didn't work. Try again." });
+    expect(recordLoginFailure).toHaveBeenCalledWith(systemPrisma, "203.0.113.7");
+    expect(startSession).not.toHaveBeenCalled();
+  });
+
+  it("asks for a verified address without counting it as a failure", async () => {
+    vi.mocked(studentForFirebase).mockRejectedValue(new FirebaseSignInError("unverified"));
+    await expect(signInWithFirebase({ idToken: "token", remember: false })).resolves.toMatchObject({ ok: false, error: expect.stringMatching(/Verify your email/) });
+    expect(recordLoginFailure).not.toHaveBeenCalled();
+    expect(startSession).not.toHaveBeenCalled();
+  });
+
+  it("refuses while the IP is blocked, and on a server that doesn't use Firebase", async () => {
+    vi.mocked(loginWaitMs).mockResolvedValue(29_500);
+    await expect(signInWithFirebase({ idToken: "token", remember: false })).resolves.toMatchObject({ ok: false });
+    expect(firebaseIdentity).not.toHaveBeenCalled();
+    vi.mocked(loginWaitMs).mockResolvedValue(0);
+    mode.value = "code";
+    await expect(signInWithFirebase({ idToken: "token", remember: false })).resolves.toMatchObject({ ok: false });
+    expect(firebaseIdentity).not.toHaveBeenCalled();
+    expect(startSession).not.toHaveBeenCalled();
   });
 });
