@@ -23,7 +23,7 @@ beforeEach(async () => {
   dataDir.path = await mkdtemp(path.join(tmpdir(), "dossier-downloads-"));
   await mkdir(path.join(dataDir.path, "students", "test-student", "downloads"), { recursive: true });
   await writeFile(path.join(dataDir.path, "students", "test-student", "downloads", "abc-123.zip"), "PK zip");
-  vi.mocked(getSession).mockResolvedValue({ userId: "test-student", persistent: false, issuedAt: new Date(), expiresAt: new Date() });
+  vi.mocked(getSession).mockResolvedValue({ userId: "test-student", persistent: false, version: 0, issuedAt: new Date(), expiresAt: new Date() });
   vi.mocked(getJob).mockResolvedValue(done);
 });
 

@@ -29,6 +29,8 @@ export type Session = {
   userId: string;
   /** Signed in with "Keep me signed in". */
   persistent: boolean;
+  /** The student's session version when it was made (Pathfinder); signing out raises the student's. */
+  version: number;
   issuedAt: Date;
   expiresAt: Date;
 };
@@ -60,11 +62,11 @@ const seconds = (date: Date) => Math.floor(date.getTime() / 1000);
 
 /** Creates the encrypted session token. */
 export async function encodeSession(
-  { persistent, userId }: { persistent: boolean; userId: string },
+  { persistent, userId, version = 0 }: { persistent: boolean; userId: string; version?: number },
   { key, fingerprint, now = new Date() }: TokenOptions,
 ): Promise<string> {
   const issuedAt = seconds(now);
-  return new EncryptJWT({ persistent, pwd: fingerprint, uid: userId })
+  return new EncryptJWT({ persistent, pwd: fingerprint, uid: userId, ver: version })
     .setProtectedHeader({ alg: "dir", enc: "A256GCM" })
     .setIssuedAt(issuedAt)
     .setExpirationTime(issuedAt + SESSION_LIFETIME[persistent ? "persistent" : "browser"])
@@ -94,6 +96,8 @@ export async function decodeSession(
     return {
       userId: payload.uid,
       persistent: payload.persistent,
+      // Tokens from before session versions count as version 0, the starting version.
+      version: Number.isInteger(payload.ver) ? (payload.ver as number) : 0,
       issuedAt: new Date(payload.iat! * 1000),
       expiresAt: new Date(payload.exp! * 1000),
     };
@@ -115,7 +119,10 @@ export async function isHttps(): Promise<boolean> {
 
 /** Signs the user in: sets the session cookie. Call from a Server Action or route handler. */
 export async function startSession({ persistent, userId }: { persistent: boolean; userId: string }): Promise<void> {
-  const token = await encodeSession({ persistent, userId }, sessionTokenOptions());
+  const version = await currentSessionVersion(userId);
+  // A student who no longer exists can't be signed in.
+  if (version === null) throw new Error("No such student");
+  const token = await encodeSession({ persistent, userId, version }, sessionTokenOptions());
   (await cookies()).set(SESSION_COOKIE, token, {
     httpOnly: true,
     sameSite: "lax",
@@ -126,10 +133,27 @@ export async function startSession({ persistent, userId }: { persistent: boolean
   });
 }
 
-/** The current session, or null when the request isn't signed in. Cached per request. */
+/**
+ * The student's session version, or null when there's no such student. Sessions are stateless
+ * tokens, so this one read is what lets signing out end them (QA M-4).
+ */
+async function currentSessionVersion(userId: string): Promise<number | null> {
+  // Imported here: the database client's owner scope imports this module in turn.
+  const { systemPrisma } = await import("@/lib/prisma");
+  const user = await systemPrisma.user.findUnique({ where: { id: userId }, select: { sessionVersion: true } });
+  return user?.sessionVersion ?? null;
+}
+
+/**
+ * The current session, or null when the request isn't signed in. Cached per request. A token
+ * made before the student signed out (an older version), or for a student who no longer exists,
+ * counts as signed out.
+ */
 export const getSession = cache(async (): Promise<Session | null> => {
   const token = (await cookies()).get(SESSION_COOKIE)?.value;
-  return decodeSession(token, sessionTokenOptions());
+  const session = await decodeSession(token, sessionTokenOptions());
+  if (!session) return null;
+  return (await currentSessionVersion(session.userId)) === session.version ? session : null;
 });
 
 /**
@@ -143,7 +167,15 @@ export async function verifySession(): Promise<Session> {
   return session;
 }
 
-/** Signs the user out: deletes the session cookie (AUTH-7). */
+/**
+ * Signs the user out: ends every session of the student's, on every device, by raising their
+ * session version, then deletes the cookie (AUTH-7). A copied cookie stops working too.
+ */
 export async function endSession(): Promise<void> {
+  const session = await getSession();
+  if (session) {
+    const { systemPrisma } = await import("@/lib/prisma");
+    await systemPrisma.user.update({ where: { id: session.userId }, data: { sessionVersion: { increment: 1 } } });
+  }
   (await cookies()).delete(SESSION_COOKIE);
 }

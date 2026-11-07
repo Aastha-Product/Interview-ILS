@@ -10,7 +10,7 @@ import { firebaseIdentity, FirebaseSignInError } from "@/lib/auth/firebase";
 import { signInMode } from "@/lib/auth/google-sign-in";
 import { studentForFirebase } from "@/lib/auth/students";
 import { logServerError } from "@/lib/log";
-import { loginWaitMs, recordLoginFailure, recordLoginSuccess } from "@/lib/auth/login-throttle";
+import { loginWaitMs, PER_IP_ONLY, recordLoginFailure, recordLoginSuccess } from "@/lib/auth/login-throttle";
 import { safeNextPath } from "@/lib/auth/next-path";
 import { passwordMatches, startSession } from "@/lib/auth/session";
 import { tooManyAttemptsMessage } from "@/lib/auth/throttle";
@@ -69,7 +69,8 @@ export const signInWithFirebase = publicAction(
   async ({ idToken, remember, next }, { toast }) => {
     if (signInMode() !== "firebase") throw new ActionError(loginMessages.notFirebase);
     const ip = clientIp(await headers());
-    const wait = await loginWaitMs(systemPrisma, ip);
+    // Per IP only: a Firebase token can't be guessed, and an all-IPs count would let junk tokens lock everyone out.
+    const wait = await loginWaitMs(systemPrisma, ip, undefined, PER_IP_ONLY);
     if (wait > 0) throw new ActionError(tooManyAttemptsMessage(wait));
 
     let userId: string;
@@ -80,7 +81,7 @@ export const signInWithFirebase = publicAction(
         logServerError("firebase sign-in", error);
         throw new ActionError(loginMessages.firebaseFailed);
       }
-      if (error.kind === "invalid") await recordLoginFailure(systemPrisma, ip);
+      if (error.kind === "invalid") await recordLoginFailure(systemPrisma, ip, undefined, PER_IP_ONLY);
       throw new ActionError(error.message);
     }
     await recordLoginSuccess(systemPrisma, ip);

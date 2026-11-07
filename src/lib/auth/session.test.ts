@@ -25,11 +25,23 @@ describe("session tokens", () => {
     expect(await decodeSession(token, { key, fingerprint, now })).toEqual({
       userId: "test-student",
       persistent: false,
+      version: 0,
       issuedAt: now,
       expiresAt: later(24 * 60 * 60),
     });
     expect(await decodeSession(token, { key, fingerprint, now: later(SESSION_LIFETIME.browser - 1) })).not.toBeNull();
     expect(await decodeSession(token, { key, fingerprint, now: later(SESSION_LIFETIME.browser) })).toBeNull();
+  });
+
+  it("carries the student's session version, and reads tokens from before versions as version 0", async () => {
+    const token = await encodeSession({ persistent: false, userId: "test-student", version: 3 }, { key, fingerprint, now });
+    expect(await decodeSession(token, { key, fingerprint, now })).toMatchObject({ version: 3 });
+    const old = await new EncryptJWT({ persistent: false, pwd: fingerprint, uid: "test-student" })
+      .setProtectedHeader({ alg: "dir", enc: "A256GCM" })
+      .setIssuedAt(Math.floor(now.getTime() / 1000))
+      .setExpirationTime(Math.floor(now.getTime() / 1000) + 60)
+      .encrypt(key);
+    expect(await decodeSession(old, { key, fingerprint, now })).toMatchObject({ version: 0 });
   });
 
   it("keeps a persistent session for 30 days", async () => {

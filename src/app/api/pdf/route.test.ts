@@ -29,7 +29,7 @@ const getHeld = (url: string) => {
 };
 
 beforeEach(() => {
-  vi.mocked(getSession).mockResolvedValue({ userId: "test-student", persistent: false, issuedAt: new Date(), expiresAt: new Date() });
+  vi.mocked(getSession).mockResolvedValue({ userId: "test-student", persistent: false, version: 0, issuedAt: new Date(), expiresAt: new Date() });
   vi.mocked(renderPdf).mockResolvedValue(new Uint8Array([37, 80, 68, 70]));
   vi.mocked(loadProfileName).mockResolvedValue("Jane Doe");
   // The defaults, with the pattern "{name} – {company} – {doc}".

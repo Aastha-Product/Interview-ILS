@@ -31,7 +31,7 @@ const post = (query = "", headers: Record<string, string> = {}) =>
   );
 
 beforeEach(() => {
-  vi.mocked(getSession).mockResolvedValue({ userId: "test-student", persistent: false, issuedAt: new Date(), expiresAt: new Date() });
+  vi.mocked(getSession).mockResolvedValue({ userId: "test-student", persistent: false, version: 0, issuedAt: new Date(), expiresAt: new Date() });
   vi.mocked(importExport).mockClear();
   vi.mocked(writeBackup).mockClear();
 });

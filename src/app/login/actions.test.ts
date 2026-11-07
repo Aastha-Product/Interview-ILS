@@ -26,6 +26,7 @@ vi.mock("@/lib/auth/session", () => ({
   startSession: vi.fn(),
 }));
 vi.mock("@/lib/auth/login-throttle", () => ({
+  PER_IP_ONLY: { global: false },
   loginWaitMs: vi.fn(),
   recordLoginFailure: vi.fn(),
   recordLoginSuccess: vi.fn(),
@@ -180,7 +181,9 @@ describe("signInWithFirebase (Pathfinder)", () => {
   it("counts a token that doesn't check out as a failed attempt", async () => {
     vi.mocked(firebaseIdentity).mockRejectedValue(new FirebaseSignInError("invalid"));
     await expect(signInWithFirebase({ idToken: "forged", remember: false })).resolves.toEqual({ ok: false, error: "That sign-in didn't work. Try again." });
-    expect(recordLoginFailure).toHaveBeenCalledWith(systemPrisma, "203.0.113.7");
+    // Per IP only: junk tokens mustn't count towards the all-IPs backstop, which would lock out every student (QA H-3).
+    expect(recordLoginFailure).toHaveBeenCalledWith(systemPrisma, "203.0.113.7", undefined, { global: false });
+    expect(loginWaitMs).toHaveBeenCalledWith(systemPrisma, "203.0.113.7", undefined, { global: false });
     expect(startSession).not.toHaveBeenCalled();
   });
 

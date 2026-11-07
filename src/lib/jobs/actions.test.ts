@@ -4,7 +4,7 @@ import { cancel, retry } from "./actions";
 import { cancelJob, retryJob } from "./runner";
 
 vi.mock("@/lib/auth/session", () => ({
-  getSession: async () => ({ userId: "test-student", persistent: false, issuedAt: new Date(), expiresAt: new Date(Date.now() + 60_000) }),
+  getSession: async () => ({ userId: "test-student", persistent: false, version: 0, issuedAt: new Date(), expiresAt: new Date(Date.now() + 60_000) }),
 }));
 vi.mock("./runner", () => ({ retryJob: vi.fn(), cancelJob: vi.fn() }));
 

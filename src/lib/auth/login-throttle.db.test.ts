@@ -4,7 +4,7 @@ import { rawClientOf } from "@/lib/owner/scope";
 import { createTestClient, resetDatabase } from "@/test/db";
 
 import { clientIp } from "./client-ip";
-import { GLOBAL_KEY, loginWaitMs, recordLoginFailure, recordLoginSuccess } from "./login-throttle";
+import { GLOBAL_KEY, loginWaitMs, PER_IP_ONLY, recordLoginFailure, recordLoginSuccess } from "./login-throttle";
 
 const db = createTestClient();
 const system = rawClientOf(db); // LoginThrottle is a system table
@@ -39,6 +39,20 @@ describe("login throttle", () => {
   it("blocks everyone after 30 failures from many IPs (faked X-Forwarded-For)", async () => {
     for (let i = 0; i < 30; i++) await recordLoginFailure(system, `10.0.0.${i}`, at(i));
     expect(await loginWaitMs(system, "10.0.0.99", at(29))).toBe(30_000);
+  });
+
+  it("keeps sign-ins that can't be guessed out of the all-IPs count, so junk can't lock out everyone (QA H-3)", async () => {
+    for (let i = 0; i < 40; i++) await recordLoginFailure(system, `10.0.0.${i}`, at(i), PER_IP_ONLY);
+    expect(await system.loginThrottle.findUnique({ where: { key: GLOBAL_KEY } })).toBeNull();
+    // A real student from a new address gets straight in.
+    expect(await loginWaitMs(system, "198.51.100.77", at(40), PER_IP_ONLY)).toBe(0);
+    // Each address still has its own limit.
+    for (let i = 0; i < 5; i++) await recordLoginFailure(system, "203.0.113.7", at(50 + i), PER_IP_ONLY);
+    expect(await loginWaitMs(system, "203.0.113.7", at(54), PER_IP_ONLY)).toBe(30_000);
+    // An all-IPs block from the access code doesn't stop them either.
+    for (let i = 0; i < 30; i++) await recordLoginFailure(system, `10.0.1.${i}`, at(60 + i));
+    expect(await loginWaitMs(system, "198.51.100.77", at(89))).toBe(30_000);
+    expect(await loginWaitMs(system, "198.51.100.77", at(89), PER_IP_ONLY)).toBe(0);
   });
 
   it("counts concurrent failures exactly", async () => {

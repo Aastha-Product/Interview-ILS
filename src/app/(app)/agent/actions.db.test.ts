@@ -16,7 +16,7 @@ vi.mock("@/lib/prisma", async () => {
 // Settings → Scoring reads DOSSIER_SCORER (#274).
 vi.mock("@/lib/env", () => ({ env: { DOSSIER_SECRET: "a".repeat(32) } }));
 vi.mock("@/lib/auth/session", () => ({
-  getSession: async () => ({ userId: "test-student", persistent: false, issuedAt: new Date(), expiresAt: new Date(Date.now() + 60_000) }),
+  getSession: async () => ({ userId: "test-student", persistent: false, version: 0, issuedAt: new Date(), expiresAt: new Date(Date.now() + 60_000) }),
 }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/lib/jobs/runner", async (importOriginal) => ({

@@ -31,7 +31,7 @@ const post = (body: BodyInit, headers: Record<string, string> = {}) =>
 const resume = docxWith(["John Doe", "Design Lead, Acme Payments, 2021 – present", "Led the redesign of the payout flow for merchants"]);
 
 beforeEach(() => {
-  vi.mocked(getSession).mockResolvedValue({ userId: "test-student", persistent: false, issuedAt: new Date(), expiresAt: new Date() });
+  vi.mocked(getSession).mockResolvedValue({ userId: "test-student", persistent: false, version: 0, issuedAt: new Date(), expiresAt: new Date() });
   vi.mocked(startJob).mockClear();
   vi.mocked(discardProfileImports).mockClear();
 });

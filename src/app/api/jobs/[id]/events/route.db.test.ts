@@ -63,7 +63,7 @@ async function readEvents(response: Response): Promise<{ status: string; step: s
 beforeEach(async () => {
   newGate();
   await resetDatabase(db.client!);
-  vi.mocked(getSession).mockResolvedValue({ userId: "test-student", persistent: false, issuedAt: new Date(), expiresAt: new Date(Date.now() + 60_000) });
+  vi.mocked(getSession).mockResolvedValue({ userId: "test-student", persistent: false, version: 0, issuedAt: new Date(), expiresAt: new Date(Date.now() + 60_000) });
 });
 afterAll(() => db.client!.$disconnect());
 

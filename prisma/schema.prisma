@@ -34,6 +34,8 @@ model User {
   googleSub String?  @unique
   /// The Firebase Authentication account the student signs in with: Firebase's stable user id.
   firebaseUid String? @unique
+  /// Every session token carries the version it was made with; signing out raises it, which ends all of the student's sessions.
+  sessionVersion Int @default(0)
   name      String   @default("")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
