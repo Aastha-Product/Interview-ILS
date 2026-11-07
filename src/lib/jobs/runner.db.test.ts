@@ -106,6 +106,22 @@ describe("the job runner", () => {
     expect((await getJob(other))?.error).toBe("Something went wrong while working on this. Try again.");
   });
 
+  it("marks a job failed even when the student's own database calls fail, instead of leaving it running", async () => {
+    const id = await startJob(gated, { name: "Broken", fail: "no" });
+    await eventually(async () => (await status(id)).toBe("RUNNING"));
+    // From here the scoped client can't update jobs: the next step and the normal finish both fail.
+    const updateMany = vi.spyOn(prisma().job, "updateMany").mockRejectedValue(new Error("scope lost"));
+    try {
+      await release("Broken");
+      await eventually(async () => {
+        const job = await rawClientOf(prisma()).job.findUnique({ where: { id } });
+        expect(job).toMatchObject({ status: "FAILED", error: "Something went wrong while working on this. Try again." });
+      });
+    } finally {
+      updateMany.mockRestore();
+    }
+  });
+
   it("retries a failed job as the same job, without a duplicate", async () => {
     const id = await startJob(gated, { name: "Retry", fail: "ai" });
     await release("Retry");

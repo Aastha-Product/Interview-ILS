@@ -4,8 +4,14 @@ import { AsyncLocalStorage } from "node:async_hooks";
  * Who the current student is, for code that runs outside a signed-in request: background jobs,
  * schedulers, imports. `runAsUser(userId, fn)` makes every database call inside `fn` act for that
  * student. Inside a request the student comes from the session instead (see src/lib/owner/current.ts).
+ *
+ * The store lives on globalThis because a production build bundles this module more than once
+ * (the startup code in instrumentation.ts, and the routes), while the scoped database client is
+ * created once and shared. With one store per copy, the client couldn't see the student that a
+ * job or scheduler set, and acted for whichever request happened to be in flight instead.
  */
-const store = new AsyncLocalStorage<{ userId: string }>();
+const globalForOwner = globalThis as unknown as { pathfinderOwnerStore?: AsyncLocalStorage<{ userId: string }> };
+const store = (globalForOwner.pathfinderOwnerStore ??= new AsyncLocalStorage<{ userId: string }>());
 
 /**
  * Runs `fn` as the student. Always async: Prisma queries are lazy and only start when awaited,

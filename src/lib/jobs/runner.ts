@@ -223,7 +223,7 @@ async function pump(): Promise<void> {
       const { id, userId } = state.queue.shift()!;
       const controller = new AbortController();
       state.running.set(id, { controller, userId });
-      void runAsUser(userId, () => execute(id, controller)).finally(() => {
+      void runAsUser(userId, () => execute(id, userId, controller)).finally(() => {
         state.running.delete(id);
         void pump();
       });
@@ -233,7 +233,7 @@ async function pump(): Promise<void> {
   }
 }
 
-async function execute(id: string, controller: AbortController): Promise<void> {
+async function execute(id: string, userId: string, controller: AbortController): Promise<void> {
   try {
     const job = await prisma.job.update({
       where: { id },
@@ -265,7 +265,28 @@ async function execute(id: string, controller: AbortController): Promise<void> {
         ? error.message
         : JOB_MESSAGES.failed;
     if (!(error instanceof AiError) && !controller.signal.aborted) logServerError(`job ${id}`, error);
-    await finish(id, { status: JobStatus.FAILED, error: message }).catch((cause: unknown) => logServerError(`job ${id}`, cause));
+    try {
+      await finish(id, { status: JobStatus.FAILED, error: message });
+    } catch (cause) {
+      logServerError(`job ${id}`, cause);
+    }
+    await failIfUnfinished(id, userId, message);
+  }
+}
+
+/**
+ * Last resort after a failure: a job still queued or running here would show its progress
+ * forever (for example when the failure was the scoped database itself). Marks it failed
+ * directly, for its own student only, so the page offers Retry.
+ */
+async function failIfUnfinished(id: string, userId: string, error: string): Promise<void> {
+  try {
+    await systemPrisma.job.updateMany({
+      where: { id, userId, status: { in: [JobStatus.QUEUED, JobStatus.RUNNING] } },
+      data: { status: JobStatus.FAILED, error, finishedAt: new Date() },
+    });
+  } catch (cause) {
+    logServerError(`job ${id}`, cause);
   }
 }
 
