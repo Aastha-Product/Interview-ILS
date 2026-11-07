@@ -1,22 +1,12 @@
 name: Pages
 
-# Publishes the website in site/ to GitHub Pages when it, or the
-# screenshots, icons and fonts it takes from the app, change on main.
-# Settings → Pages → Source must be "GitHub Actions".
+# Publishes the website in site/ to GitHub Pages. Settings → Pages → Source must be
+# "GitHub Actions".
+#
+# Pathfinder: site/ is upstream Dossier's own website, not Pathfinder's, so this runs only when
+# started by hand (Actions → Pages → Run workflow), never on a push to main.
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - "site/**"
-      - ".github/images/**"
-      - "src/app/icon.svg"
-      - "src/app/favicon.ico"
-      - "src/app/apple-icon.png"
-      - "src/fonts/newsreader/**"
-      - "src/fonts/geist/**"
-      - "src/fonts/jetbrains-mono/**"
-      - ".github/workflows/pages.yml"
   workflow_dispatch:
 
 permissions:
