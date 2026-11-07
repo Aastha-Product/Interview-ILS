@@ -12,7 +12,8 @@ export function Card({ padding = "default", className, ...props }: CardProps) {
   return (
     <div
       className={cn(
-        "rounded-panel border border-line-card bg-card",
+        // The reference's white, rounded-xl cards with a soft shadow.
+        "rounded-panel border border-line-card bg-card shadow-control",
         padding === "default" && "p-7",
         className,
       )}

@@ -191,7 +191,7 @@ export function FirebaseAuth({ config, mode, next }: { config: FirebaseClientCon
     return (
       <div className="flex flex-col gap-5">
         <div className="flex flex-col gap-1.5">
-          <h1 className="font-serif text-[28px] leading-[1.15] tracking-[-0.01em]">Check your inbox</h1>
+          <h1 className="text-2xl">Check your inbox</h1>
           <p className="text-sm text-pretty text-muted">
             We&apos;ve sent a link to <span className="font-medium text-ink">{unverified}</span>. Open it to verify your email address, then
             come back here. If it isn&apos;t there, look in your spam folder.
@@ -220,7 +220,7 @@ export function FirebaseAuth({ config, mode, next }: { config: FirebaseClientCon
   return (
     <div className="flex flex-col gap-5">
       <div className="flex flex-col gap-1.5">
-        <h1 className="font-serif text-[28px] leading-[1.15] tracking-[-0.01em]">{copy.title}</h1>
+        <h1 className="text-2xl">{copy.title}</h1>
         <p className="text-sm text-pretty text-muted">{copy.intro}</p>
       </div>
 

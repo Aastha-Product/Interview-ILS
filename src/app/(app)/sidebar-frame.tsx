@@ -57,7 +57,8 @@ export function SidebarFrame({
       <aside
         data-collapsed={collapsed || undefined}
         className={cn(
-          "group/sidebar sticky top-0 flex h-screen shrink-0 flex-col print:hidden self-start overflow-x-hidden overflow-y-auto border-r border-line bg-sidebar motion-safe:transition-[width] motion-safe:duration-200",
+          // Pathfinder: navy, as the reference design's navigation bar; on-navy switches the text and line colours inside.
+          "group/sidebar on-navy sticky top-0 flex h-screen shrink-0 flex-col print:hidden self-start overflow-x-hidden overflow-y-auto border-r border-line bg-sidebar text-ink motion-safe:transition-[width] motion-safe:duration-200",
           collapsed ? "w-12" : "w-[260px] max-md:fixed max-md:inset-y-0 max-md:left-0 max-md:z-40 max-md:shadow-dialog",
         )}
       >

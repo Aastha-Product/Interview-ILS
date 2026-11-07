@@ -11,16 +11,20 @@ export type ButtonVariant =
   | "danger";
 export type ButtonSize = "lg" | "md" | "sm";
 
+// Pathfinder: the reference design's buttons (its .primary-button and .secondary-button): rounded-lg,
+// medium weight, and on hover a navy fill (primary) or a blue fill (secondary) with a slight lift.
 const base =
-  "inline-flex items-center justify-center gap-2 rounded-control font-medium whitespace-nowrap motion-safe:transition-colors disabled:cursor-not-allowed aria-disabled:cursor-not-allowed";
+  "inline-flex items-center justify-center gap-2 rounded-control font-medium whitespace-nowrap motion-safe:transition-all motion-safe:duration-300 disabled:cursor-not-allowed aria-disabled:cursor-not-allowed";
+
+/** The reference's hover: scale 1.05 and shadow-lg; not while disabled. */
+const lift =
+  "not-disabled:not-aria-disabled:motion-safe:hover:scale-105 not-disabled:not-aria-disabled:hover:shadow-page";
 
 const variants: Record<ButtonVariant, string> = {
-  primary:
-    "bg-primary font-semibold text-on-primary shadow-cta hover:bg-primary-hover disabled:bg-faint aria-disabled:bg-faint",
-  secondary:
-    "border border-line-control bg-input text-ink shadow-control hover:border-line-strong hover:bg-hover disabled:border-line-field disabled:text-muted aria-disabled:text-muted",
+  primary: `bg-primary text-on-primary shadow-cta hover:bg-primary-hover hover:text-on-primary disabled:bg-faint aria-disabled:bg-faint ${lift}`,
+  secondary: `border-2 border-line-control bg-transparent text-primary-text hover:bg-primary hover:text-on-primary disabled:border-line-field disabled:text-muted aria-disabled:text-muted ${lift}`,
   // Text buttons have no horizontal padding so they line up with the text around them.
-  text: "px-0! text-muted hover:text-ink disabled:text-faint aria-disabled:text-faint",
+  text: "px-0! text-muted hover:text-primary-text disabled:text-faint aria-disabled:text-faint",
   "danger-text": "px-0! font-normal text-danger hover:text-error-strong disabled:text-faint",
   "danger-outline":
     "border border-danger-control bg-input text-error-strong hover:border-error-strong disabled:text-faint",
@@ -29,7 +33,8 @@ const variants: Record<ButtonVariant, string> = {
 };
 
 const sizes: Record<ButtonSize, string> = {
-  lg: "min-h-10 px-4 py-2 text-field",
+  // The reference's px-6 py-3 buttons; md and sm stay compact for the app's dense screens.
+  lg: "min-h-11 px-6 py-2.5 text-[15px]",
   md: "min-h-[34px] px-3 py-1.5 text-sm",
   sm: "min-h-[30px] px-3 py-1 text-control",
 };

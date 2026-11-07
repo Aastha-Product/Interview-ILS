@@ -59,7 +59,7 @@ export function LoginForm({ next }: { next?: string }) {
     >
       {next && <input type="hidden" name="next" value={next} />}
       <div className="flex flex-col gap-1.5">
-        <h1 className="font-serif text-[28px] leading-[1.15] tracking-[-0.01em]">Upload your resume and get an instant analysis</h1>
+        <h1 className="text-2xl">Upload your resume and get an instant analysis</h1>
         <p className="text-sm text-muted">Sign in with your email and the access code. Your first sign-in creates your account.</p>
       </div>
 

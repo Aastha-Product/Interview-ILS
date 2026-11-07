@@ -130,7 +130,10 @@ export function ResumeUpload({ ready, initialJobId }: { ready: boolean; initialJ
           dragging ? "border-primary bg-selected" : "border-line-field bg-input hover:border-line-strong",
         )}
       >
-        <FileUp size={32} aria-hidden="true" className="text-muted" />
+        {/* The reference design's icon circle: its blue at 10%. */}
+        <span className="grid size-16 place-items-center rounded-full bg-hover text-primary-text">
+          <FileUp size={32} aria-hidden="true" />
+        </span>
         <span className="text-field font-medium text-ink">{file ? file.name : "Drop your resume here, or choose a file"}</span>
         <span className="text-meta text-muted">PDF or Word (.docx), up to 5 MB</span>
         <input

@@ -55,7 +55,7 @@ export function Sidebar({
         <>
           <BrandMark />
           <div className="flex min-w-0 flex-col group-data-collapsed/sidebar:hidden">
-            <span className="font-serif text-2xl leading-none font-medium tracking-[-0.01em]">Pathfinder</span>
+            <span className="text-xl leading-none font-bold text-ink">Pathfinder</span>
             <span className="truncate text-xs text-muted">{tools ? "Resume analysis and job search" : "Resume analysis"}</span>
           </div>
         </>

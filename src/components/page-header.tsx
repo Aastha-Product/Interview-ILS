@@ -25,11 +25,12 @@ export function PageHeader({ title, description, actions, before }: PageHeaderPr
           {before ?? <PageBarIcon />}
           <h1 className="font-serif text-title text-pretty">{title}</h1>
         </div>
-        {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
+        {/* Wraps on a phone rather than running off the screen. */}
+        {actions && <div className="flex max-w-full flex-wrap items-center gap-2">{actions}</div>}
       </PageBar>
       {/* The screen's content starts 32px under the bar, after the description if there is one. */}
       {description ? (
-        <p className="max-w-[620px] px-10 pt-1 pb-8 text-lead text-pretty text-muted">{description}</p>
+        <p className="max-w-[620px] px-5 pt-1 pb-8 text-lead text-pretty text-muted sm:px-10">{description}</p>
       ) : (
         <div aria-hidden="true" className="h-8" />
       )}
@@ -48,7 +49,7 @@ export function PageBar({ children }: { children: ReactNode }) {
     // pt-2: the shell's 8px above the panel, as at its sides and bottom; it
     // stays while the bar sticks, so nothing scrolls by above it.
     <div className="sticky top-0 z-20 -mx-px bg-paper pt-2">
-      <div className="flex min-h-12 flex-wrap items-center justify-between gap-x-6 gap-y-3 rounded-t-panel border border-b-0 border-line-card bg-surface px-10 pt-7 pb-4">
+      <div className="flex min-h-12 flex-wrap items-center justify-between gap-x-6 gap-y-3 rounded-t-panel border border-b-0 border-line-card bg-surface px-5 pt-7 pb-4 sm:px-10">
         {children}
       </div>
     </div>

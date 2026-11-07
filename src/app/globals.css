@@ -13,53 +13,66 @@
    * meets WCAG AA (4.5:1) on every surface in both schemes.
    */
 
-  /* Surfaces: a beige shell, like the sidebar, around the screen's panel. */
-  --color-paper: light-dark(#eeebe4, #1a1917); /* shell around the panel, side columns, disabled fields */
-  --color-sidebar: light-dark(#eeebe4, #1a1917);
-  --color-surface: light-dark(#f4f2ed, #22201d); /* the panel each screen sits in */
-  --color-card: light-dark(#fbfaf7, #2a2825);
-  --color-canvas: light-dark(#e8e5de, #141311); /* behind document previews */
-  --color-input: light-dark(#ffffff, #1e1c1a); /* inputs */
+  /*
+   * Pathfinder's palette is the reference design's (bolt--main, tailwind.config.js and its
+   * components): primary #0A588E, secondary navy #14243B, Tailwind's grays as the reference uses
+   * them (gray-50 #F9FAFB, gray-100 #F3F4F6, gray-200 #E5E7EB, gray-300 #D1D5DB, gray-500
+   * #6B7280, gray-600 #4B5563, gray-700 #374151) and white, plus their alpha tints the way the
+   * reference writes them (#0A588E/10, /20, white/20, /40). The reference has no dark mode; the
+   * dark scheme is its dark sections' treatment (navy ground, white headings, gray-300 text).
+   */
+  --color-brand: #0a588e; /* the reference's primary, the same in both schemes */
+  --color-brand-navy: #14243b; /* its secondary: nav bar, hero gradient, dark panels */
+  --color-on-brand-muted: #d1d5db; /* gray-300: body text on navy */
+  --color-check: #22c55e; /* green-500: the reference's check marks (icons only, not text) */
+  --color-check-on-navy: #2dd4bf; /* teal-400: its check marks on the sign-in panel */
 
-  /* Text */
-  --color-ink: light-dark(#1d1c1a, #f0ede7);
-  --color-document: light-dark(#2b2a27, #e5e1d9); /* posting text, set like a document */
-  /* Secondary text: hints, labels, metadata. It passes on every surface
-     and on the hover tints, but not on a selected item over the shell
-     (4.3:1 in the light scheme): use ink there. */
-  --color-muted: light-dark(#69655d, #aaa59c);
+  /* Surfaces: gray-50 sections with white cards, on a gray-100 shell. */
+  --color-paper: light-dark(#f3f4f6, #14243b); /* shell around the panel, side columns, disabled fields */
+  --color-sidebar: #14243b; /* the navy bar, as the reference's navigation */
+  --color-surface: light-dark(#f9fafb, color-mix(in srgb, #ffffff 4%, #14243b)); /* the panel each screen sits in */
+  --color-card: light-dark(#ffffff, color-mix(in srgb, #ffffff 8%, #14243b));
+  --color-canvas: light-dark(#f3f4f6, #14243b); /* behind document previews */
+  --color-input: light-dark(#ffffff, color-mix(in srgb, #ffffff 6%, #14243b)); /* inputs */
+
+  /* Text: navy headings and strong text, gray-600 body, gray-700 labels and documents. */
+  --color-ink: light-dark(#14243b, #ffffff);
+  --color-heading: light-dark(#14243b, #ffffff);
+  --color-document: light-dark(#374151, #d1d5db); /* posting text, set like a document */
+  /* Secondary text: hints, labels, metadata (gray-600: 7.6:1 on white, 5.4:1 on the selected tint). */
+  --color-muted: light-dark(#4b5563, #d1d5db);
   /* Disabled and decorative only: never for text people need to read. */
-  --color-faint: light-dark(#a29d94, #6e6961);
+  --color-faint: light-dark(#6b7280, #6b7280);
 
-  /* Primary actions: near-black, and near-white in the dark scheme, with
-     on-primary text at 4.5:1 or more. primary-text is for text and icons
-     marking a choice, e.g. a selected chip's label. */
-  --color-primary: light-dark(#222222, #ebe7df);
-  --color-primary-hover: light-dark(#3a3936, #ffffff);
-  --color-on-primary: light-dark(#fbfaf7, #1d1c1a);
-  --color-primary-text: light-dark(#1d1c1a, #f0ede7);
-  /* Focus rings: 3:1 against every surface. */
-  --color-focus: light-dark(#1d1c1a, #f0ede7);
+  /* Primary actions: the reference's blue, navy on hover, white text (6.9:1). primary-text is
+     for text and icons marking a choice, e.g. a selected chip's label. */
+  --color-primary: #0a588e;
+  --color-primary-hover: light-dark(#14243b, rgb(10 88 142 / 0.9));
+  --color-on-primary: #ffffff;
+  --color-primary-text: light-dark(#0a588e, #ffffff);
+  /* Focus rings: the reference's ring-[#0A588E], and white on navy (as its nav links). */
+  --color-focus: light-dark(#0a588e, #ffffff);
 
-  /* Toasts and tooltips: a dark chip, a little raised in the dark scheme. */
-  --color-inverse: light-dark(#222222, #3b3834);
-  --color-on-inverse: light-dark(#fbfaf7, #f0ede7);
+  /* Toasts and tooltips: a navy chip. */
+  --color-inverse: light-dark(#14243b, color-mix(in srgb, #ffffff 14%, #14243b));
+  --color-on-inverse: #ffffff;
 
-  /* Lines */
-  --color-line: light-dark(rgb(29 28 26 / 0.08), rgb(240 237 231 / 0.07)); /* dividers */
-  --color-line-card: light-dark(rgb(29 28 26 / 0.1), rgb(240 237 231 / 0.1));
-  --color-line-field: light-dark(rgb(29 28 26 / 0.14), rgb(240 237 231 / 0.14)); /* chips and other controls named by their text */
-  /* Text fields, whose border is what shows they're fields: 3:1 on every surface (E11-3, WCAG 1.4.11). */
-  --color-line-input: light-dark(rgb(29 28 26 / 0.5), rgb(240 237 231 / 0.42));
-  --color-line-control: light-dark(rgb(29 28 26 / 0.16), rgb(240 237 231 / 0.14)); /* secondary buttons */
-  --color-line-popover: light-dark(rgb(29 28 26 / 0.12), rgb(240 237 231 / 0.12)); /* menus */
-  --color-line-strong: light-dark(rgb(29 28 26 / 0.2), rgb(240 237 231 / 0.24)); /* upcoming steps */
+  /* Lines: gray-200 dividers and card borders, gray-300 chips, white/20 on navy. */
+  --color-line: light-dark(#e5e7eb, rgb(255 255 255 / 0.1)); /* dividers */
+  --color-line-card: light-dark(#e5e7eb, rgb(255 255 255 / 0.12));
+  --color-line-field: light-dark(#d1d5db, rgb(255 255 255 / 0.2)); /* chips and other controls named by their text */
+  /* Text fields, whose border is what shows they're fields: 3:1 on every surface (E11-3, WCAG 1.4.11).
+     The reference's gray-300 field border is 1.5:1, so fields use its gray-500 instead. */
+  --color-line-input: light-dark(#6b7280, rgb(255 255 255 / 0.4));
+  --color-line-control: light-dark(#0a588e, #ffffff); /* secondary buttons: the reference's 2px blue (white on navy) outline */
+  --color-line-popover: light-dark(#e5e7eb, rgb(255 255 255 / 0.15)); /* menus */
+  --color-line-strong: light-dark(#d1d5db, rgb(255 255 255 / 0.3)); /* upcoming steps */
 
-  /* Tints for hover, selection and tracks */
-  --color-hover: light-dark(rgb(29 28 26 / 0.05), rgb(240 237 231 / 0.07));
-  --color-selected: light-dark(rgb(29 28 26 / 0.07), rgb(240 237 231 / 0.1));
-  --color-track: light-dark(rgb(29 28 26 / 0.06), rgb(240 237 231 / 0.08));
-  --color-toggle-off: light-dark(rgb(29 28 26 / 0.5), rgb(240 237 231 / 0.42)); /* 3:1, like text fields */
+  /* Tints for hover, selection and tracks: the reference's #0A588E/10 and /20 (white on navy). */
+  --color-hover: light-dark(rgb(10 88 142 / 0.1), rgb(255 255 255 / 0.1));
+  --color-selected: light-dark(rgb(10 88 142 / 0.2), rgb(255 255 255 / 0.2));
+  --color-track: light-dark(rgb(10 88 142 / 0.2), rgb(255 255 255 / 0.2));
+  --color-toggle-off: light-dark(#6b7280, rgb(255 255 255 / 0.4)); /* 3:1, like text fields */
 
   /* Feedback. error and danger are for text; danger-fill is behind white text. */
   --color-danger: light-dark(#9a4a3a, #f87171); /* remove / destructive text */
@@ -92,21 +105,22 @@
   --radius-toast: 12px;
   --radius-card: 12px;
   --radius-panel: 12px; /* large cards and panels */
-  --radius-dialog: 16px;
+  --radius-dialog: 12px; /* the reference's cards are rounded-xl (12px), its buttons rounded-lg (8px) */
 
-  /* Shadows: warm in the light scheme, deeper in the dark one, where a faint one wouldn't show. */
-  --shadow-page: 0 1px 2px rgb(0 0 0 / 0.06), 0 12px 40px light-dark(rgb(40 35 25 / 0.1), rgb(0 0 0 / 0.5));
-  --shadow-dialog: 0 8px 32px light-dark(rgb(40 35 25 / 0.16), rgb(0 0 0 / 0.5));
-  --shadow-raised: 0 1px 2px light-dark(rgb(0 0 0 / 0.08), rgb(0 0 0 / 0.5)); /* selected segment */
-  --shadow-control: 0 1px 3px light-dark(rgb(40 35 25 / 0.08), rgb(0 0 0 / 0.3)); /* fields and secondary buttons */
-  --shadow-cta: 0 1px 3px light-dark(rgb(40 35 25 / 0.14), rgb(0 0 0 / 0.4));
+  /* Shadows: Tailwind's, as the reference uses them (shadow-sm, -md, -lg, -xl, -2xl). */
+  --shadow-page: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1); /* shadow-lg */
+  --shadow-dialog: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1); /* shadow-xl */
+  --shadow-raised: 0 1px 2px 0 rgb(0 0 0 / 0.05); /* shadow-sm: selected segment */
+  --shadow-control: 0 1px 2px 0 rgb(0 0 0 / 0.05); /* shadow-sm: fields and secondary buttons */
+  --shadow-cta: 0 1px 2px 0 rgb(0 0 0 / 0.05); /* shadow-sm; hover lifts to shadow-lg */
   --shadow-knob: 0 1px 2px rgb(0 0 0 / 0.2);
-  --shadow-menu: 0 8px 32px light-dark(rgb(40 35 25 / 0.16), rgb(0 0 0 / 0.55));
-  --shadow-toolbar: 0 4px 14px light-dark(rgb(0 0 0 / 0.16), rgb(0 0 0 / 0.5));
-  --shadow-toast: 0 8px 32px light-dark(rgb(0 0 0 / 0.18), rgb(0 0 0 / 0.55));
+  --shadow-menu: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1); /* shadow-lg */
+  --shadow-toolbar: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1); /* shadow-md */
+  --shadow-toast: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1); /* shadow-xl */
+  --shadow-hero: 0 25px 50px -12px rgb(0 0 0 / 0.25); /* shadow-2xl, the reference's hero image */
 
   /* Type scale. Sizes follow the prototype; text-xs (12px) and text-sm
-     (14px) keep Tailwind's defaults. */
+     (14px) keep Tailwind's defaults. Titles follow the reference: bold sans, navy. */
   --text-label: 12.5px; /* field labels, hints */
   --text-label--line-height: 1.45;
   --text-meta: 13px; /* secondary lines, "Saved just now" */
@@ -115,16 +129,16 @@
   --text-control--line-height: 1.4;
   --text-field: 14.5px; /* input text, settings rows */
   --text-field--line-height: 1.4;
-  --text-lead: 15px; /* page introductions */
-  --text-lead--line-height: 1.55;
-  --text-section: 24px; /* section titles (serif) */
-  --text-section--line-height: 1.2;
-  --text-section--letter-spacing: -0.01em;
-  --text-section--font-weight: 500;
-  --text-title: 40px; /* page titles (serif) */
-  --text-title--line-height: 1.1;
-  --text-title--letter-spacing: -0.015em;
-  --text-title--font-weight: 400;
+  --text-lead: 16px; /* page introductions: the reference's body size (text-base) */
+  --text-lead--line-height: 1.5;
+  --text-section: 20px; /* section titles: the reference's card titles (text-xl, bold) */
+  --text-section--line-height: 1.4;
+  --text-section--letter-spacing: 0;
+  --text-section--font-weight: 700;
+  --text-title: 30px; /* page titles: the reference's section headings (text-3xl, bold) */
+  --text-title--line-height: 1.2;
+  --text-title--letter-spacing: 0;
+  --text-title--font-weight: 700;
 
   /* Motion. Use with motion-safe: so reduced-motion users don't get it. */
   --animate-toast-in: toast-in 160ms ease-out;
@@ -158,9 +172,12 @@
 }
 
 /* Fonts come from next/font (src/fonts), which sets the --typeface-* variables at runtime. */
+/* Pathfinder: the interface uses the reference's type, Tailwind's default sans stack (it loads no
+   web font), and its headings are bold sans too, so font-serif follows it. Documents keep their
+   own theme fonts, which use the --typeface-* variables directly. */
 @theme inline {
-  --font-sans: var(--typeface-geist);
-  --font-serif: var(--typeface-newsreader);
+  --font-sans: ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  --font-serif: ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
   --font-mono: var(--typeface-plex-mono);
   --font-plex-sans: var(--typeface-plex-sans);
   --font-garamond: var(--typeface-eb-garamond);
@@ -195,7 +212,15 @@
     color: var(--color-ink);
   }
   a:hover {
-    color: var(--color-muted);
+    color: var(--color-primary-text);
+  }
+
+  /* Headings as the reference sets them: bold and navy, unless a class says otherwise. */
+  h1,
+  h2,
+  h3 {
+    font-weight: 700;
+    color: var(--color-heading);
   }
 
   ::placeholder {
@@ -215,6 +240,67 @@
   [role="button"]:not([aria-disabled="true"]) {
     cursor: pointer;
   }
+}
+
+/* A navy area, as the reference's navigation bar and dark sections: the text, line and tint
+   tokens switch to their on-navy values inside it, so the components in it need no changes. */
+@utility on-navy {
+  background-color: var(--color-brand-navy);
+  color-scheme: dark;
+  --color-ink: #ffffff;
+  --color-heading: #ffffff;
+  --color-muted: #d1d5db;
+  --color-faint: #6b7280;
+  --color-primary-text: #ffffff;
+  --color-focus: #ffffff;
+  --color-line: rgb(255 255 255 / 0.1);
+  --color-line-card: rgb(255 255 255 / 0.12);
+  --color-line-field: rgb(255 255 255 / 0.2);
+  --color-line-control: #ffffff;
+  --color-hover: rgb(255 255 255 / 0.1);
+  --color-selected: rgb(255 255 255 / 0.16);
+  --color-input: color-mix(in srgb, #ffffff 6%, #14243b);
+  --color-card: color-mix(in srgb, #ffffff 8%, #14243b);
+}
+
+/* A page that stays light whatever the visitor's scheme, as the reference's landing and sign-in
+   pages (it has no dark mode). The tokens are set here again: they resolve their light-dark()
+   values where they're declared, so color-scheme alone wouldn't change them. */
+@utility light-page {
+  color-scheme: light;
+  --color-paper: #f3f4f6;
+  --color-surface: #f9fafb;
+  --color-card: #ffffff;
+  --color-canvas: #f3f4f6;
+  --color-input: #ffffff;
+  --color-ink: #14243b;
+  --color-heading: #14243b;
+  --color-document: #374151;
+  --color-muted: #4b5563;
+  --color-faint: #6b7280;
+  --color-primary-hover: #14243b;
+  --color-primary-text: #0a588e;
+  --color-focus: #0a588e;
+  --color-inverse: #14243b;
+  --color-line: #e5e7eb;
+  --color-line-card: #e5e7eb;
+  --color-line-field: #d1d5db;
+  --color-line-input: #6b7280;
+  --color-line-control: #0a588e;
+  --color-line-popover: #e5e7eb;
+  --color-line-strong: #d1d5db;
+  --color-hover: rgb(10 88 142 / 0.1);
+  --color-selected: rgb(10 88 142 / 0.2);
+  --color-track: rgb(10 88 142 / 0.2);
+  --color-toggle-off: #6b7280;
+}
+
+/* The reference's hero and sign-in backdrops: navy into its blue. */
+@utility bg-brand-gradient {
+  background-image: linear-gradient(to bottom, #14243b, #0a588e);
+}
+@utility bg-brand-gradient-diagonal {
+  background-image: linear-gradient(to bottom right, #0a588e, #14243b);
 }
 
 /* The height of the screen's panel, page bar included (the window less the
