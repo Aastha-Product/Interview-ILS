@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card";
 import { signOut } from "@/lib/auth/actions";
 
 import { DangerZone } from "./data-section";
+import { DeleteAccount } from "./delete-account";
 import { SettingsSectionIntro } from "./settings-screen";
 
 // Pathfinder: Settings for students where the job-search tools are off. Nothing technical: the
@@ -91,8 +92,12 @@ export function PrivacySection({ analyses }: { analyses: number }) {
           { label: "Privacy notice", value: <Link href="/privacy" className="underline underline-offset-2">How we handle your data</Link> },
         ]}
       />
-      <p className="text-sm text-muted">To delete one analysis, open it and choose Delete. To delete everything at once, use the button below.</p>
+      <p className="text-sm text-muted">
+        To delete one analysis, open it and choose Delete. To start over, delete everything and keep your account. To leave
+        Pathfinder, delete your account.
+      </p>
       <DangerZone description="Deletes all your resume analyses, your profile and your settings. This can't be undone. Your account stays, so you can start again." />
+      <DeleteAccount />
     </>
   );
 }

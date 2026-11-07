@@ -257,7 +257,10 @@ export default function PrivacyPage() {
                 "The server's nightly copy of the whole database",
                 `${SERVER_BACKUP_DAYS} days. Data you delete is gone from these copies within ${SERVER_BACKUP_DAYS} days.`,
               ],
-              ["Your account (name, email, Google ID) and feedback you sent", "Until you ask us to delete them"],
+              [
+                "Your account (name, email, Google ID), feedback you sent and a record of your AI use",
+                "Until you delete your account (section 8)",
+              ],
               ["Failed attempts to sign in with an access code, by IP address (trial servers only)", "1 day"],
             ]}
           />
@@ -274,14 +277,16 @@ export default function PrivacyPage() {
               <strong>Correct it:</strong> edit your profile, documents and applications at any time.
             </li>
             <li>
-              <strong>Erase it:</strong> <em>Settings → Your data → Delete everything</em> deletes your profile,
-              applications, documents, searches, mail, settings and files straight away, and disconnects Google. It
-              keeps only your account, so you can sign in again, and any feedback you sent. To have those deleted too,
-              write to <Contact field="email" />.
+              <strong>Erase it:</strong> <em>Settings → Privacy and data → Delete my account</em> deletes your
+              account and everything in it straight away: your profile, analyses, applications, documents, searches,
+              mail, settings, feedback, the record of your AI use and your files. It disconnects Google and signs you out
+              on every device. To start over but keep your account, use <em>Delete everything</em> instead, which keeps
+              only your account and any feedback you sent. Either way, what you delete is gone from the server&apos;s
+              nightly copies within {SERVER_BACKUP_DAYS} days (section 7).
             </li>
             <li>
-              <strong>Withdraw consent:</strong> delete everything and ask us to delete your account. To stop only the
-              Gmail and Calendar connection, disconnect it in Settings → Google.
+              <strong>Withdraw consent:</strong> delete your account. To stop only the Gmail and Calendar connection,
+              disconnect it in Settings → Google.
             </li>
             <li>
               <strong>Nominate someone</strong> to exercise these rights for you if you die or can no longer act: write

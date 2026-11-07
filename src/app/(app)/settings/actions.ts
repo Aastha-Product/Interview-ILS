@@ -5,7 +5,9 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import { AiProvider, Creativity, DateFormat, JobStatus, PaperSize, Tone } from "@/generated/prisma/enums";
+import { DELETE_ACCOUNT_MISMATCH, deleteAccount } from "@/lib/account-deletion";
 import { action, ActionError } from "@/lib/action";
+import { endSession } from "@/lib/auth/session";
 import { AiError, createProvider } from "@/lib/ai";
 import { applyApiKeyChange } from "@/lib/ai/api-key";
 import { keyStateOf, loadAiConfig, resolveAiConfig } from "@/lib/ai/config";
@@ -21,7 +23,7 @@ import { checkForUpdate } from "@/lib/update-check";
 import { redirectProblem } from "@/lib/connector/oauth";
 import { countTailoredDocuments, deleteAllDownloads, zipPdfsJob } from "@/lib/jobs/zip-pdfs";
 import { disconnectGoogle } from "@/lib/google/account";
-import { prisma } from "@/lib/prisma";
+import { prisma, systemPrisma } from "@/lib/prisma";
 import { jevKey, loadScoringConfig, scoringView } from "@/lib/scoring/config";
 import { SCORERS } from "@/lib/scoring/scorers";
 import { askJev } from "@/lib/scoring/typesafe";
@@ -321,6 +323,20 @@ export const deleteEverything = action(z.object({ confirm: z.literal("DELETE") }
   await Promise.all([deleteAllBackups(), deleteAllDownloads()]);
 
   revalidatePath("/", "layout");
+  redirect("/");
+});
+
+/**
+ * "Delete my account" (Pathfinder, DPDP Act, QA M-3): the student types their own email address
+ * to confirm, then the account and everything in it is deleted, they're signed out and land on
+ * the homepage.
+ */
+export const deleteMyAccount = action(z.object({ email: z.string().trim().max(320) }), async ({ email }, { session }) => {
+  const user = await systemPrisma.user.findUnique({ where: { id: session.userId }, select: { email: true } });
+  if (!user || !email || user.email.toLowerCase() !== email.toLowerCase()) throw new ActionError(DELETE_ACCOUNT_MISMATCH);
+  await deleteAccount(session.userId);
+  // The account is gone, so this only removes the cookie.
+  await endSession();
   redirect("/");
 });
 
