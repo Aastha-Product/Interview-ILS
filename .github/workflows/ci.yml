@@ -1,202 +1,206 @@
 name: CI
 
 on:
-  push:
   pull_request:
+  push:
+    branches: [main]
 
 permissions:
   contents: read
 
+# A newer push to the same branch or pull request stops the run it replaces.
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  checks:
-    name: Lint, typecheck and tests
+  # On main, a pull request's merge commit holds exactly the code its pull
+  # request's run checked when its tree is the branch head's (the branch was
+  # up to date with main). Then main only builds the image. Anything else
+  # pushed to main is checked in full: direct pushes, merges of a branch that
+  # was behind, and publishes to the public repository.
+  checked:
+    name: Checked in its pull request?
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      skip: ${{ steps.find.outputs.skip }}
     steps:
-      - uses: actions/checkout@v4
-
-      # Reads the pnpm version from "packageManager" in package.json.
-      - uses: pnpm/action-setup@v4
-
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
         with:
-          node-version: 22
-          cache: pnpm
+          # The commit and its parents.
+          fetch-depth: 2
 
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Create .env from the example (no real keys; AI and feeds use mocks)
-        run: |
-          cp .env.example .env
-          sed -i "s|^AUTH_SECRET=.*|AUTH_SECRET=$(openssl rand -hex 32)|" .env
-
-      - name: Start local Postgres (embedded, no Docker)
-        run: pnpm services:up
-
-      - name: Apply migrations
-        run: pnpm db:deploy
-        # The integration tests migrate TEST_DATABASE_URL themselves (test/integration-global-setup.ts).
-
-      - name: Lint
-        run: pnpm lint
-
-      - name: Typecheck
-        run: pnpm typecheck
-
-      # The worker's PDF tests (apps/worker/test/pdf.test.ts) render with a real Chromium.
-      - name: Install Playwright Chromium
-        run: pnpm --filter @pathfinder/e2e install-browsers --with-deps
-
-      - name: Unit tests
-        run: pnpm test
-
-      - name: Integration tests
-        run: pnpm test:integration
-
-      - name: Postgres log on failure
-        if: failure()
-        run: cat .local/pg.log || true
-
-  e2e:
-    name: End-to-end tests
-    runs-on: ubuntu-latest
-    timeout-minutes: 25
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: pnpm/action-setup@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Create .env from the example (no real keys; AI and feeds use mocks)
-        run: |
-          cp .env.example .env
-          sed -i "s|^AUTH_SECRET=.*|AUTH_SECRET=$(openssl rand -hex 32)|" .env
-
-      - name: Start local Postgres (embedded, no Docker)
-        run: pnpm services:up
-
-      - name: Apply migrations
-        run: pnpm db:deploy
-
-      - name: Install Playwright Chromium
-        run: pnpm --filter @pathfinder/e2e install-browsers --with-deps
-
-      - name: Run end-to-end tests
-        run: pnpm e2e
-
-      - name: Upload Playwright report
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: playwright-report
-          path: |
-            e2e/playwright-report/
-            e2e/test-results/
-          retention-days: 7
-
-      - name: Postgres log on failure
-        if: failure()
-        run: cat .local/pg.log || true
-
-  # Pilot readiness (docs/deploy.md, docs/backup-restore.md): builds both container images, runs them
-  # against a real Postgres 17, and does a backup-and-restore drill. Nothing is pushed or deployed.
-  images:
-    name: Container images and restore drill
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    services:
-      postgres:
-        image: postgres:17
+      - id: find
         env:
-          POSTGRES_USER: pathfinder
-          POSTGRES_PASSWORD: pathfinder
-          POSTGRES_DB: pathfinder
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          skip=false
+          if head=$(git rev-parse -q --verify 'HEAD^2') && [ "$(git rev-parse 'HEAD^{tree}')" = "$(git rev-parse "$head^{tree}")" ]; then
+            passed=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$head&event=pull_request&status=success" \
+              -q '[.workflow_runs[] | select(.path == ".github/workflows/ci.yml")] | length' || echo 0)
+            if [ "${passed:-0}" -gt 0 ]; then skip=true; fi
+          fi
+          echo "skip=$skip" >> "$GITHUB_OUTPUT"
+          if [ "$skip" = true ]; then
+            echo "Same code as $head, which passed CI in its pull request: only the image is built." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+  check:
+    name: Lint, type-check and test
+    needs: checked
+    # Runs on pull requests too, where "checked" is skipped.
+    if: ${{ !cancelled() && needs.checked.outputs.skip != 'true' }}
+    runs-on: ubuntu-latest
+    services:
+      # For the database tests (*.db.test.ts), which create and migrate their own
+      # "dossier_test" database on this server.
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: dossier
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U pathfinder"
+          --health-cmd "pg_isready -U postgres -d dossier"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
     env:
-      DATABASE_URL: postgresql://pathfinder:pathfinder@localhost:5432/pathfinder
-      ADMIN_URL: postgresql://pathfinder:pathfinder@localhost:5432/postgres
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/dossier
+      # Same versions as the Dockerfile: Node 24 with the Yarn release pinned in
+      # package.json (packageManager), installed through corepack.
+      COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - name: Build the web image
-        run: docker build -f infra/Dockerfile.web -t pathfinder-web .
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          package-manager-cache: false
 
-      - name: Build the worker image
-        run: docker build -f infra/Dockerfile.worker -t pathfinder-worker .
+      - run: corepack enable
 
-      - name: Apply migrations from the image (the deploy-time release step)
-        run: >
-          docker run --rm --network host -e DATABASE_URL pathfinder-web
-          sh -c "cd /app/packages/db && ./node_modules/.bin/prisma migrate deploy"
+      - name: Locate the Yarn cache
+        id: yarn-cache
+        run: echo "dir=$(yarn config get cacheFolder)" >> "$GITHUB_OUTPUT"
 
-      - name: Start the web image with staging-style settings
-        run: |
-          docker run -d --name web --network host \
-            -e DATABASE_URL -e APP_ENV=staging -e AUTH_SECRET="$(openssl rand -hex 32)" \
-            -e AUTH_GOOGLE_ID=ci-placeholder -e AUTH_GOOGLE_SECRET=ci-placeholder \
-            -e STORAGE_DRIVER=s3 -e S3_ENDPOINT=http://127.0.0.1:9 -e S3_BUCKET=ci -e S3_ACCESS_KEY=ci -e S3_SECRET_KEY=ci \
-            -e APP_URL=http://localhost:3000 pathfinder-web
-          curl --fail --silent --show-error --retry 30 --retry-delay 2 --retry-all-errors http://localhost:3000/api/health
-          echo
-          # Saved to files first: under pipefail, `curl | grep -q` can fail when grep exits early.
-          curl --fail --silent --dump-header /tmp/signin.headers --output /tmp/signin.html http://localhost:3000/signin
-          grep -q "Staging site: test data only" /tmp/signin.html
-          grep -qi "^content-security-policy:.*'strict-dynamic'" /tmp/signin.headers
-          if grep -qi "^content-security-policy:.*unsafe-eval" /tmp/signin.headers; then echo "production CSP allows eval"; exit 1; fi
-          test "$(docker inspect --format '{{.Config.User}}' pathfinder-web)" = "node"
+      - uses: actions/cache@v6
+        with:
+          path: ${{ steps.yarn-cache.outputs.dir }}
+          key: yarn-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
+          restore-keys: yarn-${{ runner.os }}-
 
-      - name: Seed demo data with the worker image
-        # Development mode inside the container so the seed may create its own user and use local files.
-        run: >
-          docker run --rm --network host -e DATABASE_URL -e AUTH_SECRET="$(openssl rand -hex 32)"
-          -e NODE_ENV=development -e APP_ENV=development -e STORAGE_DRIVER=local -e STORAGE_LOCAL_DIR=/tmp/storage
-          pathfinder-worker ./node_modules/.bin/tsx src/seed.ts
+      - run: yarn install --immutable
+      - run: yarn generate
+      - run: yarn lint
+      - run: yarn typecheck
+      # Fails when coverage drops below the thresholds in vitest.config.mts (E11-1).
+      - run: yarn test:coverage
+      - name: Coverage summary
+        if: always()
+        run: node .github/scripts/coverage-summary.mjs >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Start the worker image and wait for it to render the demo PDFs with Chromium
-        run: |
-          docker run -d --name worker --network host -e DATABASE_URL -e AUTH_SECRET="$(openssl rand -hex 32)" \
-            -e NODE_ENV=development -e APP_ENV=development -e STORAGE_DRIVER=local -e STORAGE_LOCAL_DIR=/tmp/storage \
-            pathfinder-worker
-          for i in $(seq 1 60); do
-            docker logs worker 2>&1 | grep -q "Worker ready" && break
-            sleep 2
-          done
-          docker logs worker 2>&1 | grep -q "Worker ready"
-          for i in $(seq 1 60); do
-            rendered=$(docker run --rm --network host postgres:17 psql "$DATABASE_URL" -At -c \
-              'SELECT count(*) FROM "GeneratedDocument" WHERE "pdfStorageKey" IS NOT NULL')
-            echo "PDFs rendered: $rendered"
-            [ "$rendered" -ge 3 ] && break
-            sleep 3
-          done
-          [ "$rendered" -ge 3 ]
-          docker stop worker
-
-      - name: Backup and restore drill
-        run: scripts/backup-drill.sh
+  e2e:
+    name: End-to-end tests
+    needs: checked
+    if: ${{ !cancelled() && needs.checked.outputs.skip != 'true' }}
+    runs-on: ubuntu-latest
+    services:
+      # The tests create and migrate their own "dossier_e2e" database here.
+      postgres:
+        image: postgres:18-alpine
         env:
-          SOURCE_URL: ${{ env.DATABASE_URL }}
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: dossier
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d dossier"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/dossier
+      COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
+    steps:
+      - uses: actions/checkout@v7
 
-      - name: Container logs on failure
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - run: corepack enable
+
+      - name: Locate the Yarn cache
+        id: yarn-cache
+        run: echo "dir=$(yarn config get cacheFolder)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/cache@v6
+        with:
+          path: ${{ steps.yarn-cache.outputs.dir }}
+          key: yarn-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
+          restore-keys: yarn-${{ runner.os }}-
+
+      - run: yarn install --immutable
+      - run: yarn generate
+      # Headless Chromium, for the tests and for the app's PDFs.
+      - run: yarn playwright install --with-deps --only-shell chromium
+      - run: yarn build
+      - run: yarn test:e2e
+
+      - uses: actions/upload-artifact@v7
         if: failure()
-        run: |
-          docker logs web 2>&1 | tail -100 || true
-          docker logs worker 2>&1 | tail -100 || true
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
+
+  # After both checks pass on main, or when its pull request passed them: the
+  # production image on GHCR, tagged with the commit SHA (and "main"). A
+  # version tag then tags it with the version.
+  image:
+    name: Production image
+    needs: [checked, check, e2e]
+    if: ${{ !cancelled() && !failure() && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Image name
+        # GHCR names must be lower case.
+        run: echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
+
+      - uses: docker/setup-buildx-action@v4
+
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          target: production
+          push: true
+          tags: |
+            ${{ env.IMAGE }}:${{ github.sha }}
+            ${{ env.IMAGE }}:main
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

@@ -1,0 +1,6 @@
+# Caddy gets and renews the HTTPS certificate for PATHFINDER_DOMAIN by itself (Let's Encrypt),
+# sends plain HTTP on to HTTPS, and passes requests to the app.
+{$PATHFINDER_DOMAIN} {
+	encode zstd gzip
+	reverse_proxy app:3000
+}

@@ -1,0 +1,207 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import { loginWaitMs, recordLoginFailure, recordLoginSuccess } from "@/lib/auth/login-throttle";
+import { passwordMatches, startSession } from "@/lib/auth/session";
+import { systemPrisma } from "@/lib/prisma";
+import { loadProfileName } from "@/lib/profile-data";
+
+import { firebaseIdentity, FirebaseSignInError } from "@/lib/auth/firebase";
+import { studentForFirebase } from "@/lib/auth/students";
+
+import { signIn, signInWithFirebase, signInWithForm } from "./actions";
+import { loginMessages } from "./messages";
+
+vi.mock("next/headers", () => ({
+  headers: async () => new Headers({ "x-forwarded-for": "10.0.0.1, 203.0.113.7" }),
+}));
+vi.mock("next/navigation", () => ({
+  unstable_rethrow: () => {},
+  redirect: (to: string) => {
+    throw new Error(`redirect ${to}`);
+  },
+}));
+vi.mock("@/lib/auth/session", () => ({
+  getSession: vi.fn(),
+  passwordMatches: vi.fn(),
+  startSession: vi.fn(),
+}));
+vi.mock("@/lib/auth/login-throttle", () => ({
+  PER_IP_ONLY: { global: false },
+  loginWaitMs: vi.fn(),
+  recordLoginFailure: vi.fn(),
+  recordLoginSuccess: vi.fn(),
+}));
+vi.mock("@/lib/prisma", () => ({
+  systemPrisma: { user: { upsert: vi.fn(async ({ create }: { create: { email: string } }) => ({ id: "student-1", email: create.email })) } },
+}));
+vi.mock("@/lib/profile-data", () => ({ loadProfileName: vi.fn() }));
+vi.mock("@/lib/auth/firebase", async (original) => ({
+  ...(await original<typeof import("@/lib/auth/firebase")>()),
+  firebaseIdentity: vi.fn(),
+}));
+vi.mock("@/lib/auth/students", () => ({ studentForFirebase: vi.fn() }));
+vi.mock("@/lib/log", () => ({ logServerError: vi.fn() }));
+const mode = vi.hoisted(() => ({ value: "code" as "code" | "google" | "firebase" }));
+vi.mock("@/lib/auth/google-sign-in", () => ({ signInMode: () => mode.value }));
+
+describe("signIn", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mode.value = "code";
+    vi.mocked(passwordMatches).mockImplementation(async (candidate) => candidate === "correct horse");
+    vi.mocked(loginWaitMs).mockResolvedValue(0);
+    vi.mocked(loadProfileName).mockResolvedValue("Jane Doe");
+  });
+
+  it("asks for a password when none was entered, without counting it as a failure", async () => {
+    await expect(signIn({ email: "Jane@Example.com", password: "", remember: false })).resolves.toEqual({
+      ok: false,
+      error: loginMessages.empty,
+    });
+    expect(startSession).not.toHaveBeenCalled();
+    expect(recordLoginFailure).not.toHaveBeenCalled();
+  });
+
+  it("refuses a wrong password and counts the failure for the client's IP", async () => {
+    await expect(signIn({ email: "Jane@Example.com", password: "hunter2", remember: false })).resolves.toEqual({
+      ok: false,
+      error: loginMessages.wrong,
+    });
+    expect(recordLoginFailure).toHaveBeenCalledWith(systemPrisma, "203.0.113.7");
+    expect(startSession).not.toHaveBeenCalled();
+  });
+
+  it("refuses to even check the password while the IP is blocked", async () => {
+    vi.mocked(loginWaitMs).mockResolvedValue(29_500);
+    await expect(signIn({ email: "Jane@Example.com", password: "correct horse", remember: false })).resolves.toEqual({
+      ok: false,
+      error: "Too many attempts. Try again in 30 seconds.",
+    });
+    expect(passwordMatches).not.toHaveBeenCalled();
+    expect(startSession).not.toHaveBeenCalled();
+  });
+
+  it("starts a session, resets the IP's counter and welcomes the user by first name", async () => {
+    await expect(
+      signIn({ email: "Jane@Example.com", password: "correct horse", remember: true, next: "/applications/abc" }),
+    ).resolves.toEqual({
+      ok: true,
+      data: { redirectTo: "/applications/abc" },
+      toast: "Welcome back, Jane.",
+    });
+    expect(recordLoginSuccess).toHaveBeenCalledWith(systemPrisma, "203.0.113.7");
+    expect(startSession).toHaveBeenCalledWith({ persistent: true, userId: "student-1" });
+  });
+
+  it("refuses the access code once students sign in with Google (Pathfinder)", async () => {
+    mode.value = "google";
+    await expect(signIn({ email: "jane@example.com", password: "correct horse", remember: false })).resolves.toEqual({
+      ok: false,
+      error: loginMessages.useGoogle,
+    });
+    expect(passwordMatches).not.toHaveBeenCalled();
+    expect(startSession).not.toHaveBeenCalled();
+  });
+
+  it("asks for an email address, and stores it in lower case", async () => {
+    await expect(signIn({ email: "not an email", password: "correct horse", remember: false })).resolves.toMatchObject({ ok: false });
+    expect(startSession).not.toHaveBeenCalled();
+    await signIn({ email: "Jane@Example.com", password: "correct horse", remember: false });
+    expect(systemPrisma.user.upsert).toHaveBeenCalledWith(expect.objectContaining({ where: { email: "jane@example.com" } }));
+  });
+
+  it("says 'there' before the profile has a name, and ignores unsafe redirects", async () => {
+    vi.mocked(loadProfileName).mockResolvedValue("");
+    await expect(
+      signIn({ email: "Jane@Example.com", password: "correct horse", remember: false, next: "https://evil.example" }),
+    ).resolves.toMatchObject({ data: { redirectTo: "/analyze" }, toast: "Welcome back, there." });
+    expect(startSession).toHaveBeenCalledWith({ persistent: false, userId: "student-1" });
+  });
+});
+
+describe("signInWithForm", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(passwordMatches).mockImplementation(async (candidate) => candidate === "correct horse");
+    vi.mocked(loginWaitMs).mockResolvedValue(0);
+    vi.mocked(loadProfileName).mockResolvedValue("Jane Doe");
+  });
+
+  function form(fields: Record<string, string>): FormData {
+    const data = new FormData();
+    for (const [name, value] of Object.entries(fields)) data.set(name, value);
+    return data;
+  }
+
+  it("returns the error for the page to show", async () => {
+    await expect(signInWithForm(null, form({ email: "jane@example.com", password: "hunter2" }))).resolves.toEqual({ error: loginMessages.wrong });
+    await expect(signInWithForm(null, form({ email: "jane@example.com" }))).resolves.toEqual({ error: loginMessages.empty });
+    expect(startSession).not.toHaveBeenCalled();
+  });
+
+  it("signs in and goes on to the next page", async () => {
+    await expect(
+      signInWithForm(null, form({ email: "jane@example.com", password: "correct horse", remember: "on", next: "/profile" })),
+    ).rejects.toThrow("redirect /profile");
+    expect(startSession).toHaveBeenCalledWith({ persistent: true, userId: "student-1" });
+  });
+
+  it("goes to the resume analysis when there's no next page, and remembers only when ticked", async () => {
+    await expect(signInWithForm({ error: loginMessages.wrong }, form({ email: "jane@example.com", password: "correct horse" }))).rejects.toThrow(
+      /^redirect \/analyze$/,
+    );
+    expect(startSession).toHaveBeenCalledWith({ persistent: false, userId: "student-1" });
+  });
+});
+
+describe("signInWithFirebase (Pathfinder)", () => {
+  const asha = { uid: "firebase-asha", email: "asha@example.com", emailVerified: true, name: "Asha Rao" };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mode.value = "firebase";
+    vi.mocked(loginWaitMs).mockResolvedValue(0);
+    vi.mocked(loadProfileName).mockResolvedValue("");
+    vi.mocked(firebaseIdentity).mockResolvedValue(asha);
+    vi.mocked(studentForFirebase).mockResolvedValue("student-1");
+  });
+
+  it("checks the token, starts the student's session and goes on to the next page", async () => {
+    await expect(signInWithFirebase({ idToken: "token", remember: true, next: "/analyze/abc" })).resolves.toEqual({
+      ok: true,
+      data: { redirectTo: "/analyze/abc" },
+      toast: "Welcome.",
+    });
+    expect(firebaseIdentity).toHaveBeenCalledWith("token");
+    expect(studentForFirebase).toHaveBeenCalledWith(asha);
+    expect(startSession).toHaveBeenCalledWith({ persistent: true, userId: "student-1" });
+    expect(recordLoginSuccess).toHaveBeenCalledWith(systemPrisma, "203.0.113.7");
+  });
+
+  it("counts a token that doesn't check out as a failed attempt", async () => {
+    vi.mocked(firebaseIdentity).mockRejectedValue(new FirebaseSignInError("invalid"));
+    await expect(signInWithFirebase({ idToken: "forged", remember: false })).resolves.toEqual({ ok: false, error: "That sign-in didn't work. Try again." });
+    // Per IP only: junk tokens mustn't count towards the all-IPs backstop, which would lock out every student (QA H-3).
+    expect(recordLoginFailure).toHaveBeenCalledWith(systemPrisma, "203.0.113.7", undefined, { global: false });
+    expect(loginWaitMs).toHaveBeenCalledWith(systemPrisma, "203.0.113.7", undefined, { global: false });
+    expect(startSession).not.toHaveBeenCalled();
+  });
+
+  it("asks for a verified address without counting it as a failure", async () => {
+    vi.mocked(studentForFirebase).mockRejectedValue(new FirebaseSignInError("unverified"));
+    await expect(signInWithFirebase({ idToken: "token", remember: false })).resolves.toMatchObject({ ok: false, error: expect.stringMatching(/Verify your email/) });
+    expect(recordLoginFailure).not.toHaveBeenCalled();
+    expect(startSession).not.toHaveBeenCalled();
+  });
+
+  it("refuses while the IP is blocked, and on a server that doesn't use Firebase", async () => {
+    vi.mocked(loginWaitMs).mockResolvedValue(29_500);
+    await expect(signInWithFirebase({ idToken: "token", remember: false })).resolves.toMatchObject({ ok: false });
+    expect(firebaseIdentity).not.toHaveBeenCalled();
+    vi.mocked(loginWaitMs).mockResolvedValue(0);
+    mode.value = "code";
+    await expect(signInWithFirebase({ idToken: "token", remember: false })).resolves.toMatchObject({ ok: false });
+    expect(firebaseIdentity).not.toHaveBeenCalled();
+    expect(startSession).not.toHaveBeenCalled();
+  });
+});

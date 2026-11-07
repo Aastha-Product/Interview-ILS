@@ -1,86 +1,40 @@
-import js from "@eslint/js";
-import nextCoreWebVitals from "eslint-config-next/core-web-vitals";
-import globals from "globals";
-import tseslint from "typescript-eslint";
+import { defineConfig, globalIgnores } from "eslint/config";
+import nextVitals from "eslint-config-next/core-web-vitals";
+import nextTs from "eslint-config-next/typescript";
 
-const RAW_DB_ALLOWED = [
-  "packages/db/**",
-  "apps/web/server/auth.ts",
-  "apps/web/server/dev-sign-in.ts",
-  // Shared job data (listings, extractions, feed cache and budget) is written outside any one user's scope.
-  "packages/core/src/jobs/**",
-  // Database file storage (demo sites) stores rows keyed by path, outside any one request's scope.
-  "packages/core/src/storage/**",
-  // The worker entry point only disconnects the shared client at shutdown.
-  "apps/worker/src/index.ts",
-  // The demo seed script only disconnects the shared client when it finishes.
-  "apps/worker/src/seed.ts",
-  "**/*.int.test.ts",
-  "**/test/**",
-];
-
-export default tseslint.config(
+const eslintConfig = defineConfig([
+  ...nextVitals,
+  ...nextTs,
   {
-    ignores: [
-      "**/node_modules/**",
-      "**/.next/**",
-      "**/dist/**",
-      "**/coverage/**",
-      "packages/db/src/generated/**",
-      "e2e/playwright-report/**",
-      "e2e/test-results/**",
-      "**/next-env.d.ts",
-      ".local/**",
-    ],
-  },
-  js.configs.recommended,
-  ...tseslint.configs.recommended,
-  {
-    languageOptions: { globals: { ...globals.node } },
+    // SQLite has no skipDuplicates, and the PostgreSQL client's types used for
+    // both don't catch it (see SQLite in DEVELOPMENT.md).
     rules: {
-      "@typescript-eslint/no-unused-vars": [
-        "error",
-        { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },
-      ],
-      "no-console": "error",
-    },
-  },
-  {
-    files: ["scripts/**", "**/*.config.*"],
-    rules: { "no-console": "off" },
-  },
-  // Next.js rules, only for the web app.
-  ...nextCoreWebVitals.map((config) => ({
-    ...config,
-    files: ["apps/web/**/*.{ts,tsx,js,jsx}"],
-    settings: { ...config.settings, next: { rootDir: "apps/web" } },
-  })),
-  {
-    files: ["apps/web/**/*.{ts,tsx}"],
-    languageOptions: { globals: { ...globals.browser, ...globals.node } },
-  },
-  // Only a few places may use the unscoped database client.
-  {
-    ignores: RAW_DB_ALLOWED,
-    rules: {
-      "no-restricted-imports": [
+      "no-restricted-syntax": [
         "error",
         {
-          paths: [
-            {
-              name: "@pathfinder/db/raw",
-              message:
-                "Use scopedDb(userId) from @pathfinder/db. Raw access is limited to auth and account deletion.",
-            },
-          ],
-          patterns: [
-            {
-              group: ["**/generated/prisma/**"],
-              message: "Import from @pathfinder/db instead of the generated client.",
-            },
-          ],
+          selector: "Property[key.name='skipDuplicates'], Property[key.value='skipDuplicates']",
+          message: "SQLite doesn't support skipDuplicates: remove the duplicates first, or upsert.",
         },
       ],
     },
   },
-);
+  // Override default ignores of eslint-config-next.
+  globalIgnores([
+    // Default ignores of eslint-config-next:
+    ".next/**",
+    "out/**",
+    "build/**",
+    "next-env.d.ts",
+    // The clickable prototype and its vendored runtime, kept for reference.
+    "design/**",
+    // The HTML coverage report from `yarn test:coverage`.
+    "coverage/**",
+    // The website, as site/build.sh puts it together.
+    "_site/**",
+    // End-to-end test output.
+    "playwright-report/**",
+    "test-results/**",
+  ]),
+]);
+
+export default eslintConfig;

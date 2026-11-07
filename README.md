@@ -1,232 +1,157 @@
-# Pathfinder
+<p align="center">
+  <img src="src/app/icon.svg" alt="" width="80" height="80">
+</p>
 
-Pathfinder helps Indian freshers apply to jobs off-campus. A student builds one profile, adds jobs, gets a tailored resume and answers drawn **only from their own profile**, submits each application themselves on the job site, and tracks responses.
+<h1 align="center">Dossier</h1>
 
-This repository is the MVP, built in phases: **1** foundation (sign-in, user-scoped data, profile, resume import), **2** jobs and matching, **3** the application flow (drafting with a fact check, PDFs, tracker, dashboard) **4** reliability, security and privacy (limits, AI fallback, export and delete, CSP, retention, injection and load tests) and **5** pilot readiness (demo data, staging config, container images, deployment guide, backup runbook, privacy notice draft). Nothing is deployed: see [Deploying](#deploying).
+<p align="center">
+  Your job search, on your own server: one profile, a tailored resume and cover letter for every job, and every application tracked from draft to offer.
+</p>
 
-## Rules the code must keep
+<p align="center">
+  <a href="https://github.com/AienTech/dossier/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/AienTech/dossier?label=release"></a>
+  <a href="https://github.com/AienTech/dossier/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/AienTech/dossier/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="LICENSE"><img alt="License: AGPL-3.0" src="https://img.shields.io/badge/license-AGPL--3.0-blue"></a>
+  <a href="https://github.com/AienTech/dossier/pkgs/container/dossier"><img alt="Docker image: ghcr.io/aientech/dossier" src="https://img.shields.io/badge/image-ghcr.io%2Faientech%2Fdossier-2496ED?logo=docker&logoColor=white"></a>
+  <img alt="Next.js 16" src="https://img.shields.io/badge/Next.js-16-000000?logo=nextdotjs">
+  <img alt="PostgreSQL 18" src="https://img.shields.io/badge/PostgreSQL-18-4169E1?logo=postgresql&logoColor=white">
+</p>
 
-- **No automation on job portals.** Pathfinder never logs in to, fills or submits forms on Naukri, LinkedIn, Indeed, Internshala or any other portal, and never asks for or stores portal passwords or cookies.
-- **No scraping.** Jobs come only from licensed APIs (JSearch, Adzuna) or from links and text the student pastes. No CAPTCHA bypass, IP rotation or bot-detection evasion.
-- **Never invent experience.** Generated content may only use facts from the student's profile. Anything else is shown as a gap.
-- **Job descriptions and resumes are untrusted input.** They go to the model inside a marked data block and can never change instructions.
-- **Personal data (India DPDP Act, 2023).** Resume text, profile content and AI prompts are never logged. Only a hash of each prompt is stored. Production storage and the database use the provider's encryption at rest.
-- **No code from `AienTech/dossier`** (AGPL-3.0). This is a clean implementation.
+Dossier keeps your career history in one profile and turns it into a clean resume. For every job you apply to, it reads the posting, shows how you match, and drafts a tailored resume and cover letter that only use facts from your profile. You refine them in a chat, download them as PDFs and track each application from draft to offer.
 
-## What you need
+It's for one person on a small server: one password, your data in your own PostgreSQL database (or a single SQLite file), and an AI model of your choice. That can be a local model through Ollama or LM Studio, so your profile and documents stay on your own hardware, or a hosted one (any OpenAI-compatible API, Anthropic or Mistral), which then receives what it writes from. [Privacy](https://github.com/AienTech/dossier/wiki/Privacy) says what goes where.
 
-- **Node.js 22 or newer**
-- **pnpm 10**. Install it with:
+**Get started:** [run it on your computer](#run-it-on-your-computer) in a few minutes, or [self-host it](#self-hosting) on a server. The [installation guide](https://github.com/AienTech/dossier/wiki) covers every way: Docker with or without Compose, Node.js, a plain Ubuntu server, CapRover, Coolify and Dokploy.
 
-  ```bash
-  npm i -g pnpm@10
-  ```
+## Demo
 
-  (`corepack enable` can fail on Windows without admin rights, so the npm install is the reliable route.)
+![Dossier in use: the dashboard, dragging a card on the board, a new application from a pasted posting, refining the tailored resume in the chat, the cover letter, and switching resume themes](.github/images/demo.gif)
 
-- **No Docker.** The database runs from npm-packaged PostgreSQL 17 binaries, and files are stored in a local folder.
+<sub>Recorded with the demo data (Jane Doe is made up) and a stand-in AI server that answers at once, played at 1.2× speed. With a real model, reading a posting and writing the documents takes from a few seconds to a few minutes.</sub>
 
-## Set up and run
+## Features
 
-1. Install dependencies. This also generates the Prisma client.
+- **Profile:** basics, skills and languages, experience, projects, education, publications and references, in the order you choose, with a strength meter that counts only what a profile needs. Projects (side, open-source, course or thesis work) show what you can do where your job titles don't yet. Publications are cited in your own style, with bold and italics, and go on resumes word for word. Start it from an existing resume (PDF, Word or Markdown) if you like.
+- **Base resume:** twelve themes and a theme builder, previewed live and printed to PDF on the server. Duplicate themes, or share them as files.
+- **Find jobs:** search postings near your city, or anywhere you choose, through JSearch (LinkedIn, Indeed and more), Adzuna or FreeHire (company career pages). Save the good ones, dismiss the rest, score any of them against your profile, and start an application from a posting with one click.
+- **Startups:** startups that are hiring, from YC startups' job posts and Hacker News' monthly “Who is hiring?” thread, kept to the ones that hire where you live or remotely from your country and ranked against your profile, with the address each one publishes for applications. Dossier reads their sites politely and follows their robots.txt. Start an application to one with a click; you decide whom to write to.
+- **Job agent (optional):** once a day it runs one search for you, skips what you've seen, scores the new postings against your profile and keeps the best on the Agent screen, with its reasons. It can prepare tailored drafts too, which wait for your review. It never sends or applies.
+- **New application:** paste a posting; Dossier pulls out the details and requirements, matches them against your profile, and writes a tailored resume and cover letter in the tone you pick.
+- **Never invents experience:** drafts only use facts from your profile. What the posting asks for and your profile doesn't have is shown as a gap, not made up.
+- **Refine:** ask for changes in a chat, edit or regenerate any part (every part of the cover letter too: sender, date, recipient, greeting and sign-off, written in the letter's language), undo AI changes or go back to any earlier version, keep private notes.
+- **Send:** an email to go with each application, to whoever the posting says to send it to, ready to copy or open in your mail app, with the resume and cover letter PDFs to attach. Edit, rewrite or refine it like the documents.
+- **MCP connector (optional):** use Dossier from Claude, on claude.ai, in the Desktop and mobile apps or in Claude's command-line app, on your own Claude plan, or from another MCP app such as n8n. Claude can search for jobs, score them against your profile, read your profile and applications, and save the resume and cover letter it writes as a Draft, checked like Dossier's own. It never sends or deletes anything. Without an AI model of Dossier's own, **Write it with Claude** hands a posting to a new Claude chat. Turn it on in Settings → MCP connector (see [Connecting Claude](https://github.com/AienTech/dossier/wiki/Connecting-Claude)).
+- **Gmail and Calendar (optional):** connect your Google account to send an application from your own address with its PDFs attached, see employers' replies next to each application, have the AI read what they ask and draft your answer from your profile, offer interview times you're free, and see your month and the week ahead on the dashboard, with interviews kept in step with Google Calendar both ways. Nothing is sent without your confirmation. Set it up by entering your Google OAuth client in Settings → Google, or with `DOSSIER_GOOGLE_CLIENT_ID` and `DOSSIER_GOOGLE_CLIENT_SECRET` (see [Connecting Gmail and Calendar](https://github.com/AienTech/dossier/wiki/Connecting-Gmail-and-Calendar)).
+- **Track:** a board and a table of every application, and a dashboard with your funnel (last 30 days, 90 days or all time), a week-by-week chart, what's worth a look next, upcoming interviews included, and a calendar.
+- **Your data:** export and import everything as one file, nightly backups, and Delete everything.
 
-   ```bash
-   pnpm install
-   ```
+## Screenshots
 
-2. Create your local settings file:
+![The dashboard: your funnel, a week-by-week chart and what's worth a look next](.github/images/dashboard.png)
 
-   ```bash
-   cp .env.example .env
-   ```
+<table>
+  <tr>
+    <td width="50%"><img src=".github/images/application.png" alt="An application with its tailored resume and the chat that refines it"><br>An application: the tailored resume, and a chat to refine it</td>
+    <td width="50%"><img src=".github/images/new-application.png" alt="A new application, showing how the profile matches the posting's requirements"><br>A new application: how you match the posting</td>
+  </tr>
+  <tr>
+    <td><img src=".github/images/applications.png" alt="The applications board, with columns from draft to offer"><br>Every application on a board, from draft to offer</td>
+    <td><img src=".github/images/find-jobs.png" alt="Find jobs: postings near the profile's city, with one open"><br>Find jobs and start an application from a posting</td>
+  </tr>
+  <tr>
+    <td><img src=".github/images/resume.png" alt="The base resume next to its themes"><br>The base resume, with twelve themes and a theme builder</td>
+    <td><img src=".github/images/profile.png" alt="The profile editor, with its sections and strength meter"><br>One profile that every resume and letter comes from</td>
+  </tr>
+  <tr>
+    <td><img src=".github/images/inbox.png" alt="The inbox: employers' replies from Gmail, what each one asks, and mail to link to an application"><br>Replies from Gmail, read by the AI, with answers it drafts</td>
+    <td><img src=".github/images/calendar.png" alt="The dashboard on a wide window, with the calendar beside the cards: the month, and the week ahead with an interview among the Google Calendar's events"><br>Your interviews and Google Calendar on the dashboard, kept in step</td>
+  </tr>
+</table>
 
-3. Replace `AUTH_SECRET=change-me` in `.env` with a random value. This prints one:
+<sub>The screenshots show the demo data: Jane Doe is made up.</sub>
 
-   ```bash
-   node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"
-   ```
+## Run it on your computer
 
-4. Start the local database. On the first run this creates `.local/pg` and the `pathfinder` and `pathfinder_test` databases.
+All you need is [Docker Desktop](https://docs.docker.com/desktop/) on macOS or Windows, or Docker Engine with its Compose plugin on Linux, and about 2 GB of free memory. Run the commands in a terminal: macOS's Terminal, Linux, or WSL on Windows.
 
-   ```bash
-   pnpm services:up
-   ```
+**1. Fetch the Compose file** into a folder of its own, and make the secrets Dossier needs:
 
-5. Apply the database migrations:
-
-   ```bash
-   pnpm db:deploy
-   ```
-
-6. Start the web app, then open http://localhost:3000.
-
-   ```bash
-   pnpm dev
-   ```
-
-7. In a second terminal, start the queue worker. It writes tailored drafts and renders PDFs; without it, "Start application" stays at "in the queue".
-
-   ```bash
-   pnpm worker
-   ```
-
-   The worker renders PDFs with Chromium. Install it once with `pnpm --filter @pathfinder/e2e install-browsers` (it goes into `node_modules`).
-
-The app starts and every test passes with all AI and job-feed keys left empty.
-
-8. _Optional:_ fill a demo account so every screen has something to show, then sign in with **Dev sign-in** as `demo@example.test`:
-
-   ```bash
-   pnpm db:seed
-   ```
-
-   It adds a fictional student's profile, 8 scored jobs and 7 applications over five weeks (3 with drafts; their PDFs render while `pnpm worker` runs). It only fills an empty account and is refused when `APP_ENV=production`.
-
-### Applications, drafts and the worker
-
-- **Queues.** pg-boss stores its queues in the same Postgres (schema `pgboss`). Queues: `ai.tailor` (drafting), `pdf.render` and `cleanup.retention` (nightly). Jobs that fail every retry go to a `.dead` queue, and the student sees "failed" with a reason and a "Try again" button. Drafting runs under a deadline inside the queue's 120 s expiry, so a slow run can't be handed to a second worker; a redelivered job whose task already finished is skipped.
-- **Housekeeping.** Every 5 minutes the worker fails tasks stuck for 30 minutes (a crash can't hold a student's slot forever) and drops old rate-limit counters. Every night at 03:00 India time `cleanup.retention` deletes derived or expired data only (`RETENTION` in `packages/db/src/maintenance.ts`): AI call detail after 30 days (daily totals stay), match scores, closed unapplied listings and search history after 90 days, expired cache entries, usage totals after 2 years. Profiles, applications, documents and the audit log are kept until the student deletes their account.
-- **Limits.** A student can have at most `AI_CONCURRENT_PER_USER` (2) drafts or PDFs in progress and `TAILOR_DAILY_LIMIT` (20) drafts a day. Requesting the same draft twice (same job and profile version) returns the existing one.
-- **No invented experience.** The resume and answers are written only from numbered facts in the profile. Code rejects any point that cites no facts, cites unknown facts or facts from another item, or adds a number or skill the facts don't contain. A second, cheaper AI check confirms each remaining point. Failing drafts are regenerated once; anything still unsupported is left out and listed for the student. What the job asks for but the profile lacks is shown as a gap.
-- **PDFs** are rendered from fixed HTML with scripts and network access disabled. They are downloaded through a link that expires after 5 minutes and only works for the student who owns the file.
-- **Response rate** = responses ÷ applications sent. "Sent" is set when the student presses "I've applied"; a response is any employer reply (response, interview, offer or rejection). Weeks run Monday to Sunday, India time.
-
-### Limits and the AI fallback
-
-| Limit                                  | Setting                        | Default         | When hit                                      |
-| -------------------------------------- | ------------------------------ | --------------- | --------------------------------------------- |
-| API requests per student               | `RATE_LIMIT_API_PER_MINUTE`    | 60 a minute     | 429 with `Retry-After` and a friendly message |
-| Sign-in attempts per IP                | `RATE_LIMIT_SIGNIN_PER_MINUTE` | 10 a minute     | back to sign-in with a message                |
-| Drafts per student                     | `TAILOR_DAILY_LIMIT`           | 20 a day        | 429                                           |
-| Drafts or PDFs in progress per student | `AI_CONCURRENT_PER_USER`       | 2               | 429                                           |
-| Live job searches per student          | `SEARCH_COOLDOWN_SECONDS`      | 1 per 5 minutes | cached results, or 429                        |
-
-Counters live in Postgres (`RateLimit` table), so every web instance shares them and simultaneous requests can't slip past.
-
-The AI client retries with backoff (1 s, 2 s), and after 5 outages (timeouts, 429s, 5xx) in a minute it opens a circuit for 2 minutes. While open, calls go to the **fallback model** if `FALLBACK_AI_BASE_URL`, `FALLBACK_AI_API_KEY` and `FALLBACK_AI_MODEL` are set (any OpenAI-compatible Chat Completions API), or fail fast if not. The fallback also gets one try when Gemini fails every retry. It receives the same student data, so use a paid tier that doesn't train on inputs.
-
-### Security and privacy
-
-- **Content-Security-Policy** with a fresh nonce per request (`apps/web/proxy.ts`): only the app's own scripts run. HSTS is sent when `APP_URL` is https.
-- **Uploads** are checked by size (and must declare it) and by file content, not name.
-- **Job text and resumes are untrusted.** They reach the model inside a data block that the text can't close or fake (`packages/ai/src/untrusted.ts`), control characters are dropped before storage, and `fixtures/injection-payloads.json` is the prompt-injection test set.
-- **Export and delete** (Settings): the student downloads everything as JSON, or deletes the account, which removes their files and every row they own and signs them out everywhere. Both are in the audit log (until the account is deleted); a deletion is logged as a keyed hash of the id.
-
-### Signing in locally
-
-- **Dev sign-in.** A **Dev sign-in** button appears only when `NODE_ENV` is not `production` **and** `AUTH_GOOGLE_ID` is empty. It creates or reuses a local test user, and the end-to-end tests use it. It can never appear in production.
-- **Real Google sign-in.**
-  1. In Google Cloud Console, create an OAuth client ID of type _Web application_.
-  2. Add the authorised redirect URI `http://localhost:3000/api/auth/callback/google`.
-  3. Put the client ID and secret in `AUTH_GOOGLE_ID` and `AUTH_GOOGLE_SECRET` in `.env`.
-
-  The dev button then disappears.
-
-### AI (optional)
-
-With `GEMINI_API_KEY` empty, a built-in mock is used. It reads resumes with simple rules, so import still works offline.
-
-To use Gemini, set `GEMINI_API_KEY`. `GEMINI_MODEL` defaults to the alias `gemini-flash-latest`, which Google moves to new releases automatically. For a pilot, pin a specific stable model instead, for example `GEMINI_MODEL=gemini-3.6-flash`. Use a paid tier for student data, so inputs are not used for training.
-
-### File storage
-
-| `STORAGE_DRIVER`  | Where files go                                                                     | Use for                                         |
-| ----------------- | ---------------------------------------------------------------------------------- | ----------------------------------------------- |
-| `local` (default) | `.local/storage` (or `STORAGE_LOCAL_DIR`)                                          | Development only                                |
-| `s3`              | Any S3-compatible bucket (Cloudflare R2, AWS S3, MinIO), using the `S3_*` settings | Staging and production (required in production) |
-
-### Jobs: feeds and pasted jobs
-
-- **Feeds.** With `JSEARCH_API_KEY` or `ADZUNA_APP_ID`/`ADZUNA_APP_KEY` empty, searches use the recorded fixtures in `packages/feeds/fixtures/`, so no live calls are made in development or tests.
-  - JSearch v5: `GET https://jsearch.p.rapidapi.com/search-v2` with `x-rapidapi-key` and `x-rapidapi-host` headers, `country=in`, cursor paging. Each page of up to 10 jobs costs one request; the free plan is about 200 a month.
-  - Adzuna: `GET https://api.adzuna.com/v1/api/jobs/{ADZUNA_COUNTRY}/search/1`. Its public docs don't confirm India (`in`), so check in your Adzuna account. Its descriptions are short snippets.
-- **Limits.** Each search is cached for `SEARCH_CACHE_HOURS` (24). A student can make one live search every `SEARCH_COOLDOWN_SECONDS` (300); cached searches are always allowed. Live calls also count against the global daily budgets `JSEARCH_DAILY_BUDGET` and `ADZUNA_DAILY_BUDGET`.
-- **Duplicates.** The same job from two sources, or the same link with different tracking parameters, is stored once (same company, title and city within 30 days).
-- **Pasted links.** Pathfinder fetches only the one page a student pasted, as `PathfinderBot`, after checking that site's robots.txt. It refuses private network addresses, follows at most 3 redirects, and reads at most 2 MB. If a page can't be read (robots.txt, sign-in wall, script-only page), the student is asked to paste the description instead. It never signs in to job sites.
-- **Adzuna terms.** Every Adzuna job shown must be labelled and linked "Adzuna", and students apply through Adzuna's `redirect_url`. The app does both. Using Adzuna in a product that earns revenue needs a licence from them.
-
-### Local services
-
-| Command                | What it does                                                                        |
-| ---------------------- | ----------------------------------------------------------------------------------- |
-| `pnpm services:up`     | Starts Postgres in the background, creating it on the first run                     |
-| `pnpm services:down`   | Stops it                                                                            |
-| `pnpm services:status` | Shows whether it is running                                                         |
-| `pnpm services:reset`  | Stops it and **deletes all local data**: the database and stored files in `.local/` |
-
-The port, user and password come from `DATABASE_URL` in `.env`. The script only manages a database on `localhost`.
-
-**Optional: Docker.** If you prefer Docker, `infra/docker-compose.yml` runs Postgres and MinIO instead. Its header explains the `.env` changes. Don't run it at the same time as `pnpm services:up`, because both use port 5432.
-
-## Tests
-
-| Command                        | What it runs                                                                                                                                                                                                                  |
-| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `pnpm test`                    | Unit tests (Vitest). No database needed.                                                                                                                                                                                      |
-| `pnpm test:integration`        | Integration tests against `TEST_DATABASE_URL`, which must be a database whose name ends in `_test`. Migrations are applied automatically, and tables are emptied between tests. Needs `pnpm services:up`.                     |
-| `pnpm e2e`                     | End-to-end tests (Playwright). Needs `pnpm services:up` and `pnpm db:deploy`. Install the browser once with `pnpm --filter @pathfinder/e2e install-browsers` (it goes into `node_modules`, on the same drive as the project). |
-| `pnpm lint` / `pnpm typecheck` | ESLint and TypeScript (strict mode)                                                                                                                                                                                           |
-| `pnpm check`                   | Lint, typecheck, unit and integration tests in one go                                                                                                                                                                         |
-| `pnpm load-test`               | 50 simulated students run the main flow at once (needs `pnpm dev` and `pnpm worker` running with the mock AI). Passes when all finish and posting-to-PDF p95 is under 2 minutes. Local only; cleans up after itself.          |
-
-GitHub Actions (`.github/workflows/ci.yml`) runs the same steps on every push and pull request, using the same embedded Postgres and no real keys.
-
-**After pulling new migrations:** run `pnpm db:generate` (Prisma 7's `migrate` no longer regenerates the client) and `pnpm db:deploy`.
-
-## Deploying
-
-Pushes to `main` redeploy wherever the repository is connected (Vercel, Render). To run Pathfinder on a server, follow these guides in order:
-
-| Guide                                                        | What it covers                                                                                                                                                                                                            |
-| ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [docs/deploy-vercel-demo.md](docs/deploy-vercel-demo.md)     | Fastest test site: Vercel and its Postgres only (demo mode: no worker, S3 or Google sign-in)                                                                                                                              |
-| [docs/deploy-vercel.md](docs/deploy-vercel.md)               | Quickest staging setup, step by step: website on Vercel, Neon, AWS S3 (Mumbai), Google sign-in, worker on Render                                                                                                          |
-| [docs/deploy.md](docs/deploy.md)                             | Staging, then production: managed Postgres, S3/R2 storage, Google sign-in, settings (`.env.staging.example`), the two container images (`infra/Dockerfile.web`, `infra/Dockerfile.worker`), first-deploy checks, rollback |
-| [docs/backup-restore.md](docs/backup-restore.md)             | Backups, the monthly restore drill (`scripts/backup-drill.sh`), restoring after an incident, breaches                                                                                                                     |
-| [docs/privacy-notice-draft.md](docs/privacy-notice-draft.md) | The privacy notice, **draft for legal review**                                                                                                                                                                            |
-
-`APP_ENV` says which deployment this is: `development` (local), `staging` (a production build with test data, an amber banner and no search indexing) or `production`. `GET /api/health` answers 200 when the app can reach its database, for the host's health check.
-
-The CI job **Container images and restore drill** builds both images on every push and runs them against Postgres 17: migrations, health check, staging banner, PDF rendering in the worker image, and a backup-and-restore drill.
-
-## Repository layout
-
-```
-apps/web/        Next.js app (App Router): pages, components, server code and API route handlers
-apps/worker/     Queue worker (pg-boss): drafting, PDF rendering, housekeeping and nightly retention
-packages/core/   Domain logic: config, profile, jobs and matching, applications, account export/delete, limits, storage
-packages/ai/     The single entry point for model calls (retries, circuit breaker, fallback), prompts, schemas, providers (Gemini, OpenAI-compatible fallback, mock)
-packages/db/     Prisma schema, migrations, the user-scoped data layer, rate limits and cross-user housekeeping
-packages/feeds/  JSearch and Adzuna adapters, URL normalisation and dedupe keys
-e2e/             Playwright tests
-infra/           Dockerfiles for the web and worker images, optional Docker Compose for local services
-docs/            Deployment guide, backup and restore runbook, privacy notice draft
-scripts/         services.mjs (local Postgres), fixture generation, the load test and the backup drill
-fixtures/        Sample (fictional) resumes and job, and the prompt-injection payloads
-test/            Shared integration-test setup
-.github/         CI workflow
+```bash
+mkdir ~/dossier && cd ~/dossier
+curl -fsSL -o compose.yml https://raw.githubusercontent.com/AienTech/dossier/main/compose.production.yml
+echo "POSTGRES_PASSWORD=$(openssl rand -hex 24)" > .env
+echo "DOSSIER_SECRET=$(openssl rand -base64 32)" >> .env
 ```
 
-## Data access rule
+On an Apple Silicon Mac, also run `printf 'services:\n  app:\n    platform: linux/amd64\n' > compose.override.yml`: the image is built for Intel and AMD processors, and Docker Desktop runs it under emulation.
 
-Every user-owned table has a `userId` column. App code reaches the database only through `scopedDb(userId)` from `@pathfinder/db`. That client:
+**2. Choose your password.** This asks for it twice and prints a hash of it, one line that starts with `argon2id:`:
 
-- adds the owner condition to every query
-- sets the owner on every create
-- refuses to move a row to another owner
-- refuses nested relation writes
-- refuses raw SQL and the Auth.js tables
-- refuses reads of other users' rows through shared job listings
+```bash
+docker run --rm -it --platform linux/amd64 ghcr.io/aientech/dossier hash-password
+```
 
-The unscoped client (`@pathfinder/db/raw`) is blocked by ESLint everywhere except the auth adapter, the dev sign-in, `packages/db` and tests. The integration tests in `packages/db/test/scoped.int.test.ts` prove that one user cannot read or change another user's data.
+Add that line to `.env` as `DOSSIER_PASSWORD=argon2id:…`, with any text editor. Dossier only keeps the hash, never the password.
 
-When you add a model with a `userId` column, add it to `USER_OWNED_MODELS` in `packages/db/src/scoped.ts`; a test fails until you do.
+**3. Start it:**
 
-## Troubleshooting
+```bash
+docker compose up -d
+```
 
-- **Port 5432 is already in use** (for example, by another Postgres install): change the port in both `DATABASE_URL` and `TEST_DATABASE_URL` in `.env`, for example to `54320`. Then run `pnpm services:down` and `pnpm services:up`.
-- **Postgres won't start:** read `.local/pg.log`. To start completely fresh, run `pnpm services:reset`, which deletes local data.
-- **"Invalid configuration" on startup:** the message names the missing or wrong variable. Compare your `.env` with `.env.example`.
-- **`pnpm` not found after installing:** open a new terminal so `PATH` picks up the global npm folder.
-- **Disk space:** keep at least 3 GB free on the drive that holds the project. `node_modules`, the Playwright browser, build caches and the database all live there. If the disk fills up, stop Postgres with `pnpm services:down` before freeing space.
-- **System drive full (Windows):** Chromium (PDFs, end-to-end tests) writes temporary files to `%TEMP%`, usually on C:. If C: is nearly full, PDFs silently never render. Point temp at another drive for the session, e.g. in Git Bash `export TEMP='D:\tmp' TMP='D:\tmp'`, before `pnpm worker` or `pnpm e2e`.
+The first start downloads the image (about 1.7 GB) and sets up the database. Open [http://localhost:3000](http://localhost:3000), sign in with your password, and pick an AI model in **Settings → AI provider** (see [Choosing an AI provider](https://github.com/AienTech/dossier/wiki/Choosing-an-AI-provider)).
+
+`docker compose stop` stops it and `docker compose start` starts it again, with your data kept.
+
+**Without a database server:** Dossier can keep its data in an SQLite file instead, in one container. Put `DATABASE_URL=file:/data/dossier.db` in `.env` and run the image on its own, with a volume for `/data`:
+
+```bash
+docker run -d --name dossier --env-file .env -v dossier-data:/data -p 127.0.0.1:3000:3000 ghcr.io/aientech/dossier
+```
+
+Without that volume, the next upgrade deletes the data, and the container warns about it when it starts. To back up the file, stop the container and copy `dossier.db` out of the volume. PostgreSQL stays the better choice on a shared server; to move between the two, export your data in Settings → Your data and import it on the other. It's only reachable from your own computer. The [installation guide's Docker Compose page](https://github.com/AienTech/dossier/wiki/Run-locally-with-Docker-Compose) has more: another port, your time zone, upgrades and removing it.
+
+## Self-hosting
+
+To put Dossier on a server, on your own domain with HTTPS, follow the [installation guide](https://github.com/AienTech/dossier/wiki#self-host-on-a-server): a plain Ubuntu server with Docker Compose and Caddy (or Node.js, without Docker), CapRover, Coolify or Dokploy. Give the server at least 2 vCPUs and 2 GB of memory (see [Performance and sizing](#performance-and-sizing)).
+
+## Documentation
+
+The [wiki](https://github.com/AienTech/dossier/wiki) has what comes after installing:
+
+- [Choosing an AI provider](https://github.com/AienTech/dossier/wiki/Choosing-an-AI-provider): a hosted model, or a local one with Ollama or LM Studio.
+- [Choosing a job source](https://github.com/AienTech/dossier/wiki/Choosing-a-job-source): JSearch, Adzuna or FreeHire (and an unofficial one for Germany), and the job agent.
+- [Connecting Gmail and Calendar](https://github.com/AienTech/dossier/wiki/Connecting-Gmail-and-Calendar): your own Google OAuth client, step by step.
+- [Connecting Claude](https://github.com/AienTech/dossier/wiki/Connecting-Claude): the MCP connector, in Claude's apps and on the command line.
+- [Backups and restore](https://github.com/AienTech/dossier/wiki/Backups-and-restore): exports, nightly backups and database dumps.
+- <a name="upgrading"></a>[Upgrading](https://github.com/AienTech/dossier/wiki/Upgrading) to a new version.
+- [Troubleshooting](https://github.com/AienTech/dossier/wiki/Troubleshooting): what the common errors mean, and what to do about them.
+- [Privacy](https://github.com/AienTech/dossier/wiki/Privacy): what stays on your server and what leaves it. [PRIVACY.md](PRIVACY.md) has the details.
+- [Environment variables](https://github.com/AienTech/dossier/wiki/Environment-variables): every setting the server reads.
+
+## Known limitations
+
+- **Desktop only:** made for a laptop or desktop browser, not for phones.
+- **Single user:** one password and one profile; there are no accounts.
+- **English interface:** the app itself is in English. Documents can be written in other languages; in the 21 built-in ones, their headings, dates and language levels are in that language too, and in one added with **Other language…** those stay in English.
+- **One instance:** run a single copy of the app per database. The nightly backups, the AI job queue and the PDF browser live inside the app's process.
+
+## Performance and sizing
+
+Measured on 28 September 2026 with the production build in a container limited to 2 vCPUs and 1 GB:
+
+- **PDFs:** the base resume renders in about 0.25 s, or 1 s when Chromium has to start first (it closes after five idle minutes). Two render at a time and the rest queue: six requested at once are done in 1.4 s. Dossier used at most about 520 MB, Chromium included, so give the container at least 768 MB.
+- **Screens:** with ten times the demo data (90 applications), the dashboard and the applications list answer in 20–90 ms, and every query takes under a millisecond. With 900 applications they take up to about 0.2 s, mostly rendering; the tables are indexed for the queries they get.
+- **Interactions** (changing a status, moving a card, switching tabs, opening an editor, typing, picking a theme) respond within 32 ms, and within about 100 ms on a CPU four times slower.
+
+## Security
+
+What protects your data, how to run Dossier safely and how to report a problem: see [SECURITY.md](SECURITY.md).
+
+## Development
+
+Working on Dossier itself: see [DEVELOPMENT.md](DEVELOPMENT.md).
+
+## License
+
+Dossier is free software under the [GNU Affero General Public License v3.0](LICENSE). You may use, change and share it; if you run a changed version for others over a network, you must offer them its source code.
