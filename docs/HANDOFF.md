@@ -77,9 +77,23 @@ reference design (report: https://claude.ai/artifact/4DwdbGGvd2MtBhCryBeXPN).
 6. Low items L-1 to L-8 in the QA report.
 7. Before a public launch: legal review of the privacy notice (DPDP Act).
 
+## Repository settings (done by the owner, 7 November 2026)
+
+- Default branch: `main`.
+- Ruleset **protect main** (active): pull request required (0 approvals), merge commits only,
+  force pushes blocked, deletion blocked. "Require status checks" is off until CI is green (M-6);
+  then turn it on and add the CI check.
+- The previous `main` (Phases 1–5 monorepo) is kept as the branch `pathfinder-v1`.
+
 ## Log
 
 Newest first. One entry per session: date, account, branch, what changed, what's next.
+
+- **2026-11-07 · account 1 · `pathfinder-redesign`** — Checked Interview-ILS: default branch is
+  `main`, the protect-main ruleset is active, all work is pushed. Next: the owner opens the pull
+  request `release/new-main` → `main`
+  (https://github.com/Aastha-Product/Interview-ILS/compare/main...release/new-main), sets Vercel's
+  production branch to `pathfinder-v1` or disconnects it, and merges with "Create a merge commit".
 
 - **2026-11-07 · account 1 · `pathfinder-redesign`** — Moved the work to Interview-ILS: pushed
   `pathfinder-multiuser` and `pathfinder-redesign`, made Interview-ILS `origin`, linked the code
