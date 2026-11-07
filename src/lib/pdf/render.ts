@@ -2,6 +2,8 @@ import "server-only";
 
 import { chromium, type Browser } from "playwright-core";
 
+import { currentUserId } from "@/lib/owner/current";
+
 import { PRINT_TOKEN_HEADER, signPrintToken } from "./print-token";
 
 // PDFs are printed by headless Chromium from the app's own print pages, so
@@ -93,7 +95,8 @@ export async function renderPdf(path: string): Promise<Uint8Array> {
   try {
     const origin = appOrigin();
     const context = await (await browser()).newContext({
-      extraHTTPHeaders: { [PRINT_TOKEN_HEADER]: await signPrintToken(path) },
+      // For the student this render is for: the signed-in one, or the one a job runs as.
+      extraHTTPHeaders: { [PRINT_TOKEN_HEADER]: await signPrintToken(path, await currentUserId()) },
     });
     try {
       await context.route("**/*", (route) =>

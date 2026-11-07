@@ -72,7 +72,7 @@ describe("session checks (E11-5)", () => {
         file !== "src/app/privacy/page.tsx" &&
         // Pathfinder: the homepage, signing up and resetting a password come before a session.
         !OPEN_PAGES.includes(file.replaceAll("\\", "/")) &&
-        !/await (verifySession|verifyPrintAccess)\(/.test(read(file)),
+        !/await (verifySession|loadForPrint)\(/.test(read(file)),
     );
     expect(unchecked).toEqual([]);
   });
