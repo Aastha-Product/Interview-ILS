@@ -105,6 +105,15 @@ https://claude.ai/artifact/GSHLW1T2jiX99CUiBtAUov): all five P0 tasks.
 
 Newest first. One entry per session: date, account, branch, what changed, what's next.
 
+- **2026-11-08 · account 2 · `feature/admin-console`** — Firebase's authorized domains now include
+  pathfinderedtech.com and www (open item 1, done by the owner; checked through Firebase's API).
+  Admin console at `/admin` for the emails in `PATHFINDER_ADMIN_EMAILS` (404 and no menu item for
+  anyone else): students, analyses, AI calls with tokens and cost by model, latest feedback, and a
+  per-student free allowance (`User.aiDailyLimit`, migration 20261112090000_admin_allowance; the
+  daily limit now reads it per request). Calls on the server's key with any provider (Gemini too)
+  go in the cost log; prices are known for Claude only. Next: owner sets
+  `PATHFINDER_ADMIN_EMAILS` on the server and deploys after merging; then open item 2.
+
 - **2026-11-08 · account 1 · `chore/handoff-live-firebase`** — Merged #4 to #8 at the owner's request.
   The owner deployed `main` to pathfinderedtech.com and switched sign-in to Firebase (checked from
   outside: the sign-in and sign-up pages are Firebase's, the access code is gone, `/jobs` asks for

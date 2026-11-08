@@ -129,3 +129,16 @@ export function routedProvider(
 export function routesApply(config: AiConfig): boolean {
   return config.sharedKey && config.provider === AiProvider.ANTHROPIC && Boolean(config.model);
 }
+
+/**
+ * Whether calls on `config` go in the cost log without routing: the server's own key on another
+ * provider (e.g. Gemini through its OpenAI-compatible API), so the admin console sees them too.
+ */
+export function logsOnly(config: AiConfig): boolean {
+  return config.sharedKey && Boolean(config.model) && !routesApply(config);
+}
+
+/** Routes that keep every task on `model` with no backup: for the cost log alone. */
+export function singleModel(model: string): ModelRoutes {
+  return { main: model, reading: model, fallback: null };
+}

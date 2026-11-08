@@ -36,6 +36,8 @@ model User {
   firebaseUid    String?  @unique
   /// Every session token carries the version it was made with; signing out raises it, which ends all of the student's sessions.
   sessionVersion Int      @default(0)
+  /// AI requests a day on the server's shared key, set by an admin for this student; null means the server's PATHFINDER_AI_DAILY_LIMIT.
+  aiDailyLimit   Int?
   name           String   @default("")
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt

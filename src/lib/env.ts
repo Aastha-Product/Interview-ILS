@@ -251,6 +251,9 @@ const schema = z.object({
       .transform(Number)
       .pipe(z.number().min(1, { error: "PATHFINDER_AI_DAILY_LIMIT must be at least 1." })),
   ),
+  // Pathfinder: who may open the admin console (/admin), as a comma-separated list of the email
+  // addresses they sign in with, e.g. "owner@example.com, ops@example.com". Unset means nobody.
+  PATHFINDER_ADMIN_EMAILS: optional(z.string().trim()),
   // Pathfinder: on the server's own Claude key (DOSSIER_AI_PROVIDER=anthropic), the model for
   // reading a resume or posting into fields; DOSSIER_AI_MODEL does the rest, e.g. the review.
   // Unset means claude-sonnet-5-5.

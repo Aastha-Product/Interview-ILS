@@ -176,6 +176,25 @@ cd /opt/pathfinder/deploy/lightsail && sudo docker compose exec -T db psql -U pa
 Without the lines above, each student has to choose a provider and enter their own key in
 **Settings → AI provider** before anything that uses AI works.
 
+## The admin console
+
+**Admin** in the sidebar (`/admin`) shows how many students there are, how many analyses they
+run, the AI calls on the server's key with their tokens and cost by model, the latest feedback,
+and each student's free allowance. It shows counts only, never a resume or an analysis.
+
+It's for the email addresses in `PATHFINDER_ADMIN_EMAILS`. Add yours to `.env` (several are
+separated by commas), then run the setup command from step 5 again:
+
+```bash
+echo 'PATHFINDER_ADMIN_EMAILS=you@example.com' | sudo tee -a /opt/pathfinder/deploy/lightsail/.env
+```
+
+Sign in with that address and **Admin** appears in the sidebar; for everyone else the page
+doesn't exist. To give one student more free analyses a day, fewer, or 0, type the number in
+their row and press **Save**; **Default** puts them back on `PATHFINDER_AI_DAILY_LIMIT`. It applies
+at once. Costs come from list prices for Claude; for other models (e.g. Gemini) the console shows
+the tokens and leaves the cost out.
+
 ## Reading testers' feedback
 
 Testers use **Send feedback** in the sidebar. To read the latest 50, newest first, with who sent

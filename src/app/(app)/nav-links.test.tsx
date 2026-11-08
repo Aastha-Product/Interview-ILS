@@ -34,19 +34,20 @@ describe("NavLinks", () => {
       "Agent",
       "Applications",
       "Inbox",
+      "Admin",
       "Settings",
     ]);
   });
 
   it("leaves out the sections this server doesn't offer (Pathfinder: Startups while it's off)", () => {
-    render(<NavLinks hidden={["/startups"]} />);
+    render(<NavLinks hidden={["/startups", "/admin"]} />);
     const labels = screen.getAllByRole("link").map((link) => link.textContent);
     expect(labels).not.toContain("Startups");
     expect(labels).toEqual(["Home", "Profile", "Base resume", "Job dashboard", "Find jobs", "Agent", "Applications", "Inbox", "Settings"]);
   });
 
   it("leaves out a group whose sections are all hidden (Pathfinder: the job-search tools while they're off)", () => {
-    render(<NavLinks hidden={["/", "/resume", "/jobs", "/startups", "/agent", "/applications", "/inbox"]} />);
+    render(<NavLinks hidden={["/", "/resume", "/jobs", "/startups", "/agent", "/applications", "/inbox", "/admin"]} />);
     expect(screen.getAllByRole("link").map((link) => link.textContent)).toEqual(["Home", "Profile", "Settings"]);
     expect(screen.queryByText("More tools")).toBeNull();
   });
@@ -60,6 +61,7 @@ describe("NavLinks", () => {
     expect(currentItem("/jobs")).toEqual(["Find jobs"]);
     expect(currentItem("/startups")).toEqual(["Startups"]);
     expect(currentItem("/settings")).toEqual(["Settings"]);
+    expect(currentItem("/admin")).toEqual(["Admin"]);
   });
 
   it("keeps Applications current on an application and in the new application flow", () => {

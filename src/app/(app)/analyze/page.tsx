@@ -4,7 +4,7 @@ import Link from "next/link";
 
 import { PageHeader } from "@/components/page-header";
 import { isAiUsable, loadAiConfig } from "@/lib/ai/config";
-import { analysesLeftToday, analysesPerDay } from "@/lib/ai/daily-limit";
+import { analysesLeftToday, analysesPerDay, studentDailyLimit } from "@/lib/ai/daily-limit";
 import { verifySession } from "@/lib/auth/session";
 import { systemPrisma } from "@/lib/prisma";
 import { loadProfileName } from "@/lib/profile-data";
@@ -22,17 +22,18 @@ const dateFormat = new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "sh
  */
 export default async function AnalyzePage({ searchParams }: PageProps<"/analyze">) {
   const session = await verifySession();
-  const [{ job }, ready, analyses, config, profileName, user] = await Promise.all([
+  const [{ job }, ready, analyses, config, profileName, user, limit] = await Promise.all([
     searchParams,
     isAiUsable(),
     listResumeAnalyses(),
     loadAiConfig(),
     loadProfileName(),
     systemPrisma.user.findUnique({ where: { id: session.userId }, select: { name: true } }),
+    studentDailyLimit(),
   ]);
   const firstName = (profileName.trim() || user?.name.trim() || "").split(/\s+/)[0];
-  const [left, latest] = await Promise.all([analysesLeftToday(config.sharedKey), analyses[0] ? getResumeAnalysis(analyses[0].id) : null]);
-  const perDay = analysesPerDay();
+  const [left, latest] = await Promise.all([analysesLeftToday(config.sharedKey, limit), analyses[0] ? getResumeAnalysis(analyses[0].id) : null]);
+  const perDay = analysesPerDay(limit);
   const earlier = analyses.slice(latest ? 1 : 0);
 
   return (

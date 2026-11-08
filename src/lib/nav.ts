@@ -1,4 +1,4 @@
-import { Bot, BriefcaseBusiness, FileText, House, Inbox, LayoutDashboard, Rocket, Search, Settings, UserRound, type LucideIcon } from "lucide-react";
+import { Bot, BriefcaseBusiness, FileText, House, Inbox, LayoutDashboard, Rocket, Search, Settings, ShieldCheck, UserRound, type LucideIcon } from "lucide-react";
 
 // The app's sections, shared by the sidebar and the page bar so they always agree.
 
@@ -41,7 +41,13 @@ export const NAV: { label?: string; items: NavItem[] }[] = [
       { href: "/inbox", label: "Inbox", icon: Inbox },
     ],
   },
-  { items: [{ href: "/settings", label: "Settings", icon: Settings }] },
+  // Pathfinder: Admin shows only to the people in PATHFINDER_ADMIN_EMAILS (the layout hides it for everyone else).
+  {
+    items: [
+      { href: "/admin", label: "Admin", icon: ShieldCheck },
+      { href: "/settings", label: "Settings", icon: Settings },
+    ],
+  },
 ];
 
 export const isCurrent = ({ href, isActive = (path) => within(path, href) }: NavItem, pathname: string) => isActive(pathname);

@@ -1,9 +1,8 @@
 import { NextResponse } from "next/server";
 
 import { isAiUsable, loadAiConfig } from "@/lib/ai/config";
-import { sharedAiUsedToday } from "@/lib/ai/daily-limit";
+import { sharedAiUsedToday, studentDailyLimit } from "@/lib/ai/daily-limit";
 import { AiError } from "@/lib/ai/errors";
-import { env } from "@/lib/env";
 import { analyzeResumeJob } from "@/lib/jobs/analyze-resume";
 import { startJob } from "@/lib/jobs/runner";
 import { RESUME_MAX_BYTES, RESUME_MESSAGES, resumeText } from "@/lib/resume-text";
@@ -22,8 +21,8 @@ export const POST = route(async (request) => {
     return NextResponse.json({ error: "Resume analysis isn't available on this server yet. Please try again later." }, { status: 503 });
   }
   // Say so now rather than halfway through, when today's shared AI limit is already used.
-  const limit = env.PATHFINDER_AI_DAILY_LIMIT;
-  if (limit && (await loadAiConfig()).sharedKey && (await sharedAiUsedToday()) >= limit) {
+  const limit = await studentDailyLimit();
+  if (limit !== null && (await loadAiConfig()).sharedKey && (await sharedAiUsedToday()) >= limit) {
     return NextResponse.json({ error: AiError.of("daily-limit").message }, { status: 429 });
   }
   const read = await resumeText(new Uint8Array(await request.arrayBuffer()));
