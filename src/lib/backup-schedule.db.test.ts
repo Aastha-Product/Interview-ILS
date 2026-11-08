@@ -48,6 +48,16 @@ describe("nightly backups (E10-7)", () => {
     expect(await lastNightlyBackup()).toBeInstanceOf(Date);
   });
 
+  it("never run in managed mode, where the server backs up the whole database (Pathfinder, P0 task 5)", async () => {
+    vi.stubEnv("PATHFINDER_MANAGED", "on");
+    try {
+      expect(await runNightlyBackup(new Date(2026, 8, 28, 3, 0))).toBe("off");
+      expect(await backups()).toEqual([]);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   it("write nothing while they're off", async () => {
     await saveSettings({ nightlyBackup: false });
     expect(await runNightlyBackup()).toBe("off");

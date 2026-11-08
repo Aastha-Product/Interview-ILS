@@ -5,9 +5,7 @@ import { z } from "zod";
 import { getAiProvider } from "@/lib/ai";
 import { loadTaskOptions } from "@/lib/ai/task-options";
 import { extractProfile, reviewResume } from "@/lib/ai/tasks";
-import { prisma } from "@/lib/prisma";
-import { applyImportedProfile } from "@/lib/profile-import-apply";
-import { profileIsEmpty, saveResumeAnalysis } from "@/lib/resume-analysis";
+import { fillProfileIfEmpty, saveResumeAnalysis } from "@/lib/resume-analysis";
 import { ANALYSIS_STEPS } from "@/lib/resume-analysis-steps";
 import { MAX_RESUME_CHARACTERS } from "@/lib/resume-text";
 
@@ -33,9 +31,8 @@ export const analyzeResumeJob = defineJob({
     await step(ANALYSIS_STEPS[3]);
     signal.throwIfAborted();
     // The first resume fills an empty profile, so the job tools work straight away; a later one
-    // never overwrites what the student has written.
-    const profileFilled = await profileIsEmpty();
-    if (profileFilled) await applyImportedProfile(prisma, read.data, "merge");
+    // never overwrites what the student has written. Several at once: only the first fills it (QA M-1).
+    const profileFilled = await fillProfileIfEmpty(read.data);
     const analysisId = await saveResumeAnalysis({
       fileName,
       profile: read.data,

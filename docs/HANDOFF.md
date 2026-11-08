@@ -72,11 +72,12 @@ reference design (report: https://claude.ai/artifact/4DwdbGGvd2MtBhCryBeXPN).
 2. **C-3 in code:** refuse to start in production on the access code unless
    `PATHFINDER_SIGN_IN=code` is set; never let the code open an account linked to Google or
    Firebase. Started and stopped on 7 November at the owner's request: ask before resuming.
-3. **M-6:** CI (`.github/workflows/ci.yml`) runs on every pull request, but it will be red until
-   the 3 tests in `google-sign-in.test.ts` stop depending on env that CI doesn't set, and the
-   browser tests are brought up to date with the student mode. Once it's green, make "CI passes"
-   a required check on `main`. Also make the browser-test harness run on Windows.
-4. **M-1:** several uploads at once by a new student fail (profile-fill race).
+3. **M-6, browser tests:** "Lint, type-check and test" passes from `fix/backups-race-ci` on (make
+   it a required check on `main` once that's merged). "End-to-end tests" is still red: the demo
+   seed (`prisma/seed/demo.ts`) and the raw SQL in `e2e/support.ts` write rows without an owner, and
+   the 142 specs were written for single-user Dossier, before the student mode and the redesign.
+   They also don't run on Windows yet (use CI or a Linux container).
+4. **M-1:** fixed on `fix/backups-race-ci` (one transaction with a per-student lock fills the profile).
 5. **M-2:** address guard for AI provider URLs; **M-5:** bind the Gmail OAuth state to the student.
 6. Low items L-1 to L-8 in the QA report.
 7. Before a public launch: legal review of the privacy notice (DPDP Act).
@@ -92,6 +93,14 @@ reference design (report: https://claude.ai/artifact/4DwdbGGvd2MtBhCryBeXPN).
 ## Log
 
 Newest first. One entry per session: date, account, branch, what changed, what's next.
+
+- **2026-11-08 · account 1 · `fix/backups-race-ci`** — P0 task 5. Nightly per-student backups don't run
+  in managed mode (the server's nightly pg_dump covers the database). M-1: the first of several
+  analyses at once fills the empty profile, under a per-student advisory lock; the others find it
+  filled (a test reproduced the failures first). M-6: the unit and database tests pass without the
+  local `.env`, as on CI (`toolsEnabled()` no longer needs the full environment; the Google sign-in
+  tests don't read it); coverage meets the thresholds. The browser tests are still to do (open
+  item 3). Built on #7.
 
 - **2026-11-08 · account 1 · `feature/db-pool`** — P0 task 4: the pool has 20 connections per process
   (`PATHFINDER_DB_POOL`), waits 10 s at most for a free one, and stops statements after 30 s; interactive

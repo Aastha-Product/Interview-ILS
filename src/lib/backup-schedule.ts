@@ -6,6 +6,7 @@ import path from "node:path";
 import { backupsDir, listBackups, writeBackup } from "@/lib/backups";
 import { env } from "@/lib/env";
 import { logServerError } from "@/lib/log";
+import { managedMode } from "@/lib/managed";
 import { forEachStudent } from "@/lib/owner/students";
 import { loadSettings, saveSettings } from "@/lib/settings-data";
 
@@ -13,6 +14,10 @@ import { loadSettings, saveSettings } from "@/lib/settings-data";
 // is written at 03:00 server time, and backups older than
 // DOSSIER_BACKUP_RETENTION_DAYS are removed. A plain timer in this process,
 // so it's only safe with a single instance of the app (E12-5).
+//
+// Pathfinder (P0 task 5): in managed mode they don't run. The server backs up the whole database
+// every night (deploy/lightsail/setup.sh), and a full export per student per night would fill the
+// disk at thousands of students. Students take their own copy with Export in Settings → Your data.
 
 const HOUR = 3;
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -39,7 +44,7 @@ export async function pruneBackups(now: Date, days = env.DOSSIER_BACKUP_RETENTIO
  * kept in Settings, so the row can show it, and cleared by the next success.
  */
 export async function runNightlyBackup(now = new Date()): Promise<"written" | "off"> {
-  if (!(await loadSettings()).nightlyBackup) return "off";
+  if (managedMode() || !(await loadSettings()).nightlyBackup) return "off";
   try {
     await writeBackup("nightly", now);
     await pruneBackups(now);
@@ -63,7 +68,7 @@ const globalForSchedule = globalThis as unknown as { backupTimer?: ReturnType<ty
 
 /** Starts the nightly timer, once per process (dev reloads keep the one they have). */
 export function startBackupSchedule(): void {
-  if (globalForSchedule.backupTimer) return;
+  if (globalForSchedule.backupTimer || managedMode()) return;
   const schedule = () => {
     const now = new Date();
     globalForSchedule.backupTimer = setTimeout(() => {

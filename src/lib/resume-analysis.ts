@@ -2,7 +2,9 @@ import "server-only";
 
 import type { Prisma } from "@/generated/prisma/client";
 import { resumeReviewSchema, type ResumeReview } from "@/lib/ai/tasks/review-resume";
+import { currentUserId } from "@/lib/owner/current";
 import { importedProfileSchema, type ImportedProfile } from "@/lib/profile-import";
+import { applyImportedProfileIn } from "@/lib/profile-import-apply";
 import { prisma } from "@/lib/prisma";
 
 // Pathfinder: the student's resume analyses. Each holds what was read from the resume and the
@@ -51,14 +53,37 @@ export async function deleteResumeAnalysis(id: string): Promise<boolean> {
   return count > 0;
 }
 
+type Db = Pick<Prisma.TransactionClient, "profileField" | "skill" | "experience" | "project" | "education">;
+
 /** Whether the profile has nothing in it yet, so the first resume can fill it without asking. */
-export async function profileIsEmpty(): Promise<boolean> {
+export async function profileIsEmpty(db: Db = prisma): Promise<boolean> {
   const [fields, skills, roles, projects, education] = await Promise.all([
-    prisma.profileField.count(),
-    prisma.skill.count(),
-    prisma.experience.count(),
-    prisma.project.count(),
-    prisma.education.count(),
+    db.profileField.count(),
+    db.skill.count(),
+    db.experience.count(),
+    db.project.count(),
+    db.education.count(),
   ]);
   return fields + skills + roles + projects + education === 0;
+}
+
+/**
+ * Fills the profile from a resume if it's still empty; answers whether it did. Pathfinder, QA M-1:
+ * a new student who uploads several resumes at once started several analyses that each found the
+ * profile empty and filled it together, and the duplicate skills and fields made all but one fail.
+ * Now the check and the fill happen in one transaction that holds a lock for the student, so the
+ * first fills the profile and the others find it filled.
+ */
+export async function fillProfileIfEmpty(profile: ImportedProfile): Promise<boolean> {
+  const lock = `profile-fill:${await currentUserId()}`;
+  return prisma.$transaction(
+    async (tx) => {
+      // Held until the transaction ends; only the student's own analyses wait for it.
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${lock}))`;
+      if (!(await profileIsEmpty(tx))) return false;
+      await applyImportedProfileIn(tx, profile, "merge");
+      return true;
+    },
+    { timeout: 30_000, maxWait: 10_000 },
+  );
 }

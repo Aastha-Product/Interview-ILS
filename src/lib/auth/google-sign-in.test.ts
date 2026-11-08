@@ -11,6 +11,10 @@ import {
   signInMode,
 } from "./google-sign-in";
 
+// No DOSSIER_* settings here: Google's real addresses, and the address the browser was at. QA M-6:
+// without this the tests read the machine's own environment, which CI doesn't have.
+vi.mock("@/lib/env", () => ({ env: {} }));
+
 const secret = "s".repeat(32);
 const clientId = "client-123.apps.googleusercontent.com";
 const now = new Date("2026-11-06T10:00:00Z");
