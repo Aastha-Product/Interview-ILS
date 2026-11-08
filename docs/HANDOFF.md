@@ -47,40 +47,51 @@ with `pnpm services:up`. Six tests in `env.test.ts` and `session-audit.test.ts` 
 only (path separators); everything else must pass. The browser tests (`yarn test:e2e`) don't run
 on Windows yet; they need Linux or CI.
 
-## Current state (7 November 2026)
+## Current state (8 November 2026)
 
 | Branch | What it holds |
 | --- | --- |
-| `main` | **This app:** private student accounts, the QA fixes and the UI redesign (pull request #1, merged 7 November). Start every new branch from here. |
+| `main` | **This app:** private student accounts, the QA fixes, the UI redesign (#1), the www redirect (#3) and the scale-audit P0 work (#4 to #8: managed mode, the job tools for students, the Postgres job queue with a worker, the pool and caching, backups/M-1/M-6). Start every new branch from here. |
 | `pathfinder-v1` | The earlier Pathfinder app (Next.js monorepo, Phases 1–5), kept for reference; also in `main`'s history. |
-| `pathfinder-multiuser`, `pathfinder-redesign`, `release/new-main` | Merged into `main`; no new work here. |
+| Every other branch | Merged into `main`; no new work there. |
 
-Vercel (projects interview-ils-7cfy and resume-optimiser) still builds this repo and fails on the
-new code, which has no `apps/web`: set their production branch to `pathfinder-v1` or disconnect
-them. The app itself is deployed on AWS Lightsail (`docs/deploy-aws-lightsail.md`).
+**Live:** https://pathfinderedtech.com runs `main` (deployed 8 November) on AWS Lightsail, Sydney
+(`docs/deploy-aws-lightsail.md`), with Firebase sign-in (project `interview-final-295ef`: email and
+password with email verification, Google, password reset); the access code is off. The server's
+settings are in `/opt/pathfinder/deploy/lightsail/.env` (not in Git), changed in the Lightsail
+browser terminal (Lightsail console, region Sydney, the instance's terminal icon); to deploy, there:
+`sudo git -C /opt/pathfinder fetch origin && sudo git -C /opt/pathfinder checkout -B main origin/main`
+then `sudo BRANCH=main bash /opt/pathfinder/deploy/lightsail/setup.sh https://github.com/Aastha-Product/Interview-ILS.git pathfinderedtech.com`.
+Vercel is not used for this site.
 
 **Done:** QA audit (report: https://claude.ai/artifact/NszT6XWfFbikbb3syqmxZz) and fixes for
-C-1 (shared AI key leak), C-2/H-2 (jobs stuck with two students, schedulers failing), H-1 (PDFs),
-H-3 (sign-in lockout), M-3 (account deletion), M-4 (sign-out ends sessions). UI redesign on the
-reference design (report: https://claude.ai/artifact/4DwdbGGvd2MtBhCryBeXPN).
+C-1, C-2/H-2, H-1, H-3, M-1, M-3, M-4, the unit half of M-6. UI redesign (report:
+https://claude.ai/artifact/4DwdbGGvd2MtBhCryBeXPN). Scale audit (report:
+https://claude.ai/artifact/GSHLW1T2jiX99CUiBtAUov): all five P0 tasks.
 
 **Open, in priority order:**
 
-1. **Live server (owner, on AWS Lightsail):** switch sign-in from the shared access code to
-   Firebase or Google (QA C-3), rotate the shared AI key, check the nightly backup log. The live
-   server still runs an older build.
-2. **C-3 in code:** refuse to start in production on the access code unless
+1. **Firebase console (owner):** add `pathfinderedtech.com` and `www.pathfinderedtech.com` under
+   Authentication → Settings → Authorized domains (until then sign-in fails on the live site with
+   "unauthorized domain"), and check that Email/Password is enabled (Google is). Then test sign-up
+   and sign-in on the live site.
+2. **Live server (owner):** confirm `sudo docker compose -f /opt/pathfinder/deploy/lightsail/compose.yml ps`
+   lists app, worker, db and caddy; rotate the shared AI key (`DOSSIER_AI_KEY`); with the job tools
+   on, set `DOSSIER_JOBS_SOURCE` and its key, or `PATHFINDER_TOOLS=off`.
+3. **M-6, browser tests:** "Lint, type-check and test" passes; make it a required check on `main`.
+   "End-to-end tests" is still red: the demo seed (`prisma/seed/demo.ts`) and the raw SQL in
+   `e2e/support.ts` write rows without an owner, and the 142 specs were written for single-user
+   Dossier, before the student mode and the redesign. They don't run on Windows (use CI or a Linux
+   container).
+4. **C-3 in code:** refuse to start in production on the access code unless
    `PATHFINDER_SIGN_IN=code` is set; never let the code open an account linked to Google or
    Firebase. Started and stopped on 7 November at the owner's request: ask before resuming.
-3. **M-6, browser tests:** "Lint, type-check and test" passes from `fix/backups-race-ci` on (make
-   it a required check on `main` once that's merged). "End-to-end tests" is still red: the demo
-   seed (`prisma/seed/demo.ts`) and the raw SQL in `e2e/support.ts` write rows without an owner, and
-   the 142 specs were written for single-user Dossier, before the student mode and the redesign.
-   They also don't run on Windows yet (use CI or a Linux container).
-4. **M-1:** fixed on `fix/backups-race-ci` (one transaction with a per-student lock fills the profile).
-5. **M-2:** address guard for AI provider URLs; **M-5:** bind the Gmail OAuth state to the student.
-6. Low items L-1 to L-8 in the QA report.
-7. Before a public launch: legal review of the privacy notice (DPDP Act).
+5. **Scale audit P1 and later:** Sentry and off-site database backups need the owner's approval
+   (paid or cloud resources); then the managed AWS setup in the report (ECS, RDS, S3) for thousands
+   of students at once.
+6. **M-2:** address guard for AI provider URLs; **M-5:** bind the Gmail OAuth state to the student.
+7. Low items L-1 to L-8 in the QA report.
+8. Before a public launch: legal review of the privacy notice (DPDP Act).
 
 ## Repository settings (done by the owner, 7 November 2026)
 
@@ -93,6 +104,12 @@ reference design (report: https://claude.ai/artifact/4DwdbGGvd2MtBhCryBeXPN).
 ## Log
 
 Newest first. One entry per session: date, account, branch, what changed, what's next.
+
+- **2026-11-08 · account 1 · `chore/handoff-live-firebase`** — Merged #4 to #8 at the owner's request.
+  The owner deployed `main` to pathfinderedtech.com and switched sign-in to Firebase (checked from
+  outside: the sign-in and sign-up pages are Firebase's, the access code is gone, `/jobs` asks for
+  sign-in, www redirects). Firebase's authorized domains still lack the site (open item 1). The
+  local `.env` has the Firebase settings for local testing. Next: open items 1 and 2 (owner), then 3.
 
 - **2026-11-08 · account 1 · `fix/backups-race-ci`** — P0 task 5. Nightly per-student backups don't run
   in managed mode (the server's nightly pg_dump covers the database). M-1: the first of several
