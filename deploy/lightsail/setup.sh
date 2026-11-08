@@ -95,8 +95,8 @@ fi
 
 say "Starting"
 docker compose up -d --remove-orphans
-# On a re-run, the app picks up the new build and any change to .env.
-if [ "$rerun" = true ]; then docker compose up -d --no-deps --force-recreate app; fi
+# On a re-run, the app and its worker pick up the new build and any change to .env.
+if [ "$rerun" = true ]; then docker compose up -d --no-deps --force-recreate app worker; fi
 docker image prune -f >/dev/null
 
 say "Nightly database backup (03:30, kept for 14 days, in /var/backups/pathfinder)"

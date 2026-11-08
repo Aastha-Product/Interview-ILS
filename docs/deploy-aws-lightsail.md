@@ -206,8 +206,11 @@ All commands run on the server, from the deploy folder:
 cd /opt/pathfinder/deploy/lightsail
 ```
 
-- **Status of the three parts:** `sudo docker compose ps`
+- **Status of the parts** (the app, its worker, the database and Caddy): `sudo docker compose ps`
 - **The app's recent log:** `sudo docker compose logs --tail 50 app`
+- **The worker's recent log** (resume analyses, documents and other background jobs):
+  `sudo docker compose logs --tail 50 worker`
+- **Jobs waiting or running:** `sudo docker compose exec -T db psql -U pathfinder pathfinder -c 'select status, count(*) from "Job" group by status'`
 - **No HTTPS certificate yet:** `sudo docker compose logs --tail 50 caddy`. Usually the domain
   doesn't point to the static IP yet, or port 443 or 80 isn't open (steps 3 and 4). Fix it, then
   `sudo docker compose restart caddy`.

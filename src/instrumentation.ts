@@ -14,35 +14,41 @@ export async function register() {
       );
     }
 
-    // AI jobs left running by the previous process can't finish (E6-7).
-    const { recoverInterruptedJobs } = await import("@/lib/jobs/runner");
+    // Pathfinder (P0 task 3): every process hears the others' job news; one that runs jobs (PATHFINDER_ROLE
+    // all or worker) takes them from the queue in the database, and runs the schedules. A web process
+    // (PATHFINDER_ROLE=web) only serves pages: its jobs wait in the queue for a worker.
     const { logServerError } = await import("@/lib/log");
-    await recoverInterruptedJobs().catch((error: unknown) => logServerError("startup", error));
+    const { runsJobs, startJobEvents, startWorker } = await import("@/lib/jobs/runner");
+    startJobEvents();
+    if (runsJobs()) {
+      // Jobs whose worker stopped can't finish (E6-7); the queued ones wait for this one.
+      startWorker();
 
-    // Finished jobs, with what they were given and wrote, are deleted after a while.
-    const { startJobSweep } = await import("@/lib/jobs/retention");
-    startJobSweep();
+      // Finished jobs, with what they were given and wrote, are deleted after a while.
+      const { startJobSweep } = await import("@/lib/jobs/retention");
+      startJobSweep();
 
-    // Nightly backups at 03:00, while they're switched on (E10-7).
-    const { startBackupSchedule } = await import("@/lib/backup-schedule");
-    startBackupSchedule();
+      // Nightly backups at 03:00, while they're switched on (E10-7).
+      const { startBackupSchedule } = await import("@/lib/backup-schedule");
+      startBackupSchedule();
 
-    // Pathfinder: the inbox check and the job agent are job-search tools, so they run only where
-    // the tools are on (PATHFINDER_TOOLS).
-    const { toolsEnabled } = await import("@/lib/tools");
-    if (toolsEnabled()) {
-      // The inbox check, while a Google account is connected (E15-3).
-      const { startInboxSchedule } = await import("@/lib/google/sync");
-      startInboxSchedule();
+      // Pathfinder: the inbox check and the job agent are job-search tools, so they run only where
+      // the tools are on (PATHFINDER_TOOLS).
+      const { toolsEnabled } = await import("@/lib/tools");
+      if (toolsEnabled()) {
+        // The inbox check, while a Google account is connected (E15-3).
+        const { startInboxSchedule } = await import("@/lib/google/sync");
+        startInboxSchedule();
 
-      // The job agent's daily run, while it's on (E16-4).
-      const { startAgentSchedule } = await import("@/lib/agent/schedule");
-      startAgentSchedule();
+        // The job agent's daily run, while it's on (E16-4).
+        const { startAgentSchedule } = await import("@/lib/agent/schedule");
+        startAgentSchedule();
+      }
+
+      // Startups' daily refresh, once it was refreshed by hand and while the screen is in use (#222).
+      const { startStartupsSchedule } = await import("@/lib/startups/schedule");
+      startStartupsSchedule();
     }
-
-    // Startups' daily refresh, once it was refreshed by hand and while the screen is in use (#222).
-    const { startStartupsSchedule } = await import("@/lib/startups/schedule");
-    startStartupsSchedule();
 
     // DOSSIER_JOBS_SOURCE=arbeitsagentur: the log says what that choice means (#223).
     // Pathfinder: settings belong to students, so this reads the first one's, only when it matters.

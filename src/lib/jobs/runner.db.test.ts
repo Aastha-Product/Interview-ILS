@@ -6,7 +6,7 @@ import { contextUserId, runAsUser } from "@/lib/owner/context";
 import { rawClientOf } from "@/lib/owner/scope";
 import { createTestClient, resetDatabase } from "@/test/db";
 
-import { cancelApplicationJobs, cancelJob, defineJob, getJob, recoverInterruptedJobs, retryJob, startJob, subscribeJob } from "./runner";
+import { cancelApplicationJobs, cancelJob, claimQueuedJobs, defineJob, getJob, recoverInterruptedJobs, retryJob, startJob, subscribeJob } from "./runner";
 
 const db = vi.hoisted(() => ({ client: undefined as ReturnType<typeof createTestClient> | undefined }));
 vi.mock("@/lib/prisma", async () => {
@@ -15,6 +15,18 @@ vi.mock("@/lib/prisma", async () => {
   return { prisma: db.client, systemPrisma: rawClientOf(db.client) };
 });
 const ai = vi.hoisted(() => ({ provider: "LOCAL" }));
+// Pathfinder (P0 task 3): what this process does, and how many jobs a student may run at once.
+const runner = vi.hoisted(() => ({ role: undefined as "all" | "web" | "worker" | undefined, perStudent: undefined as number | undefined }));
+vi.mock("@/lib/env", () => ({
+  env: {
+    get PATHFINDER_ROLE() {
+      return runner.role;
+    },
+    get PATHFINDER_JOBS_PER_STUDENT() {
+      return runner.perStudent;
+    },
+  },
+}));
 vi.mock("@/lib/ai/config", () => ({ loadAiConfig: async () => ({ provider: ai.provider }) }));
 vi.spyOn(console, "error").mockImplementation(() => {});
 
@@ -64,16 +76,21 @@ const whoAmI = defineJob({
   },
 });
 
+// The first job in a process loads every job type before its first step, which can take a few seconds.
 const release = (name: string) => eventually(async () => {
   const open = gates.get(name);
   expect(open).toBeDefined();
   gates.delete(name);
   open!();
-});
+}, 10_000);
 
 beforeEach(async () => {
   await resetDatabase(prisma());
+  // A cancelled job's gate is never opened: a later job of the same name must get its own.
+  gates.clear();
   ai.provider = "LOCAL";
+  runner.role = undefined;
+  runner.perStudent = undefined;
 });
 afterAll(() => prisma().$disconnect());
 
@@ -108,7 +125,8 @@ describe("the job runner", () => {
 
   it("marks a job failed even when the student's own database calls fail, instead of leaving it running", async () => {
     const id = await startJob(gated, { name: "Broken", fail: "no" });
-    await eventually(async () => (await status(id)).toBe("RUNNING"));
+    // Claimed jobs show as running before their handler starts; wait until it's at work.
+    await eventually(async () => expect((await getJob(id))?.step).toBe("Waiting"));
     // From here the scoped client can't update jobs: the next step and the normal finish both fail.
     const updateMany = vi.spyOn(prisma().job, "updateMany").mockRejectedValue(new Error("scope lost"));
     try {
@@ -176,7 +194,8 @@ describe("the job runner", () => {
 
   it("ends a job deleted while it runs without an error", async () => {
     const id = await startJob(gated, { name: "Deleted", fail: "no" });
-    await eventually(async () => (await status(id)).toBe("RUNNING"));
+    // Claimed jobs show as running before their handler starts; wait until it's at work.
+    await eventually(async () => expect((await getJob(id))?.step).toBe("Waiting"));
     vi.mocked(console.error).mockClear();
     await prisma().job.delete({ where: { id } });
     await release("Deleted");
@@ -220,15 +239,88 @@ describe("the job runner", () => {
     await eventually(async () => (await status(queued)).toBe("DONE"));
   });
 
-  it("marks jobs a previous process left unfinished as failed, so they can be retried", async () => {
+  it("marks running jobs whose worker went quiet as failed, and keeps queued ones for a worker (P0 task 3)", async () => {
+    const now = new Date();
+    const ago = (seconds: number) => new Date(now.getTime() - seconds * 1000);
     await prisma().job.createMany({
       data: [
-        { type: "test-gated", status: "RUNNING", input: {} },
-        { type: "test-gated", status: "QUEUED", input: {} },
-        { type: "test-gated", status: "DONE", input: {} },
+        { id: "no-heartbeat", type: "test-gated", status: "RUNNING", input: {} },
+        { id: "quiet", type: "test-gated", status: "RUNNING", input: {}, heartbeatAt: ago(120) },
+        { id: "alive", type: "test-gated", status: "RUNNING", input: {}, heartbeatAt: ago(10) },
+        { id: "waiting", type: "test-who-am-i", status: "QUEUED", input: {} },
+        { id: "done", type: "test-gated", status: "DONE", input: {} },
       ],
     });
-    expect(await recoverInterruptedJobs()).toBe(2);
-    expect(await prisma().job.count({ where: { status: "FAILED", error: "Dossier restarted before this finished. Try again." } })).toBe(2);
+    runner.role = "web"; // Nothing here runs the queued one, so it stays queued.
+    expect(await recoverInterruptedJobs(now)).toBe(2);
+    const statuses = Object.fromEntries((await prisma().job.findMany({ select: { id: true, status: true, error: true } })).map((job) => [job.id, job]));
+    expect(statuses["no-heartbeat"]).toMatchObject({ status: "FAILED", error: "Dossier restarted before this finished. Try again." });
+    expect(statuses.quiet).toMatchObject({ status: "FAILED" });
+    expect(statuses.alive).toMatchObject({ status: "RUNNING" });
+    expect(statuses.waiting).toMatchObject({ status: "QUEUED" });
+    expect(statuses.done).toMatchObject({ status: "DONE" });
+  });
+
+  it("leaves jobs started on a web process in the queue, where a worker takes them (P0 task 3)", async () => {
+    ai.provider = "ANTHROPIC";
+    runner.role = "web";
+    const id = await startJob(whoAmI, {});
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    (await status(id)).toBe("QUEUED");
+    runner.role = "worker";
+    await claimQueuedJobs();
+    await eventually(async () => expect(await getJob(id)).toMatchObject({ status: "DONE", result: { greeting: "test-student" } }));
+    const row = await rawClientOf(prisma()).job.findUniqueOrThrow({ where: { id } });
+    expect(row.workerId).toMatch(/:/);
+    // In UTC like every other time Prisma keeps, whatever the database's own time zone.
+    expect(Math.abs(row.heartbeatAt!.getTime() - Date.now())).toBeLessThan(60_000);
+    expect(Math.abs(row.startedAt!.getTime() - Date.now())).toBeLessThan(60_000);
+  });
+
+  it("lets students take turns, with only a few jobs each at once (P0 task 3)", async () => {
+    ai.provider = "ANTHROPIC";
+    await rawClientOf(prisma()).user.create({ data: { id: "other-student", email: "other@example.test" } });
+    // Three jobs from the test student and one from another, queued before anything runs.
+    runner.role = "web";
+    const first = await startJob(gated, { name: "One", fail: "no" });
+    const second = await startJob(gated, { name: "Two", fail: "no" });
+    const third = await startJob(gated, { name: "Three", fail: "no" });
+    const theirs = await runAsUser("other-student", () => startJob(whoAmI, {}));
+    runner.role = "all";
+    await claimQueuedJobs();
+    await eventually(async () => {
+      (await status(first)).toBe("RUNNING");
+      (await status(second)).toBe("RUNNING");
+      expect(await runAsUser("other-student", () => getJob(theirs))).toMatchObject({ status: "DONE" });
+    });
+    // Two at once per student: the third waits until one of theirs is done.
+    (await status(third)).toBe("QUEUED");
+    await release("One");
+    await eventually(async () => (await status(third)).toBe("RUNNING"));
+    await release("Two");
+    await release("Three");
+    await eventually(async () => (await status(third)).toBe("DONE"));
+  });
+
+  it("doesn't let a stopped worker's jobs hold up their student's queue (P0 task 3)", async () => {
+    ai.provider = "ANTHROPIC";
+    const quiet = new Date(Date.now() - 120_000);
+    await prisma().job.createMany({
+      data: [
+        { type: "test-gated", status: "RUNNING", input: {}, workerId: "gone", heartbeatAt: quiet },
+        { type: "test-gated", status: "RUNNING", input: {}, workerId: "gone", heartbeatAt: quiet },
+      ],
+    });
+    const id = await startJob(whoAmI, {});
+    await eventually(async () => (await status(id)).toBe("DONE"));
+  });
+
+  it("asks the worker running a job elsewhere to cancel it, only for its own student (P0 task 3)", async () => {
+    await rawClientOf(prisma()).user.create({ data: { id: "other-student", email: "other@example.test" } });
+    await prisma().job.create({ data: { id: "remote", type: "test-gated", status: "RUNNING", input: {}, workerId: "elsewhere", heartbeatAt: new Date() } });
+    await runAsUser("other-student", () => cancelJob("remote"));
+    expect((await rawClientOf(prisma()).job.findUniqueOrThrow({ where: { id: "remote" } })).cancelRequested).toBe(false);
+    await cancelJob("remote");
+    expect(await rawClientOf(prisma()).job.findUniqueOrThrow({ where: { id: "remote" } })).toMatchObject({ status: "RUNNING", cancelRequested: true });
   });
 });

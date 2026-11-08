@@ -93,6 +93,15 @@ reference design (report: https://claude.ai/artifact/4DwdbGGvd2MtBhCryBeXPN).
 
 Newest first. One entry per session: date, account, branch, what changed, what's next.
 
+- **2026-11-08 · account 1 · `feature/job-queue`** — P0 task 3: the Job table is the queue (migration
+  20261111090000_job_queue). Workers claim jobs with `FOR UPDATE SKIP LOCKED`, students take turns
+  (at most 2 running each, `PATHFINDER_JOBS_PER_STUDENT`), 10 at once per worker
+  (`PATHFINDER_JOB_CONCURRENCY`). `PATHFINDER_ROLE` = all (default) | web | worker; compose now runs
+  `app` (web) and `worker`. Progress, new jobs and cancels cross processes by LISTEN/NOTIFY; a
+  heartbeat every 5 s, stale after 60 s = interrupted. Queued jobs survive restarts. Load check, 30
+  analyses with 10 s AI calls: median 42 s, max 64 s (was 105 s and 208 s). Built on #5 and #4.
+  Next: P0 task 4 (pool size and timeout, per-request caching of settings).
+
 - **2026-11-08 · account 1 · `feature/student-tools`** — P0 task 2: students get Dossier's tools.
   `PATHFINDER_TOOLS` is now on unless set to off (compose and `.env.example` too). Off closes the
   tools on the server, not just the menu: their pages answer 404 in the proxy (`src/lib/tool-paths.ts`),

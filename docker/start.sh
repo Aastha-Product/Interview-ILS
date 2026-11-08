@@ -5,6 +5,12 @@
 set -eu
 
 cd /app/tools
+# Pathfinder: a worker (PATHFINDER_ROLE=worker) starts after the web process, which already
+# brought the database up to date, so two containers never migrate at once.
+if [ "${PATHFINDER_ROLE:-all}" = "worker" ]; then
+  cd /app
+  exec node server.js
+fi
 if ! node node_modules/prisma/build/index.js migrate deploy; then
   echo "Dossier didn't start: applying the database migrations failed (see the error above). See Troubleshooting in the wiki: https://github.com/AienTech/dossier/wiki/Troubleshooting" >&2
   exit 1
