@@ -41,6 +41,9 @@ to get the certificate and to send visitors on to HTTPS.
 
 - **With your own domain:** at your domain provider, add an **A record**, for example
   `pathfinder.yourdomain.com`, pointing to the static IP. It can take a few minutes to work.
+  Also point `www.` at the server (another A record to the same IP, or a CNAME to the domain):
+  the site sends `www.` on to the main address. Remove any older records for the same names,
+  such as a parking page or another host.
 - **Without a domain:** use the static IP with dashes, followed by `.sslip.io`. For example,
   `13-233-10-20.sslip.io` already points to `13.233.10.20`; there's nothing to set up.
 
