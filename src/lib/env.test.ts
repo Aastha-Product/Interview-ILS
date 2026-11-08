@@ -43,6 +43,19 @@ describe("parseEnv", () => {
     expect(problems({ ...valid, PATHFINDER_AI_DAILY_LIMIT: "0" })).toEqual(["PATHFINDER_AI_DAILY_LIMIT must be at least 1."]);
   });
 
+  it("reads the database pool size and the background job settings (Pathfinder)", () => {
+    expect(parseEnv(valid).PATHFINDER_DB_POOL).toBeUndefined();
+    expect(parseEnv({ ...valid, PATHFINDER_DB_POOL: " 30 " }).PATHFINDER_DB_POOL).toBe(30);
+    expect(problems({ ...valid, PATHFINDER_DB_POOL: "1" })).toEqual(["PATHFINDER_DB_POOL must be at least 2."]);
+    expect(problems({ ...valid, PATHFINDER_DB_POOL: "many" })).toEqual(['PATHFINDER_DB_POOL must be a whole number (got "many").']);
+    expect(parseEnv({ ...valid, PATHFINDER_ROLE: " Worker " }).PATHFINDER_ROLE).toBe("worker");
+    expect(problems({ ...valid, PATHFINDER_ROLE: "api" })).toEqual(['PATHFINDER_ROLE must be all, web or worker (got "api").']);
+    expect(parseEnv({ ...valid, PATHFINDER_JOB_CONCURRENCY: "25", PATHFINDER_JOBS_PER_STUDENT: "3" })).toMatchObject({
+      PATHFINDER_JOB_CONCURRENCY: 25,
+      PATHFINDER_JOBS_PER_STUDENT: 3,
+    });
+  });
+
   it("reads whether Startups is offered (Pathfinder)", () => {
     expect(parseEnv(valid).PATHFINDER_STARTUPS).toBe("off");
     expect(parseEnv({ ...valid, PATHFINDER_STARTUPS: "" }).PATHFINDER_STARTUPS).toBe("off");

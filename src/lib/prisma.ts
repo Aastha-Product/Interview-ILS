@@ -11,7 +11,7 @@ import { scopedClient } from "@/lib/owner/scope";
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient; scopedPrisma?: PrismaClient };
 
 function rawClient(): PrismaClient {
-  globalForPrisma.prisma ??= createPrismaClient(env.DATABASE_URL);
+  globalForPrisma.prisma ??= createPrismaClient(env.DATABASE_URL, env.PATHFINDER_DB_POOL);
   return globalForPrisma.prisma;
 }
 

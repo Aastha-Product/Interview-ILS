@@ -27,8 +27,34 @@ const OWNER_OMIT = Object.fromEntries(
   ].map((model) => [model, { userId: true }]),
 );
 
-/** A client for the database at `url`. */
-export function createPrismaClient(url: string): PrismaClient {
+/**
+ * Pathfinder (P0 task 4): how the connection pool behaves under load. A request waits at most
+ * this long for a free connection, then fails with an error instead of hanging; a statement may
+ * run at most this long in the database; idle connections are closed after a while.
+ */
+export const POOL_DEFAULTS = {
+  /** Connections per process; each web process and worker has its own pool (PATHFINDER_DB_POOL). */
+  max: 20,
+  connectionTimeoutMillis: 10_000,
+  statementTimeoutMillis: 30_000,
+  idleTimeoutMillis: 30_000,
+} as const;
+
+/**
+ * Interactive transactions (prisma.$transaction(async (tx) => ...)). Prisma's defaults (wait 2 s
+ * for a connection, run 5 s) failed with P2028 under load while the pool was busy.
+ */
+export const TRANSACTION_OPTIONS = { maxWait: 10_000, timeout: 15_000 } as const;
+
+/** A client for the database at `url`, with `poolSize` connections at most. */
+export function createPrismaClient(url: string, poolSize: number = POOL_DEFAULTS.max): PrismaClient {
+  const adapter = new PrismaPg({
+    connectionString: url,
+    max: poolSize,
+    connectionTimeoutMillis: POOL_DEFAULTS.connectionTimeoutMillis,
+    idleTimeoutMillis: POOL_DEFAULTS.idleTimeoutMillis,
+    statement_timeout: POOL_DEFAULTS.statementTimeoutMillis,
+  });
   // The omit option changes the client's type parameters only; it is the same client.
-  return new PrismaClient({ adapter: new PrismaPg({ connectionString: url }), omit: OWNER_OMIT }) as unknown as PrismaClient;
+  return new PrismaClient({ adapter, omit: OWNER_OMIT, transactionOptions: TRANSACTION_OPTIONS }) as unknown as PrismaClient;
 }

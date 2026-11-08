@@ -93,6 +93,14 @@ reference design (report: https://claude.ai/artifact/4DwdbGGvd2MtBhCryBeXPN).
 
 Newest first. One entry per session: date, account, branch, what changed, what's next.
 
+- **2026-11-08 · account 1 · `feature/db-pool`** — P0 task 4: the pool has 20 connections per process
+  (`PATHFINDER_DB_POOL`), waits 10 s at most for a free one, and stops statements after 30 s; interactive
+  transactions wait 10 s (was 2 s, the cause of the P2028 errors) and run 15 s. The settings and the
+  profile name are read once per page render (React cache), fresh in actions and jobs. Load, one
+  process, 2,000 users: errors 13% (was 49.6%), no P2028; the rest is one Node process at full CPU.
+  4 web processes: 1,000 users median 372 ms with no errors, 2,000 users median 3.0 s with 0.9% errors.
+  Built on #6. Next, P0 task 5: nightly per-student backups off by default, M-1, M-6.
+
 - **2026-11-08 · account 1 · `feature/job-queue`** — P0 task 3: the Job table is the queue (migration
   20261111090000_job_queue). Workers claim jobs with `FOR UPDATE SKIP LOCKED`, students take turns
   (at most 2 running each, `PATHFINDER_JOBS_PER_STUDENT`), 10 at once per worker

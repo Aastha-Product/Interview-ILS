@@ -1,6 +1,9 @@
 import "server-only";
 
+import { cache } from "react";
+
 import type { Prisma } from "@/generated/prisma/client";
+import { currentUserId } from "@/lib/owner/current";
 import { prisma } from "@/lib/prisma";
 import { CURRENT_USER } from "@/lib/owner/scope";
 import { DEFAULT_BASE_THEME, settingsFromRows, settingValue, type SettingsData } from "@/lib/settings";
@@ -10,13 +13,25 @@ import { DEFAULT_BASE_THEME, settingsFromRows, settingValue, type SettingsData }
  * setting to its theme, so a deleted custom theme reads as Editorial here.
  */
 export async function loadSettings(): Promise<SettingsData> {
+  // A copy, so a caller changing it can't change what the rest of the page reads.
+  return { ...(await loadSettingsOf(await currentUserId())) };
+}
+
+/**
+ * Pathfinder (P0 task 4): the layout and the page each read the settings, often several times.
+ * While a page renders they're read once per student (React's cache lasts one request); Server
+ * Actions, jobs and schedules run outside a render and always read them fresh, so a save is
+ * never followed by a stale read.
+ */
+const loadSettingsOf = cache(async (userId: string): Promise<SettingsData> => {
+  void userId; // The key: the scoped client reads the same student's rows.
   const settings = settingsFromRows(await prisma.setting.findMany());
   if (settings.baseThemeId !== DEFAULT_BASE_THEME) {
     const theme = await prisma.theme.findUnique({ where: { id: settings.baseThemeId }, select: { id: true } });
     if (!theme) return { ...settings, baseThemeId: DEFAULT_BASE_THEME };
   }
   return settings;
-}
+});
 
 /**
  * Saves the given settings together; null removes one, so it reads as not

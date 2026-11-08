@@ -200,6 +200,16 @@ const schema = z.object({
       .toLowerCase()
       .pipe(z.enum(["on", "off"], { error: (issue) => `PATHFINDER_MANAGED must be on or off (got "${String(issue.input)}").` })),
   ).transform((value) => value ?? "on"),
+  // Pathfinder: database connections this process keeps at most (default 20). Every web process
+  // and worker has its own pool: together they must stay under Postgres's max_connections (100).
+  PATHFINDER_DB_POOL: optional(
+    z
+      .string()
+      .trim()
+      .regex(/^\d+$/, { error: (issue) => `PATHFINDER_DB_POOL must be a whole number (got "${String(issue.input)}").` })
+      .transform(Number)
+      .pipe(z.number().min(2, { error: "PATHFINDER_DB_POOL must be at least 2." })),
+  ),
   // Pathfinder: what this process does. all (the default): serves pages and runs the background
   // jobs and schedules, as one server. web: serves pages only; jobs wait in the database for a
   // worker. worker: runs the jobs and schedules (deploy/lightsail/compose.yml runs one of each).

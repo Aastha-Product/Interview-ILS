@@ -1,7 +1,9 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 
-import { createTestClient, resetDatabase } from "@/test/db";
-import { CURRENT_USER } from "@/lib/owner/scope";
+import { createTestClient, resetDatabase, testDatabaseUrl } from "@/test/db";
+import { CURRENT_USER, rawClientOf } from "@/lib/owner/scope";
+
+import { createPrismaClient } from "./database";
 
 const db = createTestClient();
 
@@ -33,4 +35,25 @@ describe("the database client", () => {
     expect(await db.skill.findUnique({ where: { userId_name: { userId: CURRENT_USER, name: "typescript" } } })).toMatchObject({ name: "TypeScript" });
     await expect(db.skill.create({ data: { name: "TYPESCRIPT" } })).rejects.toThrow();
   });
+
+  it("stops a statement that runs too long in the database (P0 task 4)", async () => {
+    const [row] = await rawClientOf(db).$queryRaw<{ statement_timeout: string }[]>`SHOW statement_timeout`;
+    expect(row.statement_timeout).toBe("30s");
+  });
+
+  it("waits for a busy pool instead of failing a transaction after 2 seconds (P0 task 4)", async () => {
+    // One connection, three transactions that each hold it for 2.2 s: the last waits about 4.4 s,
+    // which Prisma's default (2 s) turned into P2028 under load.
+    const single = createPrismaClient(testDatabaseUrl(), 1);
+    try {
+      const hold = () => single.$transaction(async (tx) => {
+        await tx.$queryRaw`SELECT 1`;
+        await new Promise((resolve) => setTimeout(resolve, 2_200));
+        return "done";
+      });
+      expect(await Promise.all([hold(), hold(), hold()])).toEqual(["done", "done", "done"]);
+    } finally {
+      await single.$disconnect();
+    }
+  }, 20_000);
 });
