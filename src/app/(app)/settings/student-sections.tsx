@@ -80,11 +80,12 @@ export function PlanSection({ perDay, left }: { perDay: number | null; left: num
 }
 
 /** Where the student's data is, and deleting it. */
-export function PrivacySection({ analyses }: { analyses: number }) {
+export function PrivacySection({ analyses, tools = false }: { analyses: number; /** The job-search tools are on, so there are applications too. */ tools?: boolean }) {
+  const what = tools ? "resume analyses, profile and applications" : "resume analyses and profile";
   return (
     <>
       <SettingsSectionIntro title="Privacy and data">
-        Your resume analyses and profile are private to your account. You can delete them at any time.
+        Your {what} are private to your account. You can delete them at any time.
       </SettingsSectionIntro>
       <Rows
         rows={[
@@ -96,7 +97,9 @@ export function PrivacySection({ analyses }: { analyses: number }) {
         To delete one analysis, open it and choose Delete. To start over, delete everything and keep your account. To leave
         Pathfinder, delete your account.
       </p>
-      <DangerZone description="Deletes all your resume analyses, your profile and your settings. This can't be undone. Your account stays, so you can start again." />
+      <DangerZone
+        description={`Deletes all your ${tools ? "resume analyses, applications, profile and settings" : "resume analyses, your profile and your settings"}. This can't be undone. Your account stays, so you can start again.`}
+      />
       <DeleteAccount />
     </>
   );

@@ -44,10 +44,11 @@ describe("session checks (E11-5)", () => {
     expect(globSync("src/app/**/route.ts").length).toBeGreaterThan(5);
   });
 
+  // Pathfinder: toolAction() is action() that also refuses where the job-search tools are off.
   it("defines every Server Action with action()", () => {
     const unchecked = actionFiles.flatMap((file) =>
       exportsOf(read(file))
-        .filter(([, name, wrapper]) => wrapper !== "action" && !SIGNED_OUT_ACTIONS.get(file)?.includes(name))
+        .filter(([, name, wrapper]) => wrapper !== "action" && wrapper !== "toolAction" && !SIGNED_OUT_ACTIONS.get(file)?.includes(name))
         .map(([line]) => `${file}: ${line}`),
     );
     expect(unchecked).toEqual([]);

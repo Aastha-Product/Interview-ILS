@@ -5,7 +5,7 @@ import { z } from "zod";
 
 import { Prisma } from "@/generated/prisma/client";
 import { ApplicationStatus } from "@/generated/prisma/enums";
-import { action, ActionError, selfHostedOnly } from "@/lib/action";
+import { ActionError, selfHostedOnly, toolAction } from "@/lib/action";
 import { isAiConfigured } from "@/lib/ai/config";
 import { draftReplyJob, replyJobKey } from "@/lib/jobs/draft-reply";
 import { findUnfinishedJobs, startJob } from "@/lib/jobs/runner";
@@ -39,7 +39,7 @@ async function google<T>(work: () => Promise<T>): Promise<T> {
 }
 
 /** Settings → Google: what each switch and field saves. */
-export const saveGoogleSettings = action(
+export const saveGoogleSettings = toolAction(
   z.strictObject({
     gmailRead: z.boolean().optional(),
     gmailScope: z.enum(["known", "all"]).optional(),
@@ -90,7 +90,7 @@ const clientView = async () => {
  * back to the browser. A different client ID can't use the old grant, so
  * changing it disconnects the account.
  */
-export const saveGoogleClient = action(
+export const saveGoogleClient = toolAction(
   z.strictObject({
     id: z.string().trim().max(300).optional(),
     secret: z
@@ -113,7 +113,7 @@ export const saveGoogleClient = action(
 );
 
 /** "Disconnect": revokes Dossier's access at Google. Mail already in Dossier stays. */
-export const disconnectGoogleAccount = action(z.object({}), async (_, { toast }) => {
+export const disconnectGoogleAccount = toolAction(z.object({}), async (_, { toast }) => {
   await google(disconnectGoogle);
   revalidatePath("/settings");
   toast("Disconnected from Google.");
@@ -121,7 +121,7 @@ export const disconnectGoogleAccount = action(z.object({}), async (_, { toast })
 });
 
 /** "Check now" in the inbox and Settings. */
-export const checkInbox = action(z.object({}), async (_, { toast }) => {
+export const checkInbox = toolAction(z.object({}), async (_, { toast }) => {
   const result = await google(checkInboxNow);
   refreshEverything();
   if (!result) toast("Already checking. It'll be done in a moment.");
@@ -130,7 +130,7 @@ export const checkInbox = action(z.object({}), async (_, { toast }) => {
 });
 
 /** "Send with Gmail" on the Email tab, after the confirmation. */
-export const sendWithGmail = action(z.object({ id: z.string().min(1) }), async ({ id }, { toast }) => {
+export const sendWithGmail = toolAction(z.object({ id: z.string().min(1) }), async ({ id }, { toast }) => {
   const sent = await google(() => sendApplicationEmail(id));
   refreshEverything();
   toast(sent.eventId ? `Sent. ${statusInfo(ApplicationStatus.SENT).toast}` : "Sent. I'll watch for replies.");
@@ -138,7 +138,7 @@ export const sendWithGmail = action(z.object({ id: z.string().min(1) }), async (
 });
 
 /** Drafts (or redrafts) the answer to an email in the background. */
-export const startDraftingReply = action(
+export const startDraftingReply = toolAction(
   z.object({ emailId: z.string().min(1), note: z.string().max(2000).default(""), slots: z.array(z.iso.datetime({ offset: true })).max(8).nullable().default(null) }),
   async ({ emailId, note, slots }) => {
     const email = await prisma.emailMessage.findUnique({ where: { id: emailId }, select: { applicationId: true } });
@@ -151,14 +151,14 @@ export const startDraftingReply = action(
 );
 
 /** Saves the answer as edited by hand. */
-export const saveReplyDraft = action(z.object({ emailId: z.string().min(1), body: z.string().max(20_000) }), async ({ emailId, body }) => {
+export const saveReplyDraft = toolAction(z.object({ emailId: z.string().min(1), body: z.string().max(20_000) }), async ({ emailId, body }) => {
   const { count } = await prisma.emailMessage.updateMany({ where: { id: emailId }, data: { replyDraft: body } });
   if (count === 0) throw new ActionError("That email is no longer in Dossier.");
   return null;
 });
 
 /** "Send" on a drafted answer, after the confirmation. */
-export const sendReplyEmail = action(z.object({ emailId: z.string().min(1), body: z.string().min(1).max(20_000) }), async ({ emailId, body }, { toast }) => {
+export const sendReplyEmail = toolAction(z.object({ emailId: z.string().min(1), body: z.string().min(1).max(20_000) }), async ({ emailId, body }, { toast }) => {
   await google(() => sendReply(emailId, body));
   refreshEverything();
   toast("Answer sent.");
@@ -166,14 +166,14 @@ export const sendReplyEmail = action(z.object({ emailId: z.string().min(1), body
 });
 
 /** "No answer needed": takes it off the list. */
-export const markHandled = action(z.object({ emailId: z.string().min(1), handled: z.boolean() }), async ({ emailId, handled }) => {
+export const markHandled = toolAction(z.object({ emailId: z.string().min(1), handled: z.boolean() }), async ({ emailId, handled }) => {
   await prisma.emailMessage.updateMany({ where: { id: emailId }, data: { handledAt: handled ? new Date() : null } });
   refreshEverything();
   return null;
 });
 
 /** Links a mail to an application ("Needs a look"), with the rest of its thread. Null unlinks. */
-export const linkEmail = action(z.object({ emailId: z.string().min(1), applicationId: z.string().min(1).nullable() }), async ({ emailId, applicationId }, { toast }) => {
+export const linkEmail = toolAction(z.object({ emailId: z.string().min(1), applicationId: z.string().min(1).nullable() }), async ({ emailId, applicationId }, { toast }) => {
   const email = await prisma.emailMessage.findUnique({ where: { id: emailId }, select: { threadId: true } });
   if (!email) throw new ActionError("That email is no longer in Dossier.");
   if (applicationId && !(await prisma.application.count({ where: { id: applicationId } }))) throw new ActionError("That application no longer exists.");
@@ -189,7 +189,7 @@ export const linkEmail = action(z.object({ emailId: z.string().min(1), applicati
  * Gmail ids and the date stay, for the inbox check to skip it: the text,
  * who it's from and to, and what the AI read go.
  */
-export const dismissEmail = action(z.object({ emailId: z.string().min(1) }), async ({ emailId }, { toast }) => {
+export const dismissEmail = toolAction(z.object({ emailId: z.string().min(1) }), async ({ emailId }, { toast }) => {
   await prisma.emailMessage.updateMany({
     where: { id: emailId },
     data: {
@@ -218,7 +218,7 @@ export const dismissEmail = action(z.object({ emailId: z.string().min(1) }), asy
 });
 
 /** "Read again": the AI reads a mail it couldn't before. */
-export const rereadEmail = action(z.object({ emailId: z.string().min(1) }), async ({ emailId }) => {
+export const rereadEmail = toolAction(z.object({ emailId: z.string().min(1) }), async ({ emailId }) => {
   if (!(await isAiConfigured())) throw new ActionError("That needs an AI provider. Choose one in Settings → AI provider.");
   await readReply(emailId);
   refreshEverything();
@@ -226,7 +226,7 @@ export const rereadEmail = action(z.object({ emailId: z.string().min(1) }), asyn
 });
 
 /** Takes up a reply's suggested status (or turns it down), through the status module. */
-export const applySuggestedStatus = action(z.object({ emailId: z.string().min(1), accept: z.boolean() }), async ({ emailId, accept }, { toast }) => {
+export const applySuggestedStatus = toolAction(z.object({ emailId: z.string().min(1), accept: z.boolean() }), async ({ emailId, accept }, { toast }) => {
   const email = await prisma.emailMessage.findUnique({ where: { id: emailId }, select: { applicationId: true, suggestedStatus: true } });
   if (!email) throw new ActionError("That email is no longer in Dossier.");
   await prisma.emailMessage.update({ where: { id: emailId }, data: { suggestedStatus: null } });
@@ -239,7 +239,7 @@ export const applySuggestedStatus = action(z.object({ emailId: z.string().min(1)
 });
 
 /** Free times to offer, for the reply's slot picker. */
-export const loadFreeSlots = action(z.object({}), async () => {
+export const loadFreeSlots = toolAction(z.object({}), async () => {
   const connection = await googleConnection();
   if (connection.status !== "connected" || !connection.canUseCalendar) return { slots: [], timeZone: null, fromCalendar: false };
   const { slots, timeZone, fromCalendar } = await google(() => proposeSlots());
@@ -247,7 +247,7 @@ export const loadFreeSlots = action(z.object({}), async () => {
 });
 
 /** "Add to calendar" for an agreed time: the dashboard's next interview, the calendar, and Interview. */
-export const confirmInterview = action(
+export const confirmInterview = toolAction(
   z.object({ emailId: z.string().min(1), start: z.iso.datetime({ offset: true }), moveToInterview: z.boolean() }),
   async ({ emailId, start, moveToInterview }, { toast }) => {
     const email = await prisma.emailMessage.findUnique({ where: { id: emailId }, select: { applicationId: true } });

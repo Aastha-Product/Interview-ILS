@@ -7,6 +7,7 @@ import { contentSecurityPolicy, createNonce, firebaseSources, GOOGLE_SIGN_IN_ORI
 import { env } from "@/lib/env";
 import { messages } from "@/lib/messages";
 import { PRINT_TOKEN_HEADER, verifyPrintToken } from "@/lib/pdf/print-token";
+import { isToolPage } from "@/lib/tool-paths";
 
 /** Signing in with Google (Pathfinder): its start and Google's callback, before there's a session. */
 const SIGN_IN_PATHS = /^\/api\/auth\/google(?:\/callback)?$/;
@@ -39,6 +40,8 @@ export async function proxy(request: NextRequest) {
   // Pathfinder: Startups is off unless PATHFINDER_STARTUPS=on. Its layout answers 404 too, but
   // only after the loading screen has started streaming, with a 200; this is a real 404.
   if (STARTUPS_PATHS.test(pathname) && env.PATHFINDER_STARTUPS !== "on") return pass(request, new URL("/_not-found", request.url));
+  // Pathfinder: the job-search tools' pages, the same way, where PATHFINDER_TOOLS=off.
+  if (isToolPage(pathname) && env.PATHFINDER_TOOLS === "off") return pass(request, new URL("/_not-found", request.url));
 
   const session = await decodeSession(
     request.cookies.get(SESSION_COOKIE)?.value,

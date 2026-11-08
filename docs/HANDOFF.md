@@ -93,6 +93,14 @@ reference design (report: https://claude.ai/artifact/4DwdbGGvd2MtBhCryBeXPN).
 
 Newest first. One entry per session: date, account, branch, what changed, what's next.
 
+- **2026-11-08 · account 1 · `feature/student-tools`** — P0 task 2: students get Dossier's tools.
+  `PATHFINDER_TOOLS` is now on unless set to off (compose and `.env.example` too). Off closes the
+  tools on the server, not just the menu: their pages answer 404 in the proxy (`src/lib/tool-paths.ts`),
+  their actions use `toolAction()` and refuse, and the inbox and agent schedules don't start.
+  Managed Settings: Account, Plan, Job agent, Documents, Google (with a server client), Your data
+  (no backup switch), Privacy and data, Help; no About. Built on `feature/managed-mode` (pull
+  request #4), so merge that first. Next, P0 task 3: a Postgres job queue and a worker.
+
 - **2026-11-08 · account 1 · `feature/managed-mode`** — P0 task 1 of the scale audit
   (https://claude.ai/artifact/GSHLW1T2jiX99CUiBtAUov): `PATHFINDER_MANAGED` (on by default). The
   AI, job search, scoring and Google client come only from the server's DOSSIER_* variables; what

@@ -71,12 +71,18 @@ export function DataSection({
   exportName,
   backups,
   jobRetentionHours,
+  managed = false,
 }: {
   hasApiKey: boolean;
   exportName: string;
   backups: BackupStatus;
   /** How long finished background jobs are kept. */
   jobRetentionHours: number;
+  /**
+   * Pathfinder, managed mode: the server's backups are the operator's, not a student's switch,
+   * and deleting everything lives in Privacy and data, next to deleting the account.
+   */
+  managed?: boolean;
 }) {
   const [includeKey, setIncludeKey] = useState(false);
   const router = useRouter();
@@ -154,10 +160,17 @@ export function DataSection({
 
   return (
     <>
+      {managed ? (
+        <SettingsSectionIntro title="Your data">
+          Take a copy of everything you&apos;ve added, download your documents, or bring back an export. Your data is private to your account and
+          never sold.
+        </SettingsSectionIntro>
+      ) : (
       <SettingsSectionIntro title="Your data">
         Everything you enter lives in one database on your server, and nothing is sold: there&apos;s no one to sell it to. What leaves it goes to
         the AI provider and job source you choose, Google if you connect Gmail, and the daily usage ping and update check (see About).
       </SettingsSectionIntro>
+      )}
       <Card padding="none" className="flex flex-col px-7 pt-1.5 pb-2.5">
         <DataRow
           title="Export everything"
@@ -247,6 +260,7 @@ export function DataSection({
             </Select>
           }
         />
+        {!managed && (
         <div className="flex flex-col gap-2 border-t border-line py-4">
           <Toggle
             label="Nightly backups"
@@ -266,8 +280,9 @@ export function DataSection({
             </p>
           )}
         </div>
+        )}
       </Card>
-      <DangerZone />
+      {!managed && <DangerZone />}
       {preview && (
         <ConfirmDialog
           open

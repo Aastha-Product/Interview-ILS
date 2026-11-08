@@ -2,7 +2,7 @@
 
 import { z } from "zod";
 
-import { action, ActionError } from "@/lib/action";
+import { ActionError, toolAction } from "@/lib/action";
 import { prisma } from "@/lib/prisma";
 import { nextSort } from "@/lib/profile-entries";
 
@@ -26,25 +26,25 @@ async function checkRoom(applicationId: string | null) {
   }
 }
 
-export const createFact = action(z.object({ applicationId }), async ({ applicationId }) => {
+export const createFact = toolAction(z.object({ applicationId }), async ({ applicationId }) => {
   await checkRoom(applicationId);
   return prisma.fact.create({ data: { applicationId, sort: await nextSort(prisma.fact) }, select: { id: true, text: true } });
 });
 
-export const saveFact = action(z.object({ id, text }), async ({ id, text }) => {
+export const saveFact = toolAction(z.object({ id, text }), async ({ id, text }) => {
   await prisma.fact.updateMany({ where: { id }, data: { text } });
   return null;
 });
 
 /** Answers with where it was, for Undo. */
-export const removeFact = action(z.object({ id }), async ({ id }) => {
+export const removeFact = toolAction(z.object({ id }), async ({ id }) => {
   const fact = await prisma.fact.findUnique({ where: { id }, select: { sort: true } });
   await prisma.fact.deleteMany({ where: { id } });
   return { sort: fact?.sort ?? null };
 });
 
 /** Undo: back with its id and text, in its old place when that's known. */
-export const restoreFact = action(
+export const restoreFact = toolAction(
   z.object({ id, applicationId, text, sort: z.number().int().nullable() }),
   async ({ id, applicationId, text, sort }) => {
     await checkRoom(applicationId);

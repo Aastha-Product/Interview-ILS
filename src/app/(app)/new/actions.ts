@@ -3,7 +3,7 @@
 import { z } from "zod";
 
 import { JobStatus, Tone } from "@/generated/prisma/enums";
-import { action, ActionError } from "@/lib/action";
+import { ActionError, toolAction } from "@/lib/action";
 import { createApplicationFromDocuments } from "@/lib/application-create";
 import { matchSchema } from "@/lib/application-data";
 import { handOffPastedPosting } from "@/lib/connector/handoff";
@@ -14,7 +14,7 @@ import { fetchPosting } from "@/lib/posting-fetch";
 import { prisma } from "@/lib/prisma";
 
 /** "Read the posting →": starts reading it in the background and returns the job's id (E7-2). */
-export const startReadingPosting = action(
+export const startReadingPosting = toolAction(
   z.object({ posting: z.string().trim().min(1, "Paste a job posting first.").max(100_000) }),
   ({ posting }) => startJob(readPostingJob, { posting }),
 );
@@ -25,7 +25,7 @@ export const startReadingPosting = action(
  * claude.ai chat to open, where Claude writes the application on the user's
  * own Claude plan.
  */
-export const handOffToClaude = action(
+export const handOffToClaude = toolAction(
   z.object({
     posting: z.string().trim().min(1, "Paste a job posting first.").max(100_000),
     postingUrl: z.string().trim().max(2000),
@@ -56,7 +56,7 @@ async function finishedReading(id: string) {
  * "Create application →": writes the tailored documents in the background
  * (E7-6). The details as edited go into the prompts; nothing is saved yet.
  */
-export const startWritingDocuments = action(
+export const startWritingDocuments = toolAction(
   z.object({
     readJobId: z.string().min(1),
     details: detailsSchema,
@@ -85,7 +85,7 @@ export const startWritingDocuments = action(
  * "Fetch" (E7-8, NEW-9): the posting's text from its link, for the user to
  * check before it's read. The request goes to the job site from the server.
  */
-export const fetchPostingText = action(z.object({ link: z.string().max(2000) }), async ({ link }) => {
+export const fetchPostingText = toolAction(z.object({ link: z.string().max(2000) }), async ({ link }) => {
   const url = postingLink(link);
   if (!url) throw new ActionError("Enter the link to the posting first.");
   const fetched = await fetchPosting(url);
@@ -116,7 +116,7 @@ const CLAIMED = "application:";
  * chat message, in one transaction. Creating twice from the same job returns
  * the application that already exists.
  */
-export const createApplication = action(
+export const createApplication = toolAction(
   z.object({
     writeJobId: z.string().min(1),
     details: detailsSchema,

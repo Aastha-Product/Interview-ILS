@@ -49,8 +49,9 @@ services:
       DOSSIER_GOOGLE_CLIENT_SECRET: ${DOSSIER_GOOGLE_CLIENT_SECRET:-}
       # Startups reads company websites, so it's off unless set to on in .env.
       PATHFINDER_STARTUPS: ${PATHFINDER_STARTUPS:-off}
-      # Dossier's job-search tools, off unless set to on: students see the resume analysis only.
-      PATHFINDER_TOOLS: ${PATHFINDER_TOOLS:-off}
+      # Dossier's job-search tools (Find jobs, the agent, applications, Inbox), on unless set to
+      # off: off leaves students the resume analysis only.
+      PATHFINDER_TOOLS: ${PATHFINDER_TOOLS:-on}
       # The server runs the AI, job search, scoring and Google for every student (on unless set
       # to off): students never choose a provider or enter a key. off is self-hosted Dossier.
       PATHFINDER_MANAGED: ${PATHFINDER_MANAGED:-on}

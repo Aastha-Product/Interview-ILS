@@ -5,7 +5,7 @@ import { z } from "zod";
 
 import { Prisma } from "@/generated/prisma/client";
 import { ChatRole, DocumentKind, VersionCause } from "@/generated/prisma/enums";
-import { action, ActionError } from "@/lib/action";
+import { ActionError, toolAction } from "@/lib/action";
 import { isAiConfigured } from "@/lib/ai/config";
 import { editsSchema, extractedSchema, matchSchema, trimmedSchema, unitsSchema, withSkillAdded } from "@/lib/application-data";
 import { WRITTEN_EMAIL_UNITS } from "@/lib/application-email";
@@ -29,7 +29,7 @@ const PART_GONE = "That part of the document no longer exists. Reload the page t
 const refresh = (id: string) => revalidatePath(`/applications/${id}`);
 
 /** The Resume tab's layout switch (APP-4): the theme's own layout, or a single column. */
-export const setFollowThemeLayout = action(
+export const setFollowThemeLayout = toolAction(
   z.object({ id: z.string().min(1), follow: z.boolean() }),
   async ({ id, follow }) => {
     const { count } = await prisma.application.updateMany({ where: { id }, data: { followThemeLayout: follow } });
@@ -40,7 +40,7 @@ export const setFollowThemeLayout = action(
 );
 
 /** The Resume tab's Photo switch (#224): show the profile photo on this resume or not, whatever the profile says. */
-export const setShowPhoto = action(z.object({ id: z.string().min(1), show: z.boolean() }), async ({ id, show }) => {
+export const setShowPhoto = toolAction(z.object({ id: z.string().min(1), show: z.boolean() }), async ({ id, show }) => {
   const { count } = await prisma.application.updateMany({ where: { id }, data: { showPhoto: show } });
   if (count === 0) throw new ActionError(GONE);
   refresh(id);
@@ -52,7 +52,7 @@ export const setShowPhoto = action(z.object({ id: z.string().min(1), show: z.boo
  * gives the application's resume and cover letter another theme, together.
  * Only their look changes, so nothing is written again.
  */
-export const setApplicationTheme = action(z.object({ id: z.string().min(1), themeId: z.string().min(1) }), async ({ id, themeId }) => {
+export const setApplicationTheme = toolAction(z.object({ id: z.string().min(1), themeId: z.string().min(1) }), async ({ id, themeId }) => {
   if (!(await prisma.theme.count({ where: { id: themeId } }))) {
     throw new ActionError("That theme doesn't exist anymore. Reload the page to see your themes.");
   }
@@ -71,7 +71,7 @@ export const setApplicationTheme = action(z.object({ id: z.string().min(1), them
  * and while Dossier keeps interviews in Google Calendar, the event is added,
  * moved or deleted to match.
  */
-export const setInterviewDate = action(
+export const setInterviewDate = toolAction(
   z.object({ id: z.string().min(1), at: z.iso.datetime().nullable() }),
   async ({ id, at }, { toast }) => {
     const { count } = await prisma.application.updateMany({ where: { id }, data: { nextInterviewAt: at ? new Date(at) : null } });
@@ -95,7 +95,7 @@ export const setInterviewDate = action(
  * meanwhile), nothing is saved, so neither version is lost unseen. The
  * text is the user's own, so the fact guard's hints go.
  */
-export const saveUnit = action(
+export const saveUnit = toolAction(
   z.object({
     id: z.string().min(1),
     document: z.enum(DocumentKind),
@@ -136,7 +136,7 @@ const unitInput = { id: z.string().min(1), document: z.enum(DocumentKind), unitI
  * "Regenerate" (E8-4): rewrites one unit in the background and returns the
  * job's id. Asking again while it's being rewritten follows the same job.
  */
-export const startRegenerating = action(
+export const startRegenerating = toolAction(
   z.object({
     ...unitInput,
     /** For a letter part an older letter only shows (E8-11): the text on screen, stored before it's rewritten. */
@@ -174,7 +174,7 @@ export const startRegenerating = action(
  * Undo on the "Rewrote the summary." toast (E8-4): puts the previous
  * version back, unless the unit has changed again since.
  */
-export const restoreUnit = action(
+export const restoreUnit = toolAction(
   z.object({
     ...unitInput,
     text: z.string().max(10_000),
@@ -204,7 +204,7 @@ const POSTING_REPLY = "I can change the resume, the cover letter or the email. S
  * the reply in the background, returning the job's id. On the Job posting
  * tab without a picked unit, the reply comes at once and needs no AI.
  */
-export const sendMessage = action(
+export const sendMessage = toolAction(
   z.object({
     id: z.string().min(1),
     text: z.string().trim().min(1, "Write what should change first.").max(2000),
@@ -258,7 +258,7 @@ const listOf = (names: string[]) => (names.length <= 1 ? names.join("") : `${nam
  * changed, units and tone, all or nothing. A unit edited again since is
  * never overwritten; the answer says which.
  */
-export const undoMessage = action(z.object({ id: z.string().min(1), messageId: z.string().min(1) }), async ({ id, messageId }) => {
+export const undoMessage = toolAction(z.object({ id: z.string().min(1), messageId: z.string().min(1) }), async ({ id, messageId }) => {
   const message = await prisma.chatMessage.findFirst({ where: { id: messageId, applicationId: id, role: ChatRole.AI } });
   const edits = message && editsSchema.safeParse(message.edits);
   if (!message || !edits?.success || edits.data.length === 0) throw new ActionError("There's nothing to undo in that message.");
@@ -293,7 +293,7 @@ export const undoMessage = action(z.object({ id: z.string().min(1), messageId: z
  * "+ Add to profile" on the Job posting tab (E8-7, NEW-5): adds a missing
  * skill to the profile, and the requirement becomes partly covered.
  */
-export const addMatchSkill = action(z.object({ id: z.string().min(1), index: z.number().int().min(0) }), async ({ id, index }) => {
+export const addMatchSkill = toolAction(z.object({ id: z.string().min(1), index: z.number().int().min(0) }), async ({ id, index }) => {
   const application = await prisma.application.findUnique({ where: { id }, select: { match: true, extracted: true } });
   if (!application) throw new ActionError(GONE);
   const match = matchSchema.safeParse(application.match);
@@ -316,7 +316,7 @@ export const addMatchSkill = action(z.object({ id: z.string().min(1), index: z.n
 
 const noteBody = z.string().trim().min(1, "Write something first.").max(5000);
 
-export const addNote = action(z.object({ id: z.string().min(1), body: noteBody }), async ({ id, body }) => {
+export const addNote = toolAction(z.object({ id: z.string().min(1), body: noteBody }), async ({ id, body }) => {
   if (!(await prisma.application.count({ where: { id } }))) throw new ActionError(GONE);
   await prisma.note.create({ data: { applicationId: id, body } });
   refresh(id);
@@ -325,7 +325,7 @@ export const addNote = action(z.object({ id: z.string().min(1), body: noteBody }
 
 const NOTE_GONE = "That note no longer exists.";
 
-export const updateNote = action(
+export const updateNote = toolAction(
   z.object({ id: z.string().min(1), noteId: z.string().min(1), body: noteBody }),
   async ({ id, noteId, body }) => {
     const { count } = await prisma.note.updateMany({ where: { id: noteId, applicationId: id }, data: { body } });
@@ -336,7 +336,7 @@ export const updateNote = action(
 );
 
 /** Deletes a note at once; it comes back with its date through `restoreNote` (Undo on the toast). */
-export const deleteNote = action(z.object({ id: z.string().min(1), noteId: z.string().min(1) }), async ({ id, noteId }) => {
+export const deleteNote = toolAction(z.object({ id: z.string().min(1), noteId: z.string().min(1) }), async ({ id, noteId }) => {
   const note = await prisma.note.findFirst({ where: { id: noteId, applicationId: id } });
   if (!note) throw new ActionError(NOTE_GONE);
   await prisma.note.delete({ where: { id: note.id } });
@@ -344,7 +344,7 @@ export const deleteNote = action(z.object({ id: z.string().min(1), noteId: z.str
   return { body: note.body, createdAt: note.createdAt.toISOString(), updatedAt: note.updatedAt.toISOString() };
 });
 
-export const restoreNote = action(
+export const restoreNote = toolAction(
   z.object({ id: z.string().min(1), body: noteBody, createdAt: z.iso.datetime(), updatedAt: z.iso.datetime() }),
   async ({ id, body, createdAt, updatedAt }) => {
     if (!(await prisma.application.count({ where: { id } }))) throw new ActionError(GONE);
@@ -359,7 +359,7 @@ export const restoreNote = action(
  * what the page limit left out, so "Put back" brings it back to its place.
  * Returns where it is in that list, for Undo.
  */
-export const leaveOutUnit = action(z.object({ id: z.string().min(1), unitId: z.string().min(1) }), async ({ id, unitId }) => {
+export const leaveOutUnit = toolAction(z.object({ id: z.string().min(1), unitId: z.string().min(1) }), async ({ id, unitId }) => {
   const cut = await updateDocuments(id, async (documents) => {
     const units = documents[DocumentKind.RESUME];
     const index = units ? units.findIndex((unit) => unit.id === unitId) : -1;
@@ -383,7 +383,7 @@ export const leaveOutUnit = action(z.object({ id: z.string().min(1), unitId: z.s
  * "Put back" (E10-10, #217): restores a part or bullets left out, by hand or
  * to fit the page limit. Putting back twice changes nothing more.
  */
-export const putBackTrimmed = action(z.object({ id: z.string().min(1), index: z.number().int().min(0) }), async ({ id, index }) => {
+export const putBackTrimmed = toolAction(z.object({ id: z.string().min(1), index: z.number().int().min(0) }), async ({ id, index }) => {
   const row = await prisma.document.findUnique({ where: { applicationId_kind: { applicationId: id, kind: DocumentKind.RESUME } } });
   const trimmed = row ? trimmedSchema.safeParse(row.trimmed) : null;
   const item = trimmed?.success ? trimmed.data[index] : undefined;
@@ -412,7 +412,7 @@ export const putBackTrimmed = action(z.object({ id: z.string().min(1), index: z.
 const VERSION_GONE = "That version no longer exists. Open the history again to see what's there.";
 
 /** A document's versions, newest first, without their units. */
-export const listVersions = action(z.object({ id: z.string().min(1), document: z.enum(DocumentKind) }), async ({ id, document }) => {
+export const listVersions = toolAction(z.object({ id: z.string().min(1), document: z.enum(DocumentKind) }), async ({ id, document }) => {
   const versions = await prisma.documentVersion.findMany({
     where: { document: { applicationId: id, kind: document } },
     orderBy: { createdAt: "desc" },
@@ -422,7 +422,7 @@ export const listVersions = action(z.object({ id: z.string().min(1), document: z
 });
 
 /** One version's units, to look at before restoring it. */
-export const loadVersion = action(z.object({ id: z.string().min(1), versionId: z.string().min(1) }), async ({ id, versionId }) => {
+export const loadVersion = toolAction(z.object({ id: z.string().min(1), versionId: z.string().min(1) }), async ({ id, versionId }) => {
   const version = await prisma.documentVersion.findFirst({
     where: { id: versionId, document: { applicationId: id } },
     select: { units: true, document: { select: { kind: true } } },
@@ -436,7 +436,7 @@ export const loadVersion = action(z.object({ id: z.string().min(1), versionId: z
  * version first (unless it's already the newest), so nothing is lost, and
  * the restored state becomes a version of its own.
  */
-export const restoreVersion = action(z.object({ id: z.string().min(1), versionId: z.string().min(1) }), async ({ id, versionId }, { toast }) => {
+export const restoreVersion = toolAction(z.object({ id: z.string().min(1), versionId: z.string().min(1) }), async ({ id, versionId }, { toast }) => {
   const version = await prisma.documentVersion.findFirst({
     where: { id: versionId, document: { applicationId: id } },
     select: { units: true, createdAt: true, document: { select: { id: true, kind: true } } },
@@ -488,7 +488,7 @@ export const restoreVersion = action(z.object({ id: z.string().min(1), versionId
  * background and returns the job's id. Asking again while it's being
  * written follows the same job.
  */
-export const startWritingEmail = action(z.object({ id: z.string().min(1) }), async ({ id }) => {
+export const startWritingEmail = toolAction(z.object({ id: z.string().min(1) }), async ({ id }) => {
   if (!(await prisma.application.count({ where: { id } }))) throw new ActionError(GONE);
   if (!(await isAiConfigured())) throw new ActionError("That needs an AI provider. Choose one in Settings → AI provider.");
   const [running] = await findUnfinishedJobs(emailJobKey(id));
@@ -499,7 +499,7 @@ export const startWritingEmail = action(z.object({ id: z.string().min(1) }), asy
  * Undo on the "Rewrote the email." toast: puts back the email the rewrite
  * replaced, unless it has changed again since.
  */
-export const undoEmailRewrite = action(z.object({ id: z.string().min(1), jobId: z.string().min(1) }), async ({ id, jobId }) => {
+export const undoEmailRewrite = toolAction(z.object({ id: z.string().min(1), jobId: z.string().min(1) }), async ({ id, jobId }) => {
   const job = await prisma.job.findFirst({ where: { id: jobId, key: emailJobKey(id), status: "DONE" }, select: { result: true } });
   const result = writeEmailJob.result.safeParse(job?.result);
   const previous = result.success ? result.data.previous : null;

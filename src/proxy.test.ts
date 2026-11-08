@@ -10,13 +10,16 @@ import { PRINT_TOKEN_HEADER, signPrintToken } from "@/lib/pdf/print-token";
 
 import { config, proxy } from "./proxy";
 
-const flags = vi.hoisted(() => ({ startups: "off" as "on" | "off", firebase: false }));
+const flags = vi.hoisted(() => ({ startups: "off" as "on" | "off", tools: "on" as "on" | "off", firebase: false }));
 vi.mock("@/lib/env", () => ({
   env: {
     DOSSIER_SECRET: "a".repeat(32),
     DOSSIER_PASSWORD: "correct horse",
     get PATHFINDER_STARTUPS() {
       return flags.startups;
+    },
+    get PATHFINDER_TOOLS() {
+      return flags.tools;
     },
     // Pathfinder: a Firebase project, while a test turns it on.
     get PATHFINDER_FIREBASE_API_KEY() {
@@ -191,6 +194,27 @@ describe("proxy", () => {
       expect(response.headers.get("x-middleware-next")).toBe("1");
     } finally {
       flags.startups = "off";
+    }
+  });
+
+  it("shows the not-found page for the job-search tools while PATHFINDER_TOOLS is off, and the screens while it's on (Pathfinder)", async () => {
+    const token = await encodeSession({ persistent: false, userId: "test-student" }, { key, fingerprint });
+    const tools = ["/jobs", "/agent", "/applications", "/applications/1", "/new", "/inbox", "/resume"];
+    for (const path of tools) {
+      expect((await proxy(request(path, { cookie: token }))).headers.get("x-middleware-rewrite"), path).toBeNull();
+    }
+    flags.tools = "off";
+    try {
+      for (const path of tools) {
+        const response = await proxy(request(path, { cookie: token }));
+        expect(response.headers.get("x-middleware-rewrite"), path).toBe("http://localhost:3000/_not-found");
+      }
+      // The student's own pages, and the dashboard, which sends them to the resume analysis.
+      for (const path of ["/", "/analyze", "/profile", "/settings"]) {
+        expect((await proxy(request(path, { cookie: token }))).headers.get("x-middleware-rewrite"), path).toBeNull();
+      }
+    } finally {
+      flags.tools = "on";
     }
   });
 

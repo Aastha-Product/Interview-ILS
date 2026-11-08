@@ -2,12 +2,12 @@
 
 import { z } from "zod";
 
-import { action } from "@/lib/action";
+import { toolAction } from "@/lib/action";
 import { FILTERS, SORT_KEYS, VIEWS } from "@/lib/applications-list";
 import { saveSettings } from "@/lib/settings-data";
 
 /** Remembers how the Applications screen was left (LST-7), for the next visit. */
-export const rememberListView = action(
+export const rememberListView = toolAction(
   z.object({
     view: z.enum(VIEWS),
     filter: z.enum(FILTERS.map((filter) => filter.value)),
