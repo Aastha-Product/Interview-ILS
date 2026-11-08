@@ -5,6 +5,7 @@ import { loadAiConfig, loadAiSettingsView } from "@/lib/ai/config";
 import { analysesLeftToday, analysesPerDay } from "@/lib/ai/daily-limit";
 import { verifySession } from "@/lib/auth/session";
 import { listResumeAnalyses } from "@/lib/resume-analysis";
+import { managedMode } from "@/lib/managed";
 import { toolsEnabled } from "@/lib/tools";
 import { signInMode } from "@/lib/auth/google-sign-in";
 import { jobSearchView, loadJobSearchConfig } from "@/lib/job-search/config";
@@ -38,7 +39,7 @@ import { GoogleNotice } from "./google-notice";
 import { JobSearchSection } from "./job-search-section";
 import { ScoringSection } from "./scoring-section";
 import { AboutSection, type AboutFacts, type UsagePingView } from "./about-section";
-import { settingsSectionFromParam, STUDENT_SETTINGS_SECTIONS } from "./sections";
+import { managedSettingsSections, SETTINGS_SECTIONS, settingsSectionFromParam, STUDENT_SETTINGS_SECTIONS } from "./sections";
 import { SettingsScreen } from "./settings-screen";
 import { AccountSection, HelpSection, PlanSection, PrivacySection } from "./student-sections";
 
@@ -49,15 +50,19 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
   const params = await searchParams;
   // Pathfinder: without the job-search tools, students get a short Settings with nothing technical.
   if (!toolsEnabled()) return <StudentSettings param={params.section} />;
-  const section = settingsSectionFromParam(params.section);
+  // Pathfinder, managed mode: no AI provider, job source, scoring or OAuth client to set up.
+  const managed = managedMode();
+  const sections = managed ? managedSettingsSections((await loadGoogleClientConfig()).client !== null) : SETTINGS_SECTIONS;
+  const section = settingsSectionFromParam(params.section, sections);
   const settings = await loadSettings();
+  const aiBehaviour = <AiBehaviour initial={{ creativity: settings.creativity, strict: settings.strict, showDiff: settings.showDiff }} />;
 
   return (
-    <SettingsScreen section={section}>
+    <SettingsScreen section={section} sections={sections}>
       {section === "ai" ? (
         <>
           <AiProviderSection initial={await loadAiSettingsView()} />
-          <AiBehaviour initial={{ creativity: settings.creativity, strict: settings.strict, showDiff: settings.showDiff }} />
+          {aiBehaviour}
         </>
       ) : section === "jobs" ? (
         <JobSearchSection initial={jobSearchView(await loadJobSearchConfig())} />
@@ -88,6 +93,7 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
             client={await googleClientView()}
             browserTimeZone={(await userTimeZone()) ?? null}
             redirectUri={redirectUri(await requestOrigin())}
+            managed={managed}
             initial={{
               gmailRead: settings.gmailRead,
               gmailScope: settings.gmailScope,
@@ -118,6 +124,7 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
           jobRetentionHours={settings.jobRetentionHours}
         />
       ) : section === "documents" ? (
+        <>
         <DocumentsSection
           // Only these fields: the settings also hold the encrypted API key, which never leaves the server.
           initial={{
@@ -133,6 +140,9 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
           }}
           preview={await filePreview()}
         />
+        {/* Managed mode has no AI provider section, so how the AI writes is set here. */}
+        {managed && aiBehaviour}
+        </>
       ) : (
         <AboutSection
           facts={await aboutFacts()}

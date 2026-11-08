@@ -189,6 +189,17 @@ const schema = z.object({
       .toLowerCase()
       .pipe(z.enum(["on", "off"], { error: (issue) => `PATHFINDER_TOOLS must be on or off (got "${String(issue.input)}").` })),
   ).transform((value) => value ?? "off"),
+  // Pathfinder: the server runs the AI, the job search, scoring and Google for every student.
+  // Unset means on: their settings come only from the DOSSIER_* variables, students never see
+  // or set a provider, key or OAuth client, and anything a student saved is ignored. off brings
+  // back Dossier's self-hosted Settings, where each user brings their own.
+  PATHFINDER_MANAGED: optional(
+    z
+      .string()
+      .trim()
+      .toLowerCase()
+      .pipe(z.enum(["on", "off"], { error: (issue) => `PATHFINDER_MANAGED must be on or off (got "${String(issue.input)}").` })),
+  ).transform((value) => value ?? "on"),
   // Pathfinder: how many AI requests each student may make per day on the server's shared key
   // (DOSSIER_AI_KEY); the count resets at midnight IST. Students with their own key in Settings
   // aren't limited. Unset means no limit.

@@ -1,5 +1,8 @@
 import "server-only";
 
+import { logServerError } from "@/lib/log";
+import { MANAGED_UNAVAILABLE, managedMode } from "@/lib/managed";
+
 import { credentialsFor, loadJobSearchConfig, requestContext } from "./config";
 import { JobSearchError } from "./errors";
 import { postingDetails, searchPostings } from "./index";
@@ -19,15 +22,26 @@ export async function askSource(
 ): Promise<({ ok: true; source: JobSource } & SearchPage) | SearchProblem> {
   const config = await loadJobSearchConfig();
   const from = source ?? config.source;
-  if (!from) return { ok: false, problem: "off", message: "Choose where to search in Settings → Job search first." };
+  if (!from) return forStudent({ ok: false, problem: "off", message: "Choose where to search in Settings → Job search first." });
   if (!query.country) return { ok: false, problem: "no-country", message: "Choose a country to search in." };
   try {
     const page = await searchPostings(from, credentialsFor(config, from), query, next, requestContext(from));
     return { ok: true, source: from, ...page };
   } catch (error) {
-    if (error instanceof JobSearchError) return { ok: false, problem: error.problem, message: error.message };
+    if (error instanceof JobSearchError) return forStudent({ ok: false, problem: error.problem, message: error.message });
     throw error;
   }
+}
+
+/**
+ * Pathfinder, managed mode: no job source, or the server's key refused, is the service's
+ * problem, not the student's. They see a plain "try again" (no link to Settings they don't
+ * have), and the server log says what's wrong for whoever runs it.
+ */
+function forStudent(problem: SearchProblem): SearchProblem {
+  if (!managedMode() || !["off", "no-key", "key"].includes(problem.problem)) return problem;
+  logServerError("job search", new Error(`${problem.problem}: ${problem.message}`));
+  return { ok: false, problem: "unavailable", message: MANAGED_UNAVAILABLE.jobs };
 }
 
 /**

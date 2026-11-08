@@ -93,6 +93,15 @@ reference design (report: https://claude.ai/artifact/4DwdbGGvd2MtBhCryBeXPN).
 
 Newest first. One entry per session: date, account, branch, what changed, what's next.
 
+- **2026-11-08 · account 1 · `feature/managed-mode`** — P0 task 1 of the scale audit
+  (https://claude.ai/artifact/GSHLW1T2jiX99CUiBtAUov): `PATHFINDER_MANAGED` (on by default). The
+  AI, job search, scoring and Google client come only from the server's DOSSIER_* variables; what
+  a student saved is ignored; their settings actions refuse; Settings hides AI provider, Job
+  search, Scoring (and Google without a server client); "check your key / choose a provider"
+  messages become plain ones, logged for the operator. Inherited tests run self-hosted
+  (`PATHFINDER_MANAGED=off` in the test setup and e2e). Next, P0 task 2: show students the
+  Dossier tools and enforce the tools gate on the server.
+
 - **2026-11-07 · account 1 · `chore/handoff-after-merge`** — Merged pull request #1: `main` is now
   this app (old app kept as `pathfinder-v1`). Made the Pages workflow manual-only (site/ is
   upstream Dossier's website). Next: the open list above, starting with the live server (owner)

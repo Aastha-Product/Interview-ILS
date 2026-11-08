@@ -85,8 +85,7 @@ describe("resolveAiConfig", () => {
       model: "server-model",
     });
     // Without DOSSIER_AI_URL, the provider's public default, never the saved address.
-    const { DOSSIER_AI_URL: _url, ...noUrl } = env;
-    expect(resolveAiConfig(saved, noUrl).baseUrl).toBe("https://api.openai.com/v1");
+    expect(resolveAiConfig(saved, { ...env, DOSSIER_AI_URL: undefined }).baseUrl).toBe("https://api.openai.com/v1");
   });
 
   it("keeps a student's own address and model when they bring their own key", () => {
@@ -132,5 +131,16 @@ describe("isAiUsable (#221)", () => {
     expect(await usable({ provider: "ANTHROPIC" })).toBe(false);
     expect(await usable({ provider: "ANTHROPIC", apiKeyEnc: encryptApiKey("sk-saved") })).toBe(true);
     expect(await usable({ provider: "MISTRAL", apiKeyEnc: encryptApiKey("sk", "b".repeat(32)) })).toBe(false);
+  });
+
+  it("ignores a student's own provider and key in managed mode: only the server's count", async () => {
+    vi.stubEnv("PATHFINDER_MANAGED", "on");
+    try {
+      // The server here has no AI (env mocked without DOSSIER_AI_*), so a student's working setup doesn't make it usable.
+      expect(await usable({ provider: "ANTHROPIC", apiKeyEnc: encryptApiKey("sk-saved") })).toBe(false);
+      expect(await usable({ provider: "LOCAL", model: "qwen2.5:7b" })).toBe(false);
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 });

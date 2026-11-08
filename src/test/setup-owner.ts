@@ -6,3 +6,8 @@ vi.mock("@/lib/owner/current", async () => {
   const { contextUserId } = await import("@/lib/owner/context");
   return { currentUserId: async () => contextUserId() ?? "test-student" };
 });
+
+// Pathfinder: the inherited tests check Dossier's self-hosted behaviour, where each user brings
+// their own provider and keys. Managed mode (the default in production) has its own tests, which
+// turn it on with vi.stubEnv("PATHFINDER_MANAGED", "on").
+process.env.PATHFINDER_MANAGED ??= "off";

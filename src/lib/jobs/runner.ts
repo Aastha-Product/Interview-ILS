@@ -8,6 +8,7 @@ import { loadAiConfig } from "@/lib/ai/config";
 import { AiError } from "@/lib/ai/errors";
 import { providerOption } from "@/lib/ai/provider-options";
 import { logServerError } from "@/lib/log";
+import { managedMode, studentMessage } from "@/lib/managed";
 import { runAsUser } from "@/lib/owner/context";
 import { currentUserId } from "@/lib/owner/current";
 import { prisma, systemPrisma } from "@/lib/prisma";
@@ -258,13 +259,15 @@ async function execute(id: string, userId: string, controller: AbortController):
     });
     await finish(id, { status: JobStatus.DONE, result: definition.result.parse(result) as Prisma.InputJsonValue });
   } catch (error) {
-    // AI failures already say what to do; anything else is logged and kept vague.
+    // AI failures already say what to do; anything else is logged and kept vague. Pathfinder, managed
+    // mode: the student can't fix the AI's setup, so its messages are plain ones, and the server
+    // logs the failure for whoever runs it (the message names the problem, never the request).
     const message = controller.signal.aborted
       ? JOB_MESSAGES.cancelled
       : error instanceof AiError
-        ? error.message
+        ? studentMessage(error.message)
         : JOB_MESSAGES.failed;
-    if (!(error instanceof AiError) && !controller.signal.aborted) logServerError(`job ${id}`, error);
+    if (!controller.signal.aborted && (!(error instanceof AiError) || managedMode())) logServerError(`job ${id}`, error);
     try {
       await finish(id, { status: JobStatus.FAILED, error: message });
     } catch (cause) {

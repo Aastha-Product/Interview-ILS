@@ -2,6 +2,7 @@ import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { decryptApiKey } from "@/lib/ai/api-key";
 import { MockProvider } from "@/lib/ai/providers/mock";
+import { MANAGED_SETTING_MESSAGE } from "@/lib/action";
 import { loadSettings } from "@/lib/settings-data";
 import { createTestClient, resetDatabase } from "@/test/db";
 
@@ -59,6 +60,30 @@ beforeEach(async () => {
   provider.current = new MockProvider({ model: "qwen2.5:3b", models: ["qwen2.5:3b", "llama3.1:8b"] });
 });
 afterAll(() => prisma().$disconnect());
+
+describe("managed mode (Pathfinder)", () => {
+  it("refuses every action that sets up or tests the AI, a job source, scoring or keys, and saves nothing", async () => {
+    vi.stubEnv("PATHFINDER_MANAGED", "on");
+    try {
+      const refused = { ok: false, error: MANAGED_SETTING_MESSAGE };
+      const key = { action: "set", value: "sk-student" } as const;
+      expect(await saveAiProvider({ provider: "OPENAI", baseUrl: "https://attacker.example/v1", model: "x" })).toEqual(refused);
+      expect(await saveApiKey({ provider: "OPENAI", change: key })).toEqual(refused);
+      expect(await listAiModels({})).toEqual(refused);
+      expect(await testAiConnection({})).toEqual(refused);
+      expect(await saveJobSource({ source: "JSEARCH" })).toEqual(refused);
+      expect(await saveJobSearchDetails({ adzunaAppId: "app" })).toEqual(refused);
+      expect(await saveJobSourceKey({ source: "JSEARCH", change: key })).toEqual(refused);
+      expect(await testJobSource({})).toEqual(refused);
+      expect(await saveScorer({ scorer: "JEV" })).toEqual(refused);
+      expect(await saveTypesafeKey({ change: key })).toEqual(refused);
+      expect(await testJev({})).toEqual(refused);
+      expect(await loadSettings()).toMatchObject({ provider: null, baseUrl: null, apiKeyEnc: null, jobSource: null, jsearchKeyEnc: null, scorer: null, typesafeKeyEnc: null });
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+});
 
 describe("saveAiProvider", () => {
   it("saves the provider, address and model (SET-1)", async () => {

@@ -70,6 +70,7 @@ export function GoogleSection({
   initial,
   browserTimeZone,
   redirectUri,
+  managed = false,
 }: {
   connection: GoogleConnectionView;
   client: GoogleClientView;
@@ -77,6 +78,8 @@ export function GoogleSection({
   browserTimeZone: string | null;
   /** The address to register in Google Cloud. */
   redirectUri: string;
+  /** Pathfinder, managed mode: the server's own client; students only connect their account. */
+  managed?: boolean;
 }) {
   const track = useTrackSave();
   const router = useRouter();
@@ -107,7 +110,11 @@ export function GoogleSection({
       router.refresh();
     });
 
-  if (connection.status === "not-configured") return <SetupSteps redirectUri={redirectUri} client={client} />;
+  if (connection.status === "not-configured") {
+    // Managed mode hides this section without a server client; this is only a safeguard.
+    if (managed) return <p className="text-sm text-muted">Connecting Google isn&apos;t available on Pathfinder yet.</p>;
+    return <SetupSteps redirectUri={redirectUri} client={client} />;
+  }
 
   return (
     <>
@@ -284,7 +291,7 @@ export function GoogleSection({
         </>
       )}
 
-      <ClientCard initial={client} connected={connection.status === "connected"} />
+      {!managed && <ClientCard initial={client} connected={connection.status === "connected"} />}
 
       <ConfirmDialog
         open={confirming}

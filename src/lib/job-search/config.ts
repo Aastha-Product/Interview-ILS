@@ -3,6 +3,7 @@ import "server-only";
 import { env, type Env } from "@/lib/env";
 import { decryptSecret, JOB_SOURCE_KEY, SecretUnreadable } from "@/lib/secrets";
 import type { SettingsData } from "@/lib/settings";
+import { withoutStudentConfig } from "@/lib/managed";
 import { loadSettings } from "@/lib/settings-data";
 
 import type { RequestContext, SourceCredentials } from "./adapter";
@@ -87,7 +88,7 @@ export function resolveJobSearchConfig(saved: SavedJobSettings, source: JobEnv, 
 
 /** The job search configuration in effect right now. */
 export async function loadJobSearchConfig(): Promise<JobSearchConfig> {
-  return resolveJobSearchConfig(await loadSettings(), env);
+  return resolveJobSearchConfig(withoutStudentConfig(await loadSettings()), env);
 }
 
 /**

@@ -2,6 +2,7 @@ import "server-only";
 
 import { AiProvider } from "@/generated/prisma/enums";
 import { env, type Env } from "@/lib/env";
+import { withoutStudentConfig } from "@/lib/managed";
 import { loadSettings } from "@/lib/settings-data";
 
 import { API_KEY_UNREADABLE, ApiKeyUnreadable, apiKeyState, decryptApiKey } from "./api-key";
@@ -98,7 +99,7 @@ export function resolveAiConfig(saved: SavedSettings | null, source: AiEnv, secr
 
 /** The AI configuration in effect right now. */
 export async function loadAiConfig(): Promise<AiConfig> {
-  return resolveAiConfig(await loadSettings(), env);
+  return resolveAiConfig(withoutStudentConfig(await loadSettings()), env);
 }
 
 /**
@@ -106,7 +107,7 @@ export async function loadAiConfig(): Promise<AiConfig> {
  * whether it comes from Settings or DOSSIER_AI_*, and never the key.
  */
 export async function loadAiSettingsView(): Promise<AiSettingsView> {
-  const saved = await loadSettings();
+  const saved = withoutStudentConfig(await loadSettings());
   const config = resolveAiConfig(saved, env);
   return {
     provider: config.provider,
@@ -125,7 +126,7 @@ export function keyStateOf(saved: { provider: AiProvider | null; apiKeyEnc: stri
 /** Whether an AI provider has been chosen, in Settings or with DOSSIER_AI_PROVIDER. */
 export async function isAiConfigured(): Promise<boolean> {
   if (env.DOSSIER_AI_PROVIDER) return true;
-  return Boolean((await loadSettings()).provider);
+  return Boolean((withoutStudentConfig(await loadSettings())).provider);
 }
 
 /**

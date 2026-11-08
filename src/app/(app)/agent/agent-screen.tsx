@@ -238,6 +238,8 @@ function Notices({ view }: { view: AgentView }) {
       </>,
     );
   }
+  // Pathfinder, managed mode: the service's problem, in plain words and with nothing to set up.
+  if (view.setupProblem) return note(view.setupProblem);
   if (view.limitReached) return note("The agent has run 3 times in the past 24 hours, as many as it may. It runs again once a day has passed since the first.");
   return null;
 }

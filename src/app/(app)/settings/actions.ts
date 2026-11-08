@@ -6,7 +6,7 @@ import { z } from "zod";
 
 import { AiProvider, Creativity, DateFormat, JobStatus, PaperSize, Tone } from "@/generated/prisma/enums";
 import { DELETE_ACCOUNT_MISMATCH, deleteAccount } from "@/lib/account-deletion";
-import { action, ActionError } from "@/lib/action";
+import { action, ActionError, selfHostedOnly } from "@/lib/action";
 import { endSession } from "@/lib/auth/session";
 import { AiError, createProvider } from "@/lib/ai";
 import { applyApiKeyChange } from "@/lib/ai/api-key";
@@ -55,6 +55,7 @@ export const saveAiProvider = action(
     model: z.string().trim().max(200),
   }),
   async ({ provider, baseUrl, model }) => {
+    selfHostedOnly();
     const current = await loadSettings();
     await saveSettings({
       provider,
@@ -76,6 +77,7 @@ export const saveApiKey = action(
     ]),
   }),
   async ({ provider, change }) => {
+    selfHostedOnly();
     const current = await loadSettings();
     await saveSettings({
       apiKeyEnc: applyApiKeyChange(current.apiKeyEnc, change),
@@ -88,6 +90,7 @@ export const saveApiKey = action(
 
 /** The models the saved server offers, for the model select. */
 export const listAiModels = action(z.object({}), async () => {
+  selfHostedOnly();
   try {
     const provider = createProvider(await loadAiConfig());
     return { models: await provider.listModels(AbortSignal.timeout(15_000)), problem: null };
@@ -102,6 +105,7 @@ const TEST_TIMEOUT_MS = 60_000;
 
 /** "Test connection" (SET-2): a short prompt to the saved provider, timed. */
 export const testAiConnection = action(z.object({}), async () => {
+  selfHostedOnly();
   try {
     const config = await loadAiConfig();
     const provider = createProvider({ ...config, timeoutMs: Math.min(config.timeoutMs, TEST_TIMEOUT_MS) });
@@ -126,6 +130,7 @@ const loadView = async () => jobSearchView(await loadJobSearchConfig());
 export const saveJobSource = action(
   z.object({ source: z.enum([...JOB_SOURCES, "OFF"]), accepted: z.literal(true).optional() }),
   async ({ source, accepted }) => {
+    selfHostedOnly();
     const accepting = source === "ARBEITSAGENTUR" && accepted === true;
     if (source === "ARBEITSAGENTUR") {
       const { arbeitsagentur } = await loadJobSearchConfig();
@@ -141,6 +146,7 @@ export const saveJobSource = action(
 export const saveJobSearchDetails = action(
   z.strictObject({ jsearchHost: z.enum(JSEARCH_HOSTS).optional(), adzunaAppId: z.string().trim().max(200).optional() }),
   async ({ jsearchHost, adzunaAppId }) => {
+    selfHostedOnly();
     await saveSettings({ jsearchHost, ...(adzunaAppId === undefined ? {} : { adzunaAppId: adzunaAppId || null }) });
     return loadView();
   },
@@ -156,6 +162,7 @@ export const saveJobSourceKey = action(
     ]),
   }),
   async ({ source, change }) => {
+    selfHostedOnly();
     const field = source === "JSEARCH" ? "jsearchKeyEnc" : "adzunaKeyEnc";
     const current = await loadSettings();
     await saveSettings({ [field]: applySecretChange(JOB_SOURCE_KEY, current[field], change) });
@@ -165,6 +172,7 @@ export const saveJobSourceKey = action(
 
 /** "Test connection": the smallest request the chosen source takes, timed. */
 export const testJobSource = action(z.object({}), async () => {
+  selfHostedOnly();
   const config = await loadJobSearchConfig();
   if (!config.source) return { connected: false as const, message: "Choose a source first." };
   const started = performance.now();
@@ -183,6 +191,7 @@ const loadScoringView = async () => scoringView(await loadScoringConfig());
 
 /** What scores postings: the AI model, or Jev. */
 export const saveScorer = action(z.object({ scorer: z.enum(SCORERS) }), async ({ scorer }) => {
+  selfHostedOnly();
   await saveSettings({ scorer });
   return loadScoringView();
 });
@@ -196,6 +205,7 @@ export const saveTypesafeKey = action(
     ]),
   }),
   async ({ change }) => {
+    selfHostedOnly();
     const current = await loadSettings();
     await saveSettings({ typesafeKeyEnc: applySecretChange(TYPESAFE_KEY, current.typesafeKeyEnc, change) });
     return loadScoringView();
@@ -204,6 +214,7 @@ export const saveTypesafeKey = action(
 
 /** "Test connection": one yes-or-no question to Jev about a sentence, timed. It costs a few dozen tokens. */
 export const testJev = action(z.object({}), async () => {
+  selfHostedOnly();
   const jev = jevKey(await loadScoringConfig());
   if (jev.problem !== null) return { connected: false as const, message: jev.problem };
   const started = performance.now();

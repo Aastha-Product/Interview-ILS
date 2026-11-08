@@ -32,6 +32,7 @@ describe("parseEnv", () => {
       DOSSIER_TELEMETRY: "off", // Pathfinder: unset means off
       PATHFINDER_STARTUPS: "off", // Pathfinder: unset means off
       PATHFINDER_TOOLS: "off", // Pathfinder: the job-search tools, unset means off
+      PATHFINDER_MANAGED: "on", // Pathfinder: the server runs the AI, job search and Google, unset means on
     });
   });
 

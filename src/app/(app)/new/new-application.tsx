@@ -144,10 +144,12 @@ export type NewApplicationProps = {
   fresh?: boolean;
   /** "Start application" on Find jobs: start over from this posting. */
   fromPosting?: FromPosting | null;
+  /** Pathfinder: the service runs the AI (PATHFINDER_MANAGED), so no "choose a provider". */
+  managed?: boolean;
 };
 
 /** The new application flow (E7): paste → read → review → create. */
-export function NewApplication({ aiReady, writeInClaude = false, samplePosting, defaultTone, fresh = false, fromPosting = null }: NewApplicationProps) {
+export function NewApplication({ aiReady, writeInClaude = false, samplePosting, defaultTone, fresh = false, fromPosting = null, managed = false }: NewApplicationProps) {
   const [initial] = useState<Draft>(() => ({
     step: "paste",
     posting: "",
@@ -364,6 +366,11 @@ export function NewApplication({ aiReady, writeInClaude = false, samplePosting, 
                     choose a model in Settings → AI provider
                   </Link>
                   .
+                </p>
+              ) : !aiReady && managed ? (
+                // Pathfinder, managed mode: the service runs the AI; there's nothing for the student to set up.
+                <p role="note" className="rounded-card bg-warning-surface px-4 py-3 text-meta text-warning">
+                  Reading job postings isn&apos;t available right now. Please try again in a few minutes.
                 </p>
               ) : !aiReady && (
                 <p role="note" className="rounded-card bg-warning-surface px-4 py-3 text-meta text-warning">
