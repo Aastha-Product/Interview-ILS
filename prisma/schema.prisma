@@ -28,17 +28,17 @@ datasource db {
 
 /// A student with a private account. Everything they store belongs to them and is deleted with them.
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique @db.Citext
+  id             String   @id @default(cuid())
+  email          String   @unique @db.Citext
   /// The Google account the student signs in with: Google's stable id ("sub"), which outlives an email change.
-  googleSub String?  @unique
+  googleSub      String?  @unique
   /// The Firebase Authentication account the student signs in with: Firebase's stable user id.
-  firebaseUid String? @unique
+  firebaseUid    String?  @unique
   /// Every session token carries the version it was made with; signing out raises it, which ends all of the student's sessions.
-  sessionVersion Int @default(0)
-  name      String   @default("")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  sessionVersion Int      @default(0)
+  name           String   @default("")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   profileFields    ProfileField[]
   skills           Skill[]
@@ -1084,30 +1084,37 @@ enum JobStatus {
 /// documents. Each job type validates its own input and result (src/lib/jobs).
 model Job {
   /// The student this belongs to.
-  userId        String       @default(dbgenerated("current_setting('app.user_id')"))
-  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  id            String       @id @default(cuid())
+  userId          String       @default(dbgenerated("current_setting('app.user_id')"))
+  user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id              String       @id @default(cuid())
   /// Which handler runs it, e.g. "extract-posting".
-  type          String
+  type            String
   /// Finds the job again for something on screen, e.g. "application:<id>".
-  key           String?
+  key             String?
   /// The application it works on, if any: deleting the application deletes the job.
-  applicationId String?
-  application   Application? @relation(fields: [applicationId], references: [id], onDelete: Cascade)
-  status        JobStatus    @default(QUEUED)
+  applicationId   String?
+  application     Application? @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  status          JobStatus    @default(QUEUED)
   /// The named step in progress, e.g. "Reading the posting".
-  step          String?
-  input         Json
-  result        Json?
+  step            String?
+  input           Json
+  result          Json?
   /// Why it failed, written for the user.
-  error         String?
-  createdAt     DateTime     @default(now())
-  startedAt     DateTime?
-  finishedAt    DateTime?
-  updatedAt     DateTime     @updatedAt
+  error           String?
+  createdAt       DateTime     @default(now())
+  startedAt       DateTime?
+  finishedAt      DateTime?
+  updatedAt       DateTime     @updatedAt
+  /// Pathfinder: the worker process running it (the Job table is the queue).
+  workerId        String?
+  /// When that worker last said it is still running; a stale one counts as interrupted.
+  heartbeatAt     DateTime?
+  /// Cancel was asked for in another process; the worker running it stops it.
+  cancelRequested Boolean      @default(false)
 
   @@index([key, createdAt])
   @@index([status])
+  @@index([status, createdAt])
   @@index([applicationId])
   @@index([userId])
 }

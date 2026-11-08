@@ -12,8 +12,10 @@ import { GET } from "./route";
 const db = vi.hoisted(() => ({ client: undefined as ReturnType<typeof createTestClient> | undefined }));
 vi.mock("@/lib/prisma", async () => {
   const { createTestClient } = await import("@/test/db");
+  const { rawClientOf } = await import("@/lib/owner/scope");
   db.client = createTestClient();
-  return { prisma: db.client };
+  // The queue claims jobs and reads their state without a student (P0 task 3).
+  return { prisma: db.client, systemPrisma: rawClientOf(db.client) };
 });
 vi.mock("@/lib/auth/session", () => ({ getSession: vi.fn() }));
 vi.mock("@/lib/ai/config", () => ({ loadAiConfig: async () => ({ provider: "LOCAL" }) }));
@@ -90,5 +92,13 @@ describe("GET /api/jobs/[id]", () => {
     const response = await getJobState(request(`/api/jobs/${id}`), context(id));
     expect(await response.json()).toMatchObject({ id, type: "test-stream", status: expect.stringMatching(/QUEUED|RUNNING/) });
     gate.open();
+    // Done before the next file starts: the queue is the database, and a job left running here
+    // would still be finishing while that file's runner claims its own jobs (P0 task 3).
+    for (let tries = 0; tries < 100; tries++) {
+      const job = await (await getJobState(request(`/api/jobs/${id}`), context(id))).json();
+      if (job.status === "DONE") return;
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    throw new Error("The job didn't finish.");
   });
 });

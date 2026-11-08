@@ -32,7 +32,10 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    environment:
+    environment: &app-environment
+      # Pathfinder: this container serves the pages; the worker below runs the background jobs
+      # (resume analyses, documents, scoring) and the schedules, from the queue in the database.
+      PATHFINDER_ROLE: web
       DATABASE_URL: postgresql://pathfinder:${POSTGRES_PASSWORD}@db:5432/pathfinder
       DOSSIER_PASSWORD: ${DOSSIER_PASSWORD:?Set DOSSIER_PASSWORD in .env (setup.sh makes it)}
       DOSSIER_SECRET: ${DOSSIER_SECRET:?Set DOSSIER_SECRET in .env}
@@ -79,12 +82,35 @@ services:
       PATHFINDER_AI_READING_MODEL: ${PATHFINDER_AI_READING_MODEL:-}
       PATHFINDER_AI_FALLBACK_MODEL: ${PATHFINDER_AI_FALLBACK_MODEL:-}
       DOSSIER_BACKUP_RETENTION_DAYS: ${DOSSIER_BACKUP_RETENTION_DAYS:-}
+      # Background jobs the worker runs at once, and per student (defaults 10 and 2).
+      PATHFINDER_JOB_CONCURRENCY: ${PATHFINDER_JOB_CONCURRENCY:-}
+      PATHFINDER_JOBS_PER_STUDENT: ${PATHFINDER_JOBS_PER_STUDENT:-}
     # Not published: only Caddy reaches it, over the compose network.
     expose:
       - "3000"
     volumes:
       - data:/data
     # Room for Chromium, which prints the PDFs.
+    mem_limit: 1g
+
+  # Runs the background jobs and the schedules (PATHFINDER_ROLE=worker): the same image and
+  # settings as the app, started once the app has brought the database up to date. Caddy never
+  # sends it requests. Restarting the app no longer stops jobs; queued ones wait here.
+  worker:
+    image: pathfinder-app:local
+    # Built by the app's build (or setup.sh), never pulled.
+    pull_policy: never
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_healthy
+    environment:
+      <<: *app-environment
+      PATHFINDER_ROLE: worker
+    volumes:
+      # The zips and backups it writes are served by the app.
+      - data:/data
+    # Room for Chromium, which zips the PDFs.
     mem_limit: 1g
 
   caddy:

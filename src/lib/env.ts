@@ -200,6 +200,36 @@ const schema = z.object({
       .toLowerCase()
       .pipe(z.enum(["on", "off"], { error: (issue) => `PATHFINDER_MANAGED must be on or off (got "${String(issue.input)}").` })),
   ).transform((value) => value ?? "on"),
+  // Pathfinder: what this process does. all (the default): serves pages and runs the background
+  // jobs and schedules, as one server. web: serves pages only; jobs wait in the database for a
+  // worker. worker: runs the jobs and schedules (deploy/lightsail/compose.yml runs one of each).
+  PATHFINDER_ROLE: optional(
+    z
+      .string()
+      .trim()
+      .toLowerCase()
+      .pipe(z.enum(["all", "web", "worker"], { error: (issue) => `PATHFINDER_ROLE must be all, web or worker (got "${String(issue.input)}").` })),
+  ),
+  // Pathfinder: background jobs one process runs at once with a hosted AI (a local model always
+  // gets one at a time). Unset means 10.
+  PATHFINDER_JOB_CONCURRENCY: optional(
+    z
+      .string()
+      .trim()
+      .regex(/^\d+$/, { error: (issue) => `PATHFINDER_JOB_CONCURRENCY must be a whole number (got "${String(issue.input)}").` })
+      .transform(Number)
+      .pipe(z.number().min(1, { error: "PATHFINDER_JOB_CONCURRENCY must be at least 1." })),
+  ),
+  // Pathfinder: background jobs one student may have running at once, so no one holds up the
+  // queue for everyone else. Unset means 2.
+  PATHFINDER_JOBS_PER_STUDENT: optional(
+    z
+      .string()
+      .trim()
+      .regex(/^\d+$/, { error: (issue) => `PATHFINDER_JOBS_PER_STUDENT must be a whole number (got "${String(issue.input)}").` })
+      .transform(Number)
+      .pipe(z.number().min(1, { error: "PATHFINDER_JOBS_PER_STUDENT must be at least 1." })),
+  ),
   // Pathfinder: how many AI requests each student may make per day on the server's shared key
   // (DOSSIER_AI_KEY); the count resets at midnight IST. Students with their own key in Settings
   // aren't limited. Unset means no limit.
