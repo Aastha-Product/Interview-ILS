@@ -54,11 +54,20 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
   const managed = managedMode();
   const sections = managed ? managedSettingsSections((await loadGoogleClientConfig()).client !== null) : SETTINGS_SECTIONS;
   const section = settingsSectionFromParam(params.section, sections);
+  const description = managed ? MANAGED_DESCRIPTION : undefined;
+  // Pathfinder, managed mode: the student's own sections, the same as where the tools are off.
+  if (isStudentSection(section)) {
+    return (
+      <SettingsScreen section={section} sections={sections} description={description}>
+        {await studentSection(section)}
+      </SettingsScreen>
+    );
+  }
   const settings = await loadSettings();
   const aiBehaviour = <AiBehaviour initial={{ creativity: settings.creativity, strict: settings.strict, showDiff: settings.showDiff }} />;
 
   return (
-    <SettingsScreen section={section} sections={sections}>
+    <SettingsScreen section={section} sections={sections} description={description}>
       {section === "ai" ? (
         <>
           <AiProviderSection initial={await loadAiSettingsView()} />
@@ -112,7 +121,9 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
         </>
       ) : section === "data" ? (
         <DataSection
-          hasApiKey={[settings.apiKeyEnc, settings.jsearchKeyEnc, settings.adzunaKeyEnc].some((key) => key !== null)}
+          // Managed mode: a student's saved keys are never used, so there's nothing to take along.
+          hasApiKey={!managed && [settings.apiKeyEnc, settings.jsearchKeyEnc, settings.adzunaKeyEnc].some((key) => key !== null)}
+          managed={managed}
           exportName={exportFileName()}
           backups={{
             on: settings.nightlyBackup,
@@ -231,35 +242,47 @@ async function usagePingView(): Promise<UsagePingView> {
   return { host: USAGE_PING_HOST, ...usagePingChoice(settings), id: settings.usagePingId, production: process.env.NODE_ENV === "production" };
 }
 
+/** What Settings says at the top in managed mode: nothing about servers or providers. */
+const MANAGED_DESCRIPTION = "Your account and plan, your job agent and documents, and your data.";
+
+type StudentSectionId = (typeof STUDENT_SETTINGS_SECTIONS)[number]["id"];
+
+function isStudentSection(id: string): id is StudentSectionId {
+  return STUDENT_SETTINGS_SECTIONS.some((section) => section.id === id);
+}
+
 /** Settings for students (Pathfinder, PATHFINDER_TOOLS off): account, plan, privacy and help. */
 async function StudentSettings({ param }: { param: string | string[] | undefined }) {
-  const section = settingsSectionFromParam(param, STUDENT_SETTINGS_SECTIONS);
-  const session = await verifySession();
-  const [user, profileName, ai, analyses] = await Promise.all([
-    systemPrisma.user.findUnique({ where: { id: session.userId }, select: { email: true, name: true, firebaseUid: true } }),
-    loadProfileName(),
-    loadAiConfig(),
-    listResumeAnalyses(),
-  ]);
+  const section = settingsSectionFromParam(param, STUDENT_SETTINGS_SECTIONS) as StudentSectionId;
   return (
     <SettingsScreen
       section={section}
       sections={STUDENT_SETTINGS_SECTIONS}
       description="Your account, your plan, and your data."
     >
-      {section === "plan" ? (
-        <PlanSection perDay={analysesPerDay()} left={await analysesLeftToday(ai.sharedKey)} />
-      ) : section === "privacy" ? (
-        <PrivacySection analyses={analyses.length} />
-      ) : section === "help" ? (
-        <HelpSection />
-      ) : (
-        <AccountSection
-          email={user?.email ?? ""}
-          name={profileName.trim() || user?.name.trim() || ""}
-          canResetPassword={signInMode() === "firebase" && Boolean(user?.firebaseUid)}
-        />
-      )}
+      {await studentSection(section)}
     </SettingsScreen>
+  );
+}
+
+/** One of the student's own sections: account, plan, privacy and help (Pathfinder). */
+async function studentSection(section: StudentSectionId) {
+  if (section === "plan") {
+    const ai = await loadAiConfig();
+    return <PlanSection perDay={analysesPerDay()} left={await analysesLeftToday(ai.sharedKey)} />;
+  }
+  if (section === "privacy") return <PrivacySection analyses={(await listResumeAnalyses()).length} tools={toolsEnabled()} />;
+  if (section === "help") return <HelpSection />;
+  const session = await verifySession();
+  const [user, profileName] = await Promise.all([
+    systemPrisma.user.findUnique({ where: { id: session.userId }, select: { email: true, name: true, firebaseUid: true } }),
+    loadProfileName(),
+  ]);
+  return (
+    <AccountSection
+      email={user?.email ?? ""}
+      name={profileName.trim() || user?.name.trim() || ""}
+      canResetPassword={signInMode() === "firebase" && Boolean(user?.firebaseUid)}
+    />
   );
 }

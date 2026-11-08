@@ -2,7 +2,7 @@
 
 import { z } from "zod";
 
-import { action, ActionError } from "@/lib/action";
+import { ActionError, toolAction } from "@/lib/action";
 import { isAiUsable } from "@/lib/ai/config";
 import { handOffFoundPosting, handsOffToClaude } from "@/lib/connector/handoff";
 import { loadJobSearchConfig } from "@/lib/job-search/config";
@@ -24,7 +24,7 @@ const postingRef = z.object({ source: z.enum(JOB_SOURCES), externalId: z.string(
 const searchId = z.string().min(1).max(100);
 
 /** "I understand" under the Bundesagentur für Arbeit's note (#223), for a BA choice made before it, or by DOSSIER_JOBS_SOURCE. */
-export const acceptArbeitsagenturNote = action(z.object({}), async () => {
+export const acceptArbeitsagenturNote = toolAction(z.object({}), async () => {
   const { arbeitsagentur } = await loadJobSearchConfig();
   if (!arbeitsagentur.offered) throw new ActionError("The Bundesagentur für Arbeit isn't offered on this server.");
   await saveSettings({ arbeitsagenturAcceptedAt: new Date().toISOString() });
@@ -32,48 +32,48 @@ export const acceptArbeitsagenturNote = action(z.object({}), async () => {
 });
 
 /** "Search": asks the chosen source and keeps the search with what it found; gives its id, or what went wrong. */
-export const runJobSearch = action(z.object({ query: searchQuerySchema }), ({ query }) => runSearch(query));
+export const runJobSearch = toolAction(z.object({ query: searchQuerySchema }), ({ query }) => runSearch(query));
 
 /** "Show more": the next page, added to the kept search. */
-export const showMorePostings = action(z.object({ searchId }), ({ searchId }) => showMoreFor(searchId));
+export const showMorePostings = toolAction(z.object({ searchId }), ({ searchId }) => showMoreFor(searchId));
 
 /** Removes a kept search and what it found; saved postings stay. */
-export const removeJobSearch = action(z.object({ id: searchId }), async ({ id }, { toast }) => {
+export const removeJobSearch = toolAction(z.object({ id: searchId }), async ({ id }, { toast }) => {
   await removeSearch(id);
   toast("Search removed. Saved postings from it stay in Saved.");
   return null;
 });
 
 /** The whole text of a posting the search only gave the start of; null when it can't be had. */
-export const loadFullText = action(z.object({ posting: foundPostingSchema }), async ({ posting }) => ({ text: await fullText(posting) }));
+export const loadFullText = toolAction(z.object({ posting: foundPostingSchema }), async ({ posting }) => ({ text: await fullText(posting) }));
 
-export const savePostingForLater = action(z.object({ posting: foundPostingSchema }), async ({ posting }, { toast }) => {
+export const savePostingForLater = toolAction(z.object({ posting: foundPostingSchema }), async ({ posting }, { toast }) => {
   const saved = await savePosting(posting);
   toast("Saved for later.");
   return { postingId: saved.id };
 });
 
-export const unsavePosting = action(postingRef, async (ref, { toast }) => {
+export const unsavePosting = toolAction(postingRef, async (ref, { toast }) => {
   await unmarkPosting(ref, "saved");
   toast("Removed from Saved.");
   return null;
 });
 
 /** Dismiss: out of this and later searches. Says whether it was saved, so Undo can put it back. */
-export const dismissFoundPosting = action(z.object({ posting: foundPostingSchema }), ({ posting }) => dismissPosting(posting));
+export const dismissFoundPosting = toolAction(z.object({ posting: foundPostingSchema }), ({ posting }) => dismissPosting(posting));
 
 /**
  * "Start application" (E14-8): keeps the posting with its whole text when it
  * can be had, for New application to open from its id.
  */
-export const startApplicationFrom = action(z.object({ posting: foundPostingSchema }), async ({ posting }) => {
+export const startApplicationFrom = toolAction(z.object({ posting: foundPostingSchema }), async ({ posting }) => {
   const text = await fullText(posting);
   const stored = await storePosting(text ? { ...posting, description: text, complete: true } : posting);
   return { postingId: stored.id };
 });
 
 /** Brings a dismissed posting back, into Saved again when it was there (Undo). */
-export const restorePosting = action(postingRef.extend({ saved: z.boolean() }), async ({ saved, ...ref }) => {
+export const restorePosting = toolAction(postingRef.extend({ saved: z.boolean() }), async ({ saved, ...ref }) => {
   await unmarkPosting(ref, "dismissed", { saved });
   return null;
 });
@@ -84,7 +84,7 @@ export const restorePosting = action(postingRef.extend({ saved: z.boolean() }), 
  * on and no AI model of Dossier's own, a Claude chat scores it instead (#221),
  * unless Settings → Scoring chose Jev (#274).
  */
-export const startScoringPosting = action(z.object({ posting: foundPostingSchema }), async ({ posting }): Promise<{ jobId: string } | { handoff: string }> => {
+export const startScoringPosting = toolAction(z.object({ posting: foundPostingSchema }), async ({ posting }): Promise<{ jobId: string } | { handoff: string }> => {
   const scoring = await loadScoringConfig();
   if (scoring.scorer === "AI" && (await handsOffToClaude(await isAiUsable()))) return { handoff: await handOffFoundPosting(posting, "score") };
   const problem = await scoringProblem(scoring);

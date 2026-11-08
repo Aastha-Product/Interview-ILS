@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { ApplicationStatus } from "@/generated/prisma/enums";
-import { action, ActionError } from "@/lib/action";
+import { ActionError, toolAction } from "@/lib/action";
 import { approveCandidate } from "@/lib/agent/draft";
 import { prisma } from "@/lib/prisma";
 
@@ -24,7 +24,7 @@ function refreshEverything() {
  * through here: the application page, the board and the table. Returns the
  * event id for Undo, or null when the status didn't change.
  */
-export const setStatus = action(
+export const setStatus = toolAction(
   z.object({ id: z.string().min(1), to: z.enum(ApplicationStatus) }),
   async ({ id, to }, { toast }) => {
     // An agent draft still waiting for review is approved by moving it on: it's being pursued (#195).
@@ -43,7 +43,7 @@ export const setStatus = action(
 );
 
 /** Undoes a status change from its toast (decision in #26). */
-export const undoStatus = action(
+export const undoStatus = toolAction(
   z.object({ eventId: z.string().min(1) }),
   async ({ eventId }, { toast }) => {
     const result = await undoStatusChange(prisma, eventId);

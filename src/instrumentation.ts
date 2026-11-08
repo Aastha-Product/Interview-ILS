@@ -27,13 +27,18 @@ export async function register() {
     const { startBackupSchedule } = await import("@/lib/backup-schedule");
     startBackupSchedule();
 
-    // The inbox check, while a Google account is connected (E15-3).
-    const { startInboxSchedule } = await import("@/lib/google/sync");
-    startInboxSchedule();
+    // Pathfinder: the inbox check and the job agent are job-search tools, so they run only where
+    // the tools are on (PATHFINDER_TOOLS).
+    const { toolsEnabled } = await import("@/lib/tools");
+    if (toolsEnabled()) {
+      // The inbox check, while a Google account is connected (E15-3).
+      const { startInboxSchedule } = await import("@/lib/google/sync");
+      startInboxSchedule();
 
-    // The job agent's daily run, while it's on (E16-4).
-    const { startAgentSchedule } = await import("@/lib/agent/schedule");
-    startAgentSchedule();
+      // The job agent's daily run, while it's on (E16-4).
+      const { startAgentSchedule } = await import("@/lib/agent/schedule");
+      startAgentSchedule();
+    }
 
     // Startups' daily refresh, once it was refreshed by hand and while the screen is in use (#222).
     const { startStartupsSchedule } = await import("@/lib/startups/schedule");

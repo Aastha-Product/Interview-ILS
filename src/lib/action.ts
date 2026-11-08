@@ -7,6 +7,7 @@ import { getSession, type Session } from "@/lib/auth/session";
 import { logServerError } from "@/lib/log";
 import { managedMode, studentMessage } from "@/lib/managed";
 import { messages } from "@/lib/messages";
+import { toolsEnabled, TOOLS_OFF_MESSAGE } from "@/lib/tools";
 
 /**
  * What every Server Action returns. `error` is written for the user. `toast`
@@ -68,6 +69,21 @@ export function action<S extends z.ZodType, T>(
     if (!session) return { ok: false, error: messages.signedOut };
     return run(schema, input, (data, toast) => handler(data, { session, toast }));
   };
+}
+
+/**
+ * Pathfinder: `action()` for Dossier's job-search tools (Find jobs, the agent, applications, the
+ * base resume, Gmail and Calendar). Where the tools are off (PATHFINDER_TOOLS=off) it refuses
+ * before the handler runs, so a tool can't be used by calling its action directly either.
+ */
+export function toolAction<S extends z.ZodType, T>(
+  schema: S,
+  handler: (input: z.output<S>, context: ActionContext) => Promise<T>,
+): (input: z.input<S>) => Promise<ActionResult<T>> {
+  return action(schema, async (input, context) => {
+    if (!toolsEnabled()) throw new ActionError(TOOLS_OFF_MESSAGE);
+    return handler(input, context);
+  });
 }
 
 /**

@@ -226,3 +226,14 @@ describe("Delete everything (E10-8)", () => {
     expect(screen.queryByRole("textbox", { name: "Type DELETE to confirm" })).not.toBeInTheDocument();
   });
 });
+
+describe("Your data in managed mode (Pathfinder)", () => {
+  it("has no backup switch or Delete everything: the server's backups aren't the student's, and deleting is in Privacy", () => {
+    render(<DataSection hasApiKey={false} exportName="dossier-export.json" backups={backups} jobRetentionHours={24} managed />);
+    expect(screen.getByRole("link", { name: "Export" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Choose file" })).toBeInTheDocument();
+    expect(screen.queryByRole("switch", { name: /Nightly backups/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Delete everything" })).not.toBeInTheDocument();
+    expect(screen.queryByText(/your server/)).not.toBeInTheDocument();
+  });
+});

@@ -2,11 +2,13 @@ import { redirect } from "next/navigation";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
-import { action, ActionError, publicAction } from "./action";
+import { action, ActionError, publicAction, toolAction } from "./action";
 import { getSession } from "./auth/session";
 import { messages } from "./messages";
+import { toolsEnabled, TOOLS_OFF_MESSAGE } from "./tools";
 
 vi.mock("./auth/session", () => ({ getSession: vi.fn() }));
+vi.mock("./tools", async (importOriginal) => ({ ...(await importOriginal<typeof import("./tools")>()), toolsEnabled: vi.fn(() => true) }));
 
 const session = { userId: "test-student", persistent: false, version: 0, issuedAt: new Date(), expiresAt: new Date(Date.now() + 60_000) };
 
@@ -108,5 +110,32 @@ describe("publicAction", () => {
     });
     await expect(signIn({ name: "" })).resolves.toMatchObject({ ok: false, error: messages.invalidInput });
     expect(getSession).not.toHaveBeenCalled();
+  });
+});
+
+describe("toolAction (Pathfinder)", () => {
+  beforeEach(() => {
+    vi.mocked(getSession).mockResolvedValue(session);
+  });
+
+  it("runs like action() where the job-search tools are on", async () => {
+    vi.mocked(toolsEnabled).mockReturnValue(true);
+    const rename = toolAction(schema, async ({ name }) => name.toUpperCase());
+    await expect(rename({ name: "ledger" })).resolves.toEqual({ ok: true, data: "LEDGER" });
+  });
+
+  it("refuses before the handler runs where they're off", async () => {
+    vi.mocked(toolsEnabled).mockReturnValue(false);
+    const handler = vi.fn();
+    await expect(toolAction(schema, handler)({ name: "x" })).resolves.toEqual({ ok: false, error: TOOLS_OFF_MESSAGE });
+    expect(handler).not.toHaveBeenCalled();
+  });
+
+  it("still needs a session first", async () => {
+    vi.mocked(getSession).mockResolvedValue(null);
+    vi.mocked(toolsEnabled).mockReturnValue(true);
+    const handler = vi.fn();
+    await expect(toolAction(schema, handler)({ name: "x" })).resolves.toEqual({ ok: false, error: messages.signedOut });
+    expect(handler).not.toHaveBeenCalled();
   });
 });

@@ -8,7 +8,7 @@ import { agentDraftJob, approveCandidate, dismissCandidate, draftJobKey, restore
 import { AGENT_JOB_KEY, agentScanJob } from "@/lib/agent/jobs";
 import { agentQueryReady, agentSetupProblem } from "@/lib/agent/run";
 import { runLimitProblem } from "@/lib/agent/runs";
-import { action, ActionError } from "@/lib/action";
+import { ActionError, toolAction } from "@/lib/action";
 import { safeLink, searchQuerySchema } from "@/lib/job-search/search";
 import { findUnfinishedJobs, startJob } from "@/lib/jobs/runner";
 import { prisma } from "@/lib/prisma";
@@ -21,7 +21,7 @@ import { loadSettings, saveSettings } from "@/lib/settings-data";
  * Settings → Job agent (E16-7): each change saves at once. Turning the agent
  * on needs a search with keywords and a country.
  */
-export const saveAgentSettings = action(
+export const saveAgentSettings = toolAction(
   z.object({
     enabled: z.boolean().optional(),
     query: searchQuerySchema.optional(),
@@ -56,7 +56,7 @@ export const saveAgentSettings = action(
  * one and within the daily limit. A run already queued or running is
  * reused rather than started again.
  */
-export const runAgentNow = action(z.object({}), async () => {
+export const runAgentNow = toolAction(z.object({}), async () => {
   const settings = await loadSettings();
   if (!settings.agentEnabled) throw new ActionError("Turn the job agent on in Settings → Job agent first.");
   const setup = await agentSetupProblem(settings.agentQuery);
@@ -84,7 +84,7 @@ function revalidateAgent() {
  * Prepare draft (E16-5): writes a candidate's draft in the background. A
  * draft under way is reused, and one already made is answered with.
  */
-export const prepareAgentDraft = action(z.object({ candidateId }), async ({ candidateId }) => {
+export const prepareAgentDraft = toolAction(z.object({ candidateId }), async ({ candidateId }) => {
   const candidate = await prisma.agentCandidate.findUnique({ where: { id: candidateId }, select: { status: true, applicationId: true } });
   if (!candidate) throw new ActionError("That posting is no longer in the agent's queue.");
   if (candidate.status === AgentCandidateStatus.DRAFTED && candidate.applicationId) return { jobId: null, applicationId: candidate.applicationId };
@@ -97,7 +97,7 @@ export const prepareAgentDraft = action(z.object({ candidateId }), async ({ cand
 });
 
 /** Approve (E16-5): the draft joins Applications as a Draft. Nothing is sent. */
-export const approveAgentDraft = action(z.object({ candidateId }), async ({ candidateId }, { toast }) => {
+export const approveAgentDraft = toolAction(z.object({ candidateId }), async ({ candidateId }, { toast }) => {
   const applicationId = await approveCandidate(candidateId);
   revalidateAgent();
   toast("Added to Applications as a draft. Nothing has been sent.");
@@ -108,14 +108,14 @@ export const approveAgentDraft = action(z.object({ candidateId }), async ({ cand
  * Dismiss (E16-5): the posting never comes back; its draft, if any, is
  * deleted. A posting dismissed before it had a draft can be put back.
  */
-export const dismissAgentCandidate = action(z.object({ candidateId }), async ({ candidateId }) => {
+export const dismissAgentCandidate = toolAction(z.object({ candidateId }), async ({ candidateId }) => {
   const { undo } = await dismissCandidate(candidateId);
   revalidateAgent();
   return { undo };
 });
 
 /** Undo on a dismissed posting's toast. */
-export const restoreAgentCandidate = action(
+export const restoreAgentCandidate = toolAction(
   z.object({
     id: candidateId,
     place: z.string().max(500),
