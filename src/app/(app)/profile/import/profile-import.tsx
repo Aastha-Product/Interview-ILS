@@ -47,12 +47,15 @@ export function ProfileImport({
   provider,
   initialJobId,
   keptFor,
+  managed = false,
 }: {
   aiReady: boolean;
   provider: AiProvider;
   initialJobId: string | null;
   /** How long an unused reading is kept (Settings → Your data), e.g. "24 hours". */
   keptFor: string;
+  /** Pathfinder: the service runs the AI (PATHFINDER_MANAGED), so no "choose a provider". */
+  managed?: boolean;
 }) {
   const router = useRouter();
   const [jobId, setJobId] = useState(initialJobId);
@@ -127,14 +130,20 @@ export function ProfileImport({
       <div ref={area} className="flex max-w-[816px] flex-col gap-6 px-10 pb-20">
         {phase === "choose" && (
           <Card className="flex flex-col items-start gap-5">
-            {!aiReady && (
-              <p role="note" className="rounded-card bg-warning-surface px-4 py-3 text-meta text-warning">
-                No AI provider is set up yet, so nothing can read the resume.{" "}
-                <Link href="/settings?section=ai" className="font-medium text-warning underline underline-offset-2">
-                  Choose one in Settings → AI provider
-                </Link>
-              </p>
-            )}
+            {!aiReady &&
+              (managed ? (
+                // Pathfinder, managed mode: the service runs the AI; there's nothing for the student to set up.
+                <p role="note" className="rounded-card bg-warning-surface px-4 py-3 text-meta text-warning">
+                  Reading resumes isn&apos;t available right now. Please try again in a few minutes.
+                </p>
+              ) : (
+                <p role="note" className="rounded-card bg-warning-surface px-4 py-3 text-meta text-warning">
+                  No AI provider is set up yet, so nothing can read the resume.{" "}
+                  <Link href="/settings?section=ai" className="font-medium text-warning underline underline-offset-2">
+                    Choose one in Settings → AI provider
+                  </Link>
+                </p>
+              ))}
             {aiReady && !providerOption(provider).local && (
               <p role="note" className="rounded-card bg-warning-surface px-4 py-3 text-meta text-warning">
                 The resume&apos;s text, contact details included, is sent to {providerOption(provider).vendor ?? "your AI server"} to sort

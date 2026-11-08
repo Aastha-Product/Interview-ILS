@@ -3,6 +3,7 @@ import "server-only";
 import { env, type Env } from "@/lib/env";
 import { decryptSecret, SecretUnreadable, TYPESAFE_KEY } from "@/lib/secrets";
 import type { SettingsData } from "@/lib/settings";
+import { withoutStudentConfig } from "@/lib/managed";
 import { loadSettings } from "@/lib/settings-data";
 
 import { SCORING_KEY_MISSING, SCORING_KEY_UNREADABLE, type Scorer, type ScoringKeyState, type ScoringView } from "./scorers";
@@ -41,7 +42,7 @@ export function resolveScoringConfig(
 
 /** The scoring configuration in effect right now. */
 export async function loadScoringConfig(): Promise<ScoringConfig> {
-  return resolveScoringConfig(await loadSettings(), env);
+  return resolveScoringConfig(withoutStudentConfig(await loadSettings()), env);
 }
 
 export const scoringView = (config: ScoringConfig): ScoringView => ({ scorer: config.scorer, keyState: config.keyState });

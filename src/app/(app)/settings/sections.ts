@@ -13,6 +13,16 @@ export const SETTINGS_SECTIONS = [
 ] as const;
 
 /**
+ * Pathfinder, managed mode (PATHFINDER_MANAGED): the tools' sections without the ones that set up
+ * the service itself (AI provider, job source, scoring). Google stays only where the server has
+ * its own OAuth client, for students to connect their account.
+ */
+export function managedSettingsSections(googleAvailable: boolean): SettingsSections {
+  const hidden = new Set<string>(["ai", "jobs", "scoring", ...(googleAvailable ? [] : ["google"])]);
+  return SETTINGS_SECTIONS.filter((section) => !hidden.has(section.id));
+}
+
+/**
  * Pathfinder: what students see where the tools are off (PATHFINDER_TOOLS). Nothing technical:
  * the server runs the AI, so there's no provider, model or key to choose.
  */

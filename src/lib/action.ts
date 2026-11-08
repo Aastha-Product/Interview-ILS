@@ -5,6 +5,7 @@ import { z } from "zod";
 
 import { getSession, type Session } from "@/lib/auth/session";
 import { logServerError } from "@/lib/log";
+import { managedMode, studentMessage } from "@/lib/managed";
 import { messages } from "@/lib/messages";
 
 /**
@@ -23,6 +24,19 @@ export type ActionResult<T> =
 /** Throw from an action handler to fail with a message the user sees as is. */
 export class ActionError extends Error {
   override name = "ActionError";
+}
+
+/** What a student reads when they try to change a setting the managed service runs. */
+export const MANAGED_SETTING_MESSAGE = "Pathfinder runs this for you, so there's nothing to set up.";
+
+/**
+ * Pathfinder: the first line of an action that saves or tests a self-hosted setting (an AI
+ * provider, a key, a job source, an OAuth client). In managed mode it refuses before anything
+ * happens, so no student can change or probe the server's configuration, even by calling the
+ * action directly.
+ */
+export function selfHostedOnly(): void {
+  if (managedMode()) throw new ActionError(MANAGED_SETTING_MESSAGE);
 }
 
 export type ActionContext = {
@@ -89,7 +103,8 @@ async function run<S extends z.ZodType, T>(
     return toast === undefined ? { ok: true, data } : { ok: true, data, toast };
   } catch (error) {
     unstable_rethrow(error);
-    if (error instanceof ActionError) return { ok: false, error: error.message };
+    // Pathfinder: in managed mode, "set it up in Settings → …" becomes a plain message.
+    if (error instanceof ActionError) return { ok: false, error: studentMessage(error.message) };
     logServerError("action", error);
     return { ok: false, error: messages.unexpected };
   }

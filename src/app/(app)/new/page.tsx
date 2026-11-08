@@ -1,3 +1,4 @@
+import { managedMode } from "@/lib/managed";
 import type { Metadata } from "next";
 
 import { isAiConfigured, isAiUsable } from "@/lib/ai/config";
@@ -31,6 +32,7 @@ export default async function NewApplicationPage({ searchParams }: PageProps<"/n
     <NewApplication
       aiReady={aiReady}
       writeInClaude={writeInClaude}
+      managed={managedMode()}
       defaultTone={settings.defaultTone}
       fresh={fresh !== undefined}
       fromPosting={

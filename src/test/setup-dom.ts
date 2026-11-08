@@ -14,3 +14,6 @@ globalThis.ResizeObserver ??= class {
   unobserve() {}
   disconnect() {}
 };
+
+// Pathfinder: as in setup-owner.ts, the inherited tests are self-hosted; managed tests opt in.
+process.env.PATHFINDER_MANAGED ??= "off";

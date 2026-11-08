@@ -7,6 +7,7 @@ import { env, type Env } from "@/lib/env";
 import { deriveKey } from "@/lib/keys";
 import { decryptSecret, GOOGLE_CLIENT_SECRET, SecretUnreadable } from "@/lib/secrets";
 import type { SettingsData } from "@/lib/settings";
+import { withoutStudentConfig } from "@/lib/managed";
 import { loadSettings } from "@/lib/settings-data";
 
 import { googleUrl } from "./endpoints";
@@ -80,7 +81,7 @@ export function resolveGoogleClient(saved: SavedClient, source: ClientEnv, secre
 
 /** The client configuration in effect right now. */
 export async function loadGoogleClientConfig(): Promise<GoogleClientConfig> {
-  return resolveGoogleClient(await loadSettings(), env);
+  return resolveGoogleClient(withoutStudentConfig(await loadSettings()), env);
 }
 
 /** The client in effect, or null while Google isn't set up. */

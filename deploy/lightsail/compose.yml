@@ -51,15 +51,29 @@ services:
       PATHFINDER_STARTUPS: ${PATHFINDER_STARTUPS:-off}
       # Dossier's job-search tools, off unless set to on: students see the resume analysis only.
       PATHFINDER_TOOLS: ${PATHFINDER_TOOLS:-off}
+      # The server runs the AI, job search, scoring and Google for every student (on unless set
+      # to off): students never choose a provider or enter a key. off is self-hosted Dossier.
+      PATHFINDER_MANAGED: ${PATHFINDER_MANAGED:-on}
       # No usage ping from this server.
       DOSSIER_TELEMETRY: "off"
-      # Optional defaults for Settings → AI provider; each student can set their own.
+      # The AI every student uses (in managed mode, the only one).
       DOSSIER_AI_PROVIDER: ${DOSSIER_AI_PROVIDER:-}
       DOSSIER_AI_URL: ${DOSSIER_AI_URL:-}
       DOSSIER_AI_MODEL: ${DOSSIER_AI_MODEL:-}
       DOSSIER_AI_KEY: ${DOSSIER_AI_KEY:-}
       # AI requests per student per day on the shared key above; resets at midnight IST.
       PATHFINDER_AI_DAILY_LIMIT: ${PATHFINDER_AI_DAILY_LIMIT:-}
+      # Find jobs and the job agent, on the server's own job API key (licensed sources only).
+      DOSSIER_JOBS_SOURCE: ${DOSSIER_JOBS_SOURCE:-}
+      DOSSIER_JSEARCH_KEY: ${DOSSIER_JSEARCH_KEY:-}
+      DOSSIER_JSEARCH_HOST: ${DOSSIER_JSEARCH_HOST:-}
+      DOSSIER_ADZUNA_APP_ID: ${DOSSIER_ADZUNA_APP_ID:-}
+      DOSSIER_ADZUNA_KEY: ${DOSSIER_ADZUNA_KEY:-}
+      DOSSIER_FREEHIRE_URL: ${DOSSIER_FREEHIRE_URL:-}
+      DOSSIER_JOBS_ARBEITSAGENTUR: ${DOSSIER_JOBS_ARBEITSAGENTUR:-off}
+      # How postings are scored: ai (the AI above) or jev (needs DOSSIER_TYPESAFE_KEY).
+      DOSSIER_SCORER: ${DOSSIER_SCORER:-}
+      DOSSIER_TYPESAFE_KEY: ${DOSSIER_TYPESAFE_KEY:-}
       # On the shared Claude key: the model that reads resumes, and the backup for a busy model.
       PATHFINDER_AI_READING_MODEL: ${PATHFINDER_AI_READING_MODEL:-}
       PATHFINDER_AI_FALLBACK_MODEL: ${PATHFINDER_AI_FALLBACK_MODEL:-}

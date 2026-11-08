@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import { isAiConfigured, loadAiConfig } from "@/lib/ai/config";
+import { managedMode } from "@/lib/managed";
 import { jobRetentionLabel } from "@/lib/settings";
 import { loadSettings } from "@/lib/settings-data";
 
@@ -17,6 +18,7 @@ export default async function ProfileImportPage({ searchParams }: PageProps<"/pr
       provider={ai.provider}
       initialJobId={typeof job === "string" ? job : null}
       keptFor={jobRetentionLabel(settings.jobRetentionHours)}
+      managed={managedMode()}
     />
   );
 }

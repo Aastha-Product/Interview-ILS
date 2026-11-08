@@ -5,7 +5,7 @@ import { z } from "zod";
 
 import { Prisma } from "@/generated/prisma/client";
 import { ApplicationStatus } from "@/generated/prisma/enums";
-import { action, ActionError } from "@/lib/action";
+import { action, ActionError, selfHostedOnly } from "@/lib/action";
 import { isAiConfigured } from "@/lib/ai/config";
 import { draftReplyJob, replyJobKey } from "@/lib/jobs/draft-reply";
 import { findUnfinishedJobs, startJob } from "@/lib/jobs/runner";
@@ -98,6 +98,7 @@ export const saveGoogleClient = action(
       .optional(),
   }),
   async ({ id, secret }) => {
+    selfHostedOnly();
     const current = await loadSettings();
     const before = await loadGoogleClientConfig();
     await saveSettings({

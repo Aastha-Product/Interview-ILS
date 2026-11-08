@@ -3,6 +3,7 @@ import "server-only";
 import { AgentCandidateStatus, JobStatus } from "@/generated/prisma/enums";
 import { formatDateTime } from "@/lib/dates";
 import { loadJobSearchConfig } from "@/lib/job-search/config";
+import { managedMode, studentMessage } from "@/lib/managed";
 import { countryName } from "@/lib/job-search/countries";
 import { describeSearch, postedAgo, type JobSource } from "@/lib/job-search/search";
 import { SOURCE_INFO } from "@/lib/job-search/sources";
@@ -84,6 +85,18 @@ const posted = (ago: string) => (ago === "Today" || ago === "Yesterday" ? ago.to
 const sectionOf = (problem: string): AgentView["setupSection"] =>
   problem.includes("AI provider") ? "ai" : problem.includes("Job search") ? "jobs" : "agent";
 
+/**
+ * What stops the agent, and where to fix it. Pathfinder, managed mode: the AI and the job source
+ * are the service's, so those problems get a plain message and no link; the agent's own settings
+ * (what to search, when to run) are the student's and keep theirs.
+ */
+function setupFor(problem: string | null): Pick<AgentView, "setupProblem" | "setupSection"> {
+  if (!problem) return { setupProblem: null, setupSection: null };
+  const section = sectionOf(problem);
+  if (managedMode() && section !== "agent") return { setupProblem: studentMessage(problem), setupSection: null };
+  return { setupProblem: problem, setupSection: section };
+}
+
 export async function loadAgentView(now = new Date()): Promise<AgentView> {
   const [settings, config, timeZone, candidates, draftJobs, runJobs] = await Promise.all([
     loadSettings(),
@@ -139,8 +152,7 @@ export async function loadAgentView(now = new Date()): Promise<AgentView> {
     maxScores: settings.agentMaxScores,
     maxDrafts: settings.agentMaxDrafts,
     search,
-    setupProblem,
-    setupSection: setupProblem ? sectionOf(setupProblem) : null,
+    ...setupFor(setupProblem),
     limitReached: runsInPastDay(settings.agentRuns, now).length >= AGENT_MAX_RUNS_PER_DAY,
     lastRun: last ? { at: formatDateTime(new Date(last.at), timeZone, now), message: last.message } : null,
     nextRun: settings.agentEnabled ? formatDateTime(nextAgentRun(now, settings.agentHour, timeZone, settings.agentRuns), timeZone, now) : null,
