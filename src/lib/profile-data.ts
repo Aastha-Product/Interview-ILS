@@ -1,5 +1,8 @@
 import "server-only";
 
+import { cache } from "react";
+
+import { currentUserId } from "@/lib/owner/current";
 import { photoFromFields } from "@/lib/photo";
 import { prisma } from "@/lib/prisma";
 import { CURRENT_USER } from "@/lib/owner/scope";
@@ -8,9 +11,15 @@ import { loadSettings } from "@/lib/settings-data";
 
 /** The profile's name, "" without one: for the sidebar, the sign-in greeting and file names. */
 export async function loadProfileName(): Promise<string> {
+  return loadProfileNameOf(await currentUserId());
+}
+
+/** Read once per student while a page renders (P0 task 4), like the settings. */
+const loadProfileNameOf = cache(async (userId: string): Promise<string> => {
+  void userId; // The key: the scoped client reads the same student's rows.
   const field = await prisma.profileField.findUnique({ where: { userId_key: { userId: CURRENT_USER, key: "name" } } });
   return field?.value ?? "";
-}
+});
 
 /**
  * The whole profile for the editor. Experience, projects and education are

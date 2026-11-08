@@ -82,6 +82,9 @@ services:
       PATHFINDER_AI_READING_MODEL: ${PATHFINDER_AI_READING_MODEL:-}
       PATHFINDER_AI_FALLBACK_MODEL: ${PATHFINDER_AI_FALLBACK_MODEL:-}
       DOSSIER_BACKUP_RETENTION_DAYS: ${DOSSIER_BACKUP_RETENTION_DAYS:-}
+      # Database connections each container keeps at most (default 20); app and worker together
+      # stay well under Postgres's 100.
+      PATHFINDER_DB_POOL: ${PATHFINDER_DB_POOL:-}
       # Background jobs the worker runs at once, and per student (defaults 10 and 2).
       PATHFINDER_JOB_CONCURRENCY: ${PATHFINDER_JOB_CONCURRENCY:-}
       PATHFINDER_JOBS_PER_STUDENT: ${PATHFINDER_JOBS_PER_STUDENT:-}
