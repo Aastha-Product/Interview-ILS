@@ -94,6 +94,17 @@ describe("the resume analysis job (Pathfinder)", () => {
     expect(await prisma().resumeAnalysis.findUniqueOrThrow({ where: { id: analysisId }, select: { profileFilled: true } })).toEqual({ profileFilled: false });
   });
 
+  it("fills the profile once when a new student uploads several resumes at once (QA M-1)", async () => {
+    const results = await Promise.allSettled([run("One.pdf").result, run("Two.pdf").result, run("Three.pdf").result]);
+    expect(results.map((result) => result.status)).toEqual(["fulfilled", "fulfilled", "fulfilled"]);
+    const filled = await prisma().resumeAnalysis.findMany({ select: { profileFilled: true } });
+    expect(filled.filter((analysis) => analysis.profileFilled)).toHaveLength(1);
+    expect(filled).toHaveLength(3);
+    // One copy of each, not three.
+    expect(await prisma().experience.count()).toBe(1);
+    expect((await prisma().skill.findMany({ select: { name: true }, orderBy: { name: "asc" } })).map((skill) => skill.name)).toEqual(["React", "TypeScript"]);
+  });
+
   it("keeps each student's analyses to themselves", async () => {
     const { analysisId } = await run().result;
     await runAsUser(OTHER, async () => {

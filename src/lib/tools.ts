@@ -13,7 +13,19 @@ export const TOOL_PATHS = ["/", "/resume", "/jobs", "/startups", "/agent", "/app
 /** Whether this server offers the job-search tools. */
 export function toolsEnabled(): boolean {
   // Only an explicit off closes them: unset is on (env.ts), and so is a partial env in tests.
-  return env.PATHFINDER_TOOLS !== "off";
+  return toolsSetting() !== "off";
+}
+
+/**
+ * PATHFINDER_TOOLS as validated, or as set where the rest of the environment isn't complete (tests
+ * and scripts; a running server checked its environment at startup, so there it's always the former).
+ */
+function toolsSetting(): string | undefined {
+  try {
+    return env.PATHFINDER_TOOLS;
+  } catch {
+    return process.env.PATHFINDER_TOOLS?.trim().toLowerCase();
+  }
 }
 
 /** What a student reads when they reach a tool this server doesn't offer. */
