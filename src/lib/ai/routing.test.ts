@@ -98,13 +98,39 @@ describe("the cost log on other providers (admin console)", () => {
     const records: CallRecord[] = [];
     const busy = AiError.of("busy");
     const forModel = (model: string) => fake(model, model === "gemini-3.5-flash" ? undefined : busy);
-    const provider = routedProvider(forModel, singleModel("gemini-3.5-flash"), async (call) => {
+    const provider = routedProvider(forModel, singleModel("gemini-3.5-flash", {}), async (call) => {
       records.push(call);
     });
     await expect(provider.complete(json("extracted_profile"))).resolves.toEqual({ answeredBy: "gemini-3.5-flash" });
     expect(records).toMatchObject([{ task: "extracted_profile", model: "gemini-3.5-flash", outcome: "ok" }]);
     // No known price: logged with its tokens, and no cost.
     expect(costMicroUsd({ model: "gemini-3.5-flash", input: 1000, output: 200 })).toBeNull();
+  });
+});
+
+describe("a backup model on other providers", () => {
+  it("has none unless PATHFINDER_AI_FALLBACK_MODEL names one, and never the same model or off", () => {
+    expect(singleModel("gemini-3.5-flash", {}).fallback).toBeNull();
+    expect(singleModel("gemini-3.5-flash", { PATHFINDER_AI_FALLBACK_MODEL: "off" }).fallback).toBeNull();
+    expect(singleModel("gemini-3.5-flash", { PATHFINDER_AI_FALLBACK_MODEL: "gemini-3.5-flash" }).fallback).toBeNull();
+    expect(singleModel("gemini-3.5-flash", { PATHFINDER_AI_FALLBACK_MODEL: "gemini-3.5-flash-lite" })).toEqual({
+      main: "gemini-3.5-flash",
+      reading: "gemini-3.5-flash",
+      fallback: "gemini-3.5-flash-lite",
+    });
+  });
+
+  it("hands a busy Gemini request to the backup once, and logs both calls", async () => {
+    const records: CallRecord[] = [];
+    const forModel = (model: string) => fake(model, model === "gemini-3.5-flash" ? AiError.of("busy") : undefined);
+    const provider = routedProvider(forModel, singleModel("gemini-3.5-flash", { PATHFINDER_AI_FALLBACK_MODEL: "gemini-3.5-flash-lite" }), async (call) => {
+      records.push(call);
+    });
+    await expect(provider.complete(json("resume_review"))).resolves.toEqual({ answeredBy: "gemini-3.5-flash-lite" });
+    expect(records.map(({ model, outcome }) => [model, outcome])).toEqual([
+      ["gemini-3.5-flash", "busy"],
+      ["gemini-3.5-flash-lite", "ok"],
+    ]);
   });
 });
 

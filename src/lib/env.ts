@@ -259,7 +259,8 @@ const schema = z.object({
   // Unset means claude-sonnet-5-5.
   PATHFINDER_AI_READING_MODEL: optional(z.string().trim()),
   // Pathfinder: the model tried once when the first one is overloaded, limiting requests or
-  // failing; "off" for none. Unset means claude-sonnet-5-5.
+  // failing; "off" for none. Unset means claude-sonnet-5-5 on Claude, and no backup on other
+  // providers (set one of theirs, e.g. gemini-3.5-flash-lite).
   PATHFINDER_AI_FALLBACK_MODEL: optional(z.string().trim()),
   // Pathfinder: Startups (#222) reads YC's job pages, Hacker News and
   // startups' own sites, but Pathfinder's jobs come only from licensed APIs or

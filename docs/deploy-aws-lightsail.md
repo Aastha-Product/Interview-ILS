@@ -163,7 +163,10 @@ can still add their own key in **Settings → AI provider**, which isn't limited
 On this key, reading a resume into fields runs on `claude-sonnet-5-5` and the review on
 `DOSSIER_AI_MODEL`. When a model is overloaded or limiting requests, the call is tried once more
 on `claude-sonnet-5-5`. Change either with `PATHFINDER_AI_READING_MODEL` and
-`PATHFINDER_AI_FALLBACK_MODEL` (`off` for no backup). Every call on the server's key is logged in
+`PATHFINDER_AI_FALLBACK_MODEL` (`off` for no backup). On another provider, such as Gemini through its
+OpenAI-compatible address, every task runs on `DOSSIER_AI_MODEL` and there's no backup unless you
+name one of that provider's models, e.g. `PATHFINDER_AI_FALLBACK_MODEL=gemini-3.5-flash-lite`: a
+busy request is then tried once more on it. Every call on the server's key is logged in
 the `AiCall` table with its model, tokens and cost (from list prices), never the prompt or answer.
 To see what the AI cost today:
 

@@ -105,6 +105,14 @@ https://claude.ai/artifact/GSHLW1T2jiX99CUiBtAUov): all five P0 tasks.
 
 Newest first. One entry per session: date, account, branch, what changed, what's next.
 
+- **2026-11-09 · account 2 · `feature/backup-model-any-provider`** — Deployed `main` with the admin
+  console to pathfinderedtech.com (Sydney `pathfinder-app`; `PATHFINDER_ADMIN_EMAILS` set). The live
+  server had no AI; the owner saved a Gemini key with `~/ai-key.sh` on the server (hidden paste;
+  Lightsail's paste markers are stripped). Google sometimes refuses `gemini-3.5-flash` as "high
+  demand", so `PATHFINDER_AI_FALLBACK_MODEL` now also works on other providers: set it to
+  `gemini-3.5-flash-lite` (tested with the key) for a backup. Builds on the 2 GB server make the site
+  unavailable for ~10 minutes. Next: merge, deploy, set the backup on the server.
+
 - **2026-11-08 · account 2 · `feature/admin-console`** — Firebase's authorized domains now include
   pathfinderedtech.com and www (open item 1, done by the owner; checked through Firebase's API).
   Admin console at `/admin` for the emails in `PATHFINDER_ADMIN_EMAILS` (404 and no menu item for
