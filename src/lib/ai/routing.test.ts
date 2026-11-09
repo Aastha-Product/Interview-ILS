@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { AiError } from "./errors";
 import type { AIProvider, CompletionRequest } from "./provider";
-import { costMicroUsd, modelRoutes, routedProvider, type CallRecord } from "./routing";
+import { costMicroUsd, logsOnly, modelRoutes, routedProvider, routesApply, singleModel, type CallRecord } from "./routing";
 
 vi.mock("@/lib/env", () => ({ env: {} }));
 vi.mock("@/lib/prisma", () => ({ prisma: {} }));
@@ -79,6 +79,32 @@ describe("routedProvider", () => {
     const { provider, records } = setup();
     await expect(provider.complete({ system: "s", messages: [] })).resolves.toBe("text from claude-opus-5-5");
     expect(records[0]).toMatchObject({ task: "text", model: "claude-opus-5-5" });
+  });
+});
+
+describe("the cost log on other providers (admin console)", () => {
+  const config = (provider: string, sharedKey: boolean, model: string | null = "a-model") => ({ provider, sharedKey, model }) as never;
+
+  it("logs every call on the server's own key, routing only on Claude", () => {
+    expect(routesApply(config("ANTHROPIC", true))).toBe(true);
+    expect(logsOnly(config("ANTHROPIC", true))).toBe(false);
+    expect(logsOnly(config("OPENAI", true, "gemini-3.5-flash"))).toBe(true);
+    // A student's own key, or no model: not the server's money, nothing to log.
+    expect(logsOnly(config("OPENAI", false))).toBe(false);
+    expect(logsOnly(config("OPENAI", true, null))).toBe(false);
+  });
+
+  it("keeps every task on the one model and never hands over", async () => {
+    const records: CallRecord[] = [];
+    const busy = AiError.of("busy");
+    const forModel = (model: string) => fake(model, model === "gemini-3.5-flash" ? undefined : busy);
+    const provider = routedProvider(forModel, singleModel("gemini-3.5-flash"), async (call) => {
+      records.push(call);
+    });
+    await expect(provider.complete(json("extracted_profile"))).resolves.toEqual({ answeredBy: "gemini-3.5-flash" });
+    expect(records).toMatchObject([{ task: "extracted_profile", model: "gemini-3.5-flash", outcome: "ok" }]);
+    // No known price: logged with its tokens, and no cost.
+    expect(costMicroUsd({ model: "gemini-3.5-flash", input: 1000, output: 200 })).toBeNull();
   });
 });
 

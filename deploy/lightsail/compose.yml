@@ -67,6 +67,8 @@ services:
       DOSSIER_AI_KEY: ${DOSSIER_AI_KEY:-}
       # AI requests per student per day on the shared key above; resets at midnight IST.
       PATHFINDER_AI_DAILY_LIMIT: ${PATHFINDER_AI_DAILY_LIMIT:-}
+      # Who may open the admin console (/admin): the email addresses they sign in with, comma-separated.
+      PATHFINDER_ADMIN_EMAILS: ${PATHFINDER_ADMIN_EMAILS:-}
       # Find jobs and the job agent, on the server's own job API key (licensed sources only).
       DOSSIER_JOBS_SOURCE: ${DOSSIER_JOBS_SOURCE:-}
       DOSSIER_JSEARCH_KEY: ${DOSSIER_JSEARCH_KEY:-}

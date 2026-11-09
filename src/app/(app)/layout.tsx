@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { after } from "next/server";
 
+import { isAdmin } from "@/lib/admin";
 import { countAgentQueue } from "@/lib/agent/view";
 import { verifySession } from "@/lib/auth/session";
 import { inboxCount } from "@/lib/google/inbox-data";
@@ -24,7 +25,7 @@ import { UsagePingDialog } from "./usage-ping-dialog";
  */
 export default async function AppLayout({ children }: LayoutProps<"/">) {
   // Proxy already redirects signed-out visitors; this is the check next to the data.
-  await verifySession();
+  const session = await verifySession();
   // The day's usage ping and update check, if they haven't run yet: after the page, so they never slow one down.
   after(notePageLoad);
   after(checkForUpdatesDaily);
@@ -35,7 +36,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
   const [name, settings, jar] = await Promise.all([loadProfileName(), loadSettings(), cookies()]);
   const userName = name.trim() || "New user";
   // Replies waiting for an answer or a link, on the Inbox item; the job agent's finds and drafts on its own (E16-6).
-  const [waiting, agent] = await Promise.all([inboxCount().catch(() => 0), countAgentQueue().catch(() => 0)]);
+  const [waiting, agent, admin] = await Promise.all([inboxCount().catch(() => 0), countAgentQueue().catch(() => 0), isAdmin(session.userId)]);
 
   return (
     <div className="flex min-h-screen">
@@ -53,7 +54,8 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
         counts={{ ...(waiting > 0 ? { "/inbox": waiting } : {}), ...(agent > 0 ? { "/agent": agent } : {}) }}
         colorScheme={parseColorScheme(jar.get(COLOR_SCHEME_COOKIE)?.value)}
         // Pathfinder: the job-search tools only where PATHFINDER_TOOLS=on, Startups only where PATHFINDER_STARTUPS=on.
-        hiddenSections={[...(toolsEnabled() ? [] : TOOL_PATHS), ...(startupsEnabled() ? [] : ["/startups"])]}
+        // Admin only for the people in PATHFINDER_ADMIN_EMAILS.
+        hiddenSections={[...(toolsEnabled() ? [] : TOOL_PATHS), ...(startupsEnabled() ? [] : ["/startups"]), ...(admin ? [] : ["/admin"])]}
         tools={toolsEnabled()}
       />
       {/* The screen sits in a white panel inset from the shell. Each screen

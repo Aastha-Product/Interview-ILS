@@ -5,7 +5,7 @@ import { rawClientOf } from "@/lib/owner/scope";
 import { createTestClient, resetDatabase, TEST_USER_ID } from "@/test/db";
 
 import { resolveAiConfig } from "./config";
-import { analysesLeftToday, analysesPerDay, chargeSharedAi, limitDay, sharedAiUsedToday, withDailyLimit } from "./daily-limit";
+import { analysesLeftToday, analysesPerDay, chargeSharedAi, limitDay, sharedAiUsedToday, studentDailyLimit, withDailyLimit } from "./daily-limit";
 import { AiError } from "./errors";
 import type { AIProvider } from "./provider";
 
@@ -15,10 +15,12 @@ import type { AIProvider } from "./provider";
 const db = vi.hoisted(() => ({ client: undefined as ReturnType<typeof createTestClient> | undefined }));
 vi.mock("@/lib/prisma", async () => {
   const { createTestClient } = await import("@/test/db");
+  const { rawClientOf } = await import("@/lib/owner/scope");
   db.client = createTestClient();
-  return { prisma: db.client };
+  return { prisma: db.client, systemPrisma: rawClientOf(db.client) };
 });
-vi.mock("@/lib/env", () => ({ env: {} }));
+const env = vi.hoisted(() => ({ PATHFINDER_AI_DAILY_LIMIT: undefined as number | undefined }));
+vi.mock("@/lib/env", () => ({ env }));
 
 const prisma = () => db.client!;
 const OTHER = "other-student";
@@ -99,8 +101,35 @@ describe("the daily AI limit (Pathfinder)", () => {
     const notShared = withDailyLimit(own.provider, false, 1);
     expect(notShared).toBe(own.provider);
     const noLimit = fakeProvider();
-    expect(withDailyLimit(noLimit.provider, true, undefined)).toBe(noLimit.provider);
+    expect(withDailyLimit(noLimit.provider, true, null)).toBe(noLimit.provider);
+    // Looked up per request: no limit set anywhere, so nothing is counted.
+    await withDailyLimit(noLimit.provider, true).complete({ system: "", messages: [] });
     expect(await sharedAiUsedToday()).toBe(0);
+  });
+
+  it("uses the allowance an admin set for a student instead of the server's limit (admin console)", async () => {
+    env.PATHFINDER_AI_DAILY_LIMIT = 10;
+    try {
+      expect(await studentDailyLimit()).toBe(10);
+      await rawClientOf(prisma()).user.update({ where: { id: TEST_USER_ID }, data: { aiDailyLimit: 2 } });
+      expect(await studentDailyLimit()).toBe(2);
+      // Another student keeps the server's limit.
+      expect(await asOther(() => studentDailyLimit())).toBe(10);
+
+      const { provider, complete } = fakeProvider();
+      const limited = withDailyLimit(provider, true);
+      await limited.complete({ system: "", messages: [] });
+      await limited.complete({ system: "", messages: [] });
+      await expect(limited.complete({ system: "", messages: [] })).rejects.toMatchObject({ kind: "daily-limit" });
+      expect(complete).toHaveBeenCalledTimes(2);
+
+      // An allowance of 0 stops the student's free analyses.
+      await rawClientOf(prisma()).user.update({ where: { id: TEST_USER_ID }, data: { aiDailyLimit: 0 } });
+      expect(analysesPerDay(await studentDailyLimit())).toBe(0);
+      expect(await analysesLeftToday(true, 0)).toBe(0);
+    } finally {
+      env.PATHFINDER_AI_DAILY_LIMIT = undefined;
+    }
   });
 
   it("knows which key is the server's: DOSSIER_AI_KEY, unless the student saved their own", () => {

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { headers } from "next/headers";
 
 import { loadAiConfig, loadAiSettingsView } from "@/lib/ai/config";
-import { analysesLeftToday, analysesPerDay } from "@/lib/ai/daily-limit";
+import { analysesLeftToday, analysesPerDay, studentDailyLimit } from "@/lib/ai/daily-limit";
 import { verifySession } from "@/lib/auth/session";
 import { listResumeAnalyses } from "@/lib/resume-analysis";
 import { managedMode } from "@/lib/managed";
@@ -268,8 +268,8 @@ async function StudentSettings({ param }: { param: string | string[] | undefined
 /** One of the student's own sections: account, plan, privacy and help (Pathfinder). */
 async function studentSection(section: StudentSectionId) {
   if (section === "plan") {
-    const ai = await loadAiConfig();
-    return <PlanSection perDay={analysesPerDay()} left={await analysesLeftToday(ai.sharedKey)} />;
+    const [ai, limit] = await Promise.all([loadAiConfig(), studentDailyLimit()]);
+    return <PlanSection perDay={analysesPerDay(limit)} left={await analysesLeftToday(ai.sharedKey, limit)} />;
   }
   if (section === "privacy") return <PrivacySection analyses={(await listResumeAnalyses()).length} tools={toolsEnabled()} />;
   if (section === "help") return <HelpSection />;
