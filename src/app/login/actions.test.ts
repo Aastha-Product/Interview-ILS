@@ -187,9 +187,9 @@ describe("signInWithFirebase (Pathfinder)", () => {
     expect(startSession).not.toHaveBeenCalled();
   });
 
-  it("asks for a verified address without counting it as a failure", async () => {
+  it("explains a sign-in without an email address without counting it as a failure", async () => {
     vi.mocked(studentForFirebase).mockRejectedValue(new FirebaseSignInError("unverified"));
-    await expect(signInWithFirebase({ idToken: "token", remember: false })).resolves.toMatchObject({ ok: false, error: expect.stringMatching(/Verify your email/) });
+    await expect(signInWithFirebase({ idToken: "token", remember: false })).resolves.toMatchObject({ ok: false, error: expect.stringMatching(/no email address/) });
     expect(recordLoginFailure).not.toHaveBeenCalled();
     expect(startSession).not.toHaveBeenCalled();
   });

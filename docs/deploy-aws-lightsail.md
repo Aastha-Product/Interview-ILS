@@ -77,8 +77,9 @@ Don't give the access code to students: set up sign-in first (step 7).
 
 ## 7. Turn on sign-in with Firebase (recommended)
 
-Students then create an account with their email and a password, or continue with Google. Firebase
-sends the verification and password reset emails. It's free up to 50,000 monthly users.
+Students then create an account with their email and a password, or continue with Google, and go
+straight in (there's no email verification step). Firebase sends the password reset emails. It's free
+up to 50,000 monthly users.
 
 1. In the [Firebase console](https://console.firebase.google.com/), create a project (or pick
    one). Google Analytics isn't needed.
@@ -88,7 +89,9 @@ sends the verification and password reset emails. It's free up to 50,000 monthly
    `pathfinder.yourdomain.com` (or `52-64-48-163.sslip.io`).
 4. **Project settings (gear icon) → General → Your apps:** add a **Web app** (no hosting needed).
    From the config it shows, copy `apiKey`, `authDomain` and `projectId`. None of them is a
-   secret.
+   secret. Copy the whole `apiKey` (39 characters, starting `AIza`): a copy with dots (`•••`) from
+   a masked field makes every sign-in fail with "Sign-in isn't fully set up". On the live server,
+   `~/firebase-key.sh` asks for it hidden and checks it.
 5. On the server, put them in the settings file:
 
    ```bash
@@ -105,10 +108,22 @@ sends the verification and password reset emails. It's free up to 50,000 monthly
    now offers **Continue with Google**, email and password, **Create a free account** and
    **Forgot your password?**, and the access code no longer works.
 6. Optional: **Authentication → Templates** lets you change the sender name and wording of the
-   verification and reset emails.
+   password reset email.
+7. **Show your own address in Google's window** (recommended). By default Google's "Choose an
+   account" window says "continue to `<project>.firebaseapp.com`". To make it say your domain,
+   serve Firebase's sign-in pages from your address (the Caddyfile already passes `/__/auth/` on to
+   Firebase):
+   - In the [Google Cloud console](https://console.cloud.google.com/apis/credentials) for the same
+     project, open **OAuth 2.0 Client IDs → Web client (auto created by Google Service)** and add
+     `https://<your domain>/__/auth/handler` under **Authorized redirect URIs**. Save.
+   - Under **Google Auth Platform → Branding**, set **App name** to `Pathfinder` (and a support
+     email). Save.
+   - Set `PATHFINDER_FIREBASE_AUTH_DOMAIN=<your domain>` in `.env` and run the setup command again.
 
 A student who signed in before with the access code or Google keeps their account: the first
-Firebase sign-in with the same verified email address links to it.
+Firebase sign-in with the same verified email address (Google's always is) links to it. An address
+that isn't verified, as after an email-and-password sign-up, only ever gets a new account of its own,
+never one that exists.
 
 ## 7b. Or: Google sign-in without Firebase
 

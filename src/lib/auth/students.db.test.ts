@@ -51,16 +51,28 @@ describe("studentForFirebase", () => {
     expect(await system.user.findUniqueOrThrow({ where: { id } })).toMatchObject({ googleSub: "google-asha", firebaseUid: "firebase-asha" });
   });
 
-  it("refuses an address that isn't verified, before touching any student", async () => {
-    await system.user.create({ data: { email: "asha@example.com" } });
-    await expect(studentForFirebase({ ...firebaseAsha, emailVerified: false }, system)).rejects.toMatchObject({ kind: "unverified" });
-    await expect(studentForFirebase({ ...firebaseAsha, email: "" }, system)).rejects.toMatchObject({ kind: "unverified" });
-    expect(await system.user.count({ where: { firebaseUid: { not: null } } })).toBe(0);
+  it("lets a student in straight after signing up, before they verify their address", async () => {
+    const id = await studentForFirebase({ ...firebaseAsha, emailVerified: false }, system);
+    expect(await system.user.findUniqueOrThrow({ where: { id } })).toMatchObject({ email: "asha@example.com", firebaseUid: "firebase-asha" });
+    // Signing in again, still unverified: the same student.
+    expect(await studentForFirebase({ ...firebaseAsha, emailVerified: false }, system)).toBe(id);
   });
 
-  it("never hands a student linked to one Firebase account to another", async () => {
-    await studentForFirebase(firebaseAsha, system);
-    await expect(studentForFirebase({ ...firebaseAsha, uid: "firebase-impostor" }, system)).rejects.toMatchObject({ kind: "taken" });
-    expect(await system.user.count({ where: { firebaseUid: "firebase-impostor" } })).toBe(0);
+  it("never hands an existing student to an address that isn't verified", async () => {
+    const existing = await system.user.create({ data: { email: "asha@example.com" } });
+    await expect(studentForFirebase({ ...firebaseAsha, emailVerified: false }, system)).rejects.toMatchObject({ kind: "taken" });
+    await expect(studentForFirebase({ ...firebaseAsha, email: "" }, system)).rejects.toMatchObject({ kind: "unverified" });
+    expect(await system.user.findUniqueOrThrow({ where: { id: existing.id } })).toMatchObject({ firebaseUid: null });
+    // Once verified (or through Google), the address is theirs, and so is the student.
+    expect(await studentForFirebase(firebaseAsha, system)).toBe(existing.id);
+  });
+
+  it("moves a student to the new Firebase account of a verified address, never for an unverified one", async () => {
+    const id = await studentForFirebase(firebaseAsha, system);
+    // Firebase keeps one account per address: a new account with the same verified address means the old one is gone.
+    await expect(studentForFirebase({ ...firebaseAsha, uid: "firebase-new", emailVerified: false }, system)).rejects.toMatchObject({ kind: "taken" });
+    expect(await system.user.findUniqueOrThrow({ where: { id } })).toMatchObject({ firebaseUid: "firebase-asha" });
+    expect(await studentForFirebase({ ...firebaseAsha, uid: "firebase-new" }, system)).toBe(id);
+    expect(await system.user.findUniqueOrThrow({ where: { id } })).toMatchObject({ firebaseUid: "firebase-new" });
   });
 });

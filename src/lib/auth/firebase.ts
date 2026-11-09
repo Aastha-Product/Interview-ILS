@@ -37,8 +37,8 @@ export function firebaseConfig(source: FirebaseEnv = env): FirebaseConfig | null
 export const FIREBASE_SIGN_IN_ERRORS = {
   "not-configured": "Sign-in isn't set up on this server yet.",
   invalid: "That sign-in didn't work. Try again.",
-  unverified: "Verify your email address first: open the link we sent you, then sign in.",
-  taken: "This email address is already linked to another sign-in. Use the one you signed up with.",
+  unverified: "This sign-in has no email address. Use your email and a password, or another Google account.",
+  taken: "There's already an account with this email address. Sign in with Google, or reset your password.",
   unavailable: "We couldn't reach the sign-in service. Try again in a minute.",
 } as const;
 export type FirebaseSignInErrorKind = keyof typeof FIREBASE_SIGN_IN_ERRORS;
