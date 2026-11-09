@@ -105,6 +105,26 @@ https://claude.ai/artifact/GSHLW1T2jiX99CUiBtAUov): all five P0 tasks.
 
 Newest first. One entry per session: date, account, branch, what changed, what's next.
 
+- **2026-11-09 · account 2 · `chore/handoff-google-sign-in`** — Merged and deployed #11 (backup model;
+  server has `PATHFINDER_AI_FALLBACK_MODEL=gemini-3.5-flash-lite`) and #12 (no email verification:
+  sign-up goes straight in, an unverified address never takes over an existing student; a verified
+  Google sign-in moves the student to its new Firebase account; Caddy serves Firebase's
+  `/__/auth/` and `/__/firebase/` from the domain). Server `.env`: the real 39-character Firebase
+  Web API key (a masked `•••` copy had broken all sign-in; `~/firebase-key.sh` saves it hidden),
+  `PATHFINDER_FIREBASE_AUTH_DOMAIN=pathfinderedtech.com`. Google Cloud (project interview-final-295ef):
+  OAuth web client has origin `https://pathfinderedtech.com` and redirect
+  `https://pathfinderedtech.com/__/auth/handler`; Branding app name `Pathfinder` (shown only after
+  "Verify branding", not submitted). Checked: sign-up and email sign-in work on the live site.
+  **Open, top priority:** "Continue with Google" still fails. The Google popup opens, but no sign-in
+  reaches the server (nothing in the app log, no new user), so it fails in the browser after the
+  account is chosen. Get the owner's screenshot of the popup / message first. If it's
+  `redirect_uri_mismatch`, Google hadn't picked up the new redirect yet (can take hours); otherwise
+  switch `withGoogle` in `src/app/login/firebase-auth.tsx` to `signInWithRedirect` +
+  `getRedirectResult` (works with the same-domain authDomain), with a test. Fallback if needed: set
+  `PATHFINDER_FIREBASE_AUTH_DOMAIN` back to `interview-final-295ef.firebaseapp.com` and re-run setup.
+  Also open: the 2 GB server builds in ~30 minutes and the site is slow meanwhile (4 GB plan advised);
+  the AI key on the server is the shared hackathon Gemini key (replace with the owner's own).
+
 - **2026-11-09 · account 2 · `feature/backup-model-any-provider`** — Deployed `main` with the admin
   console to pathfinderedtech.com (Sydney `pathfinder-app`; `PATHFINDER_ADMIN_EMAILS` set). The live
   server had no AI; the owner saved a Gemini key with `~/ai-key.sh` on the server (hidden paste;
