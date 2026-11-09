@@ -2,7 +2,20 @@
 # (Let's Encrypt), sends plain HTTP on to HTTPS, and passes requests to the app.
 {$PATHFINDER_DOMAIN} {
 	encode zstd gzip
-	reverse_proxy app:3000
+
+	# Firebase's sign-in pages, served from this address so Google's "Choose an account" window says
+	# "continue to <this domain>" rather than <project>.firebaseapp.com. Used once
+	# PATHFINDER_FIREBASE_AUTH_DOMAIN is this domain (docs/deploy-aws-lightsail.md, step 7).
+	@firebase path /__/auth/* /__/firebase/*
+	handle @firebase {
+		reverse_proxy https://{$PATHFINDER_FIREBASE_PROJECT_ID:none}.firebaseapp.com {
+			header_up Host {upstream_hostport}
+		}
+	}
+
+	handle {
+		reverse_proxy app:3000
+	}
 }
 
 # www. goes to the main address, keeping the path, so there's one address for sign-in and links.

@@ -130,6 +130,8 @@ services:
       - "443:443/udp"
     environment:
       PATHFINDER_DOMAIN: ${PATHFINDER_DOMAIN}
+      # For Firebase's sign-in pages under this domain (see the Caddyfile).
+      PATHFINDER_FIREBASE_PROJECT_ID: ${PATHFINDER_FIREBASE_PROJECT_ID:-}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data

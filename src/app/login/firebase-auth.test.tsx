@@ -58,17 +58,17 @@ describe("FirebaseAuth", () => {
     expect(screen.getByRole("link", { name: "Forgot your password?" })).toHaveAttribute("href", "/reset-password?next=%2Fanalyze%2Fabc");
   });
 
-  it("asks a student whose address isn't verified to check their inbox first", async () => {
+  it("signs in a student whose address isn't verified, with no inbox step", async () => {
     firebase.signInWithEmailAndPassword.mockResolvedValue({ user: user(false) });
     render(<FirebaseAuth config={config} mode="sign-in" />);
     await userEvent.type(screen.getByLabelText("Email"), "asha@example.com");
     await userEvent.type(screen.getByLabelText("Password"), "a good password");
     await userEvent.click(screen.getByRole("button", { name: "Sign in" }));
-    expect(await screen.findByRole("heading", { name: "Check your inbox" })).toBeInTheDocument();
-    expect(signInWithFirebase).not.toHaveBeenCalled();
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/analyze"));
+    expect(screen.queryByRole("heading", { name: "Check your inbox" })).toBeNull();
   });
 
-  it("signs up with a name, sends the verification email, and goes in once it's verified", async () => {
+  it("signs up with a name and goes straight in, without a verification email", async () => {
     const created = user(false);
     firebase.createUserWithEmailAndPassword.mockResolvedValue({ user: created });
     render(<FirebaseAuth config={config} mode="sign-up" />);
@@ -76,13 +76,27 @@ describe("FirebaseAuth", () => {
     await userEvent.type(screen.getByLabelText("Email"), "asha@example.com");
     await userEvent.type(screen.getByLabelText("Password"), "a good password");
     await userEvent.click(screen.getByRole("button", { name: "Create account" }));
-    expect(await screen.findByRole("heading", { name: "Check your inbox" })).toBeInTheDocument();
-    expect(firebase.updateProfile).toHaveBeenCalledWith(created, { displayName: "Asha Rao" });
-    expect(firebase.sendEmailVerification).toHaveBeenCalledWith(created);
-
-    created.emailVerified = true;
-    await userEvent.click(screen.getByRole("button", { name: "I've verified my email" }));
     await waitFor(() => expect(replace).toHaveBeenCalledWith("/analyze"));
+    expect(firebase.updateProfile).toHaveBeenCalledWith(created, { displayName: "Asha Rao" });
+    expect(firebase.sendEmailVerification).not.toHaveBeenCalled();
+    expect(signInWithFirebase).toHaveBeenCalledWith({ idToken: "id-token", remember: false, next: undefined });
+  });
+
+  it("signs in with Google and hands the server Firebase's token", async () => {
+    firebase.signInWithPopup.mockResolvedValue({ user: user(true) });
+    render(<FirebaseAuth config={config} mode="sign-up" />);
+    await userEvent.click(screen.getByRole("button", { name: "Continue with Google" }));
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/analyze"));
+    expect(signInWithFirebase).toHaveBeenCalledWith({ idToken: "id-token", remember: false, next: undefined });
+  });
+
+  it("shows the server's refusal after Google, such as an address taken by another account", async () => {
+    firebase.signInWithPopup.mockResolvedValue({ user: user(true) });
+    vi.mocked(signInWithFirebase).mockResolvedValue({ ok: false, error: "There's already an account with this email address." });
+    render(<FirebaseAuth config={config} mode="sign-in" />);
+    await userEvent.click(screen.getByRole("button", { name: "Continue with Google" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("There's already an account with this email address.");
+    expect(replace).not.toHaveBeenCalled();
   });
 
   it("asks for a longer password before calling Firebase", async () => {

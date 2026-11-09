@@ -23,7 +23,7 @@ const WHAT_YOU_GET = [
 export function AuthShell({ children, footnote }: { children: ReactNode; footnote?: ReactNode }) {
   return (
     // Light, as the reference's sign-in card, whatever the visitor's scheme.
-    <main className="flex min-h-screen items-center justify-center light-page bg-brand-navy px-4 py-12 sm:px-6 lg:px-8">
+    <main className="flex min-h-screen items-center justify-center light-page bg-brand-navy px-4 py-12 text-ink sm:px-6 lg:px-8">
       <div className="w-full max-w-5xl overflow-hidden rounded-control bg-white shadow-dialog">
         <div className="flex flex-col md:flex-row">
           <div className="on-navy bg-brand-gradient-diagonal p-8 md:w-5/12">

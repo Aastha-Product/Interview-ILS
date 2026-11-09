@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useRef, useState, useTransition, type FormEvent } from "react";
+import { useState, useTransition, type FormEvent } from "react";
 import type { Auth, User } from "firebase/auth";
 
 import { toastResult } from "@/components/toast";
@@ -61,9 +61,9 @@ const COPY: Record<FirebaseAuthMode, { title: string; intro: string; submit: str
 };
 
 /**
- * The sign-in, sign-up and password reset forms. After signing up, the student verifies their
- * email address before they can sign in: free analyses are per account, so accounts need a real
- * inbox.
+ * The sign-in, sign-up and password reset forms. Signing up goes straight in: there's no email
+ * verification step (the owner's choice, 9 November 2026). The server never hands an existing
+ * student to an address that isn't verified (studentForFirebase).
  */
 export function FirebaseAuth({ config, mode, next }: { config: FirebaseClientConfig; mode: FirebaseAuthMode; next?: string }) {
   const router = useRouter();
@@ -74,9 +74,6 @@ export function FirebaseAuth({ config, mode, next }: { config: FirebaseClientCon
   const [remember, setRemember] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  /** Signed up or signed in, but the email address isn't verified yet. */
-  const [unverified, setUnverified] = useState<string | null>(null);
-  const user = useRef<User | null>(null);
   const [pending, startTransition] = useTransition();
   const copy = COPY[mode];
   const query = next ? `?next=${encodeURIComponent(next)}` : "";
@@ -92,11 +89,6 @@ export function FirebaseAuth({ config, mode, next }: { config: FirebaseClientCon
     if (!result.ok) return fail(result.error);
     toastResult(result);
     router.replace(result.data.redirectTo);
-  }
-
-  async function needsVerifying(signedIn: User) {
-    user.current = signedIn;
-    setUnverified(signedIn.email ?? email.trim());
   }
 
   function submit(event: FormEvent) {
@@ -127,11 +119,9 @@ export function FirebaseAuth({ config, mode, next }: { config: FirebaseClientCon
         if (mode === "sign-up") {
           const created = await firebase.createUserWithEmailAndPassword(auth, email.trim(), password);
           await firebase.updateProfile(created.user, { displayName: name.trim() });
-          await firebase.sendEmailVerification(created.user);
-          return needsVerifying(created.user);
+          return await finish(created.user);
         }
         const { user: signedIn } = await firebase.signInWithEmailAndPassword(auth, email.trim(), password);
-        if (!signedIn.emailVerified) return needsVerifying(signedIn);
         await finish(signedIn);
       } catch (problem) {
         fail(problem);
@@ -154,67 +144,6 @@ export function FirebaseAuth({ config, mode, next }: { config: FirebaseClientCon
         fail(problem);
       }
     });
-  }
-
-  /** "I've verified it": Firebase is asked again, and the student goes in once it agrees. */
-  function checkVerified() {
-    const signedIn = user.current;
-    if (!signedIn || pending) return;
-    setError(null);
-    startTransition(async () => {
-      try {
-        await signedIn.reload();
-        if (!signedIn.emailVerified) return fail("Your email address isn't verified yet. Open the link in the email we sent, then try again.");
-        await finish(signedIn);
-      } catch (problem) {
-        fail(problem);
-      }
-    });
-  }
-
-  function resend() {
-    const signedIn = user.current;
-    if (!signedIn || pending) return;
-    setError(null);
-    startTransition(async () => {
-      try {
-        const { sendEmailVerification } = await import("firebase/auth");
-        await sendEmailVerification(signedIn);
-        setNotice("We've sent the email again.");
-      } catch (problem) {
-        fail(problem);
-      }
-    });
-  }
-
-  if (unverified) {
-    return (
-      <div className="flex flex-col gap-5">
-        <div className="flex flex-col gap-1.5">
-          <h1 className="text-2xl">Check your inbox</h1>
-          <p className="text-sm text-pretty text-muted">
-            We&apos;ve sent a link to <span className="font-medium text-ink">{unverified}</span>. Open it to verify your email address, then
-            come back here. If it isn&apos;t there, look in your spam folder.
-          </p>
-        </div>
-        {error && (
-          <p role="alert" className="text-meta text-error">
-            {error}
-          </p>
-        )}
-        {notice && (
-          <p role="status" className="text-meta text-muted">
-            {notice}
-          </p>
-        )}
-        <Button size="lg" onClick={checkVerified} disabled={pending}>
-          {pending ? "Checking…" : "I've verified my email"}
-        </Button>
-        <Button variant="secondary" size="lg" onClick={resend} disabled={pending}>
-          Send the email again
-        </Button>
-      </div>
-    );
   }
 
   return (
