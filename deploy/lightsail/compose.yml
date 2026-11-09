@@ -80,7 +80,8 @@ services:
       # How postings are scored: ai (the AI above) or jev (needs DOSSIER_TYPESAFE_KEY).
       DOSSIER_SCORER: ${DOSSIER_SCORER:-}
       DOSSIER_TYPESAFE_KEY: ${DOSSIER_TYPESAFE_KEY:-}
-      # On the shared Claude key: the model that reads resumes, and the backup for a busy model.
+      # On the shared Claude key: the model that reads resumes, and the backup for a busy model
+      # (on another provider, e.g. Gemini, the backup only: one of its models, such as gemini-3.5-flash-lite).
       PATHFINDER_AI_READING_MODEL: ${PATHFINDER_AI_READING_MODEL:-}
       PATHFINDER_AI_FALLBACK_MODEL: ${PATHFINDER_AI_FALLBACK_MODEL:-}
       DOSSIER_BACKUP_RETENTION_DAYS: ${DOSSIER_BACKUP_RETENTION_DAYS:-}

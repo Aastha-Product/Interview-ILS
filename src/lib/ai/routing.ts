@@ -138,7 +138,13 @@ export function logsOnly(config: AiConfig): boolean {
   return config.sharedKey && Boolean(config.model) && !routesApply(config);
 }
 
-/** Routes that keep every task on `model` with no backup: for the cost log alone. */
-export function singleModel(model: string): ModelRoutes {
-  return { main: model, reading: model, fallback: null };
+/**
+ * Routes that keep every task on `model`, with the backup from PATHFINDER_AI_FALLBACK_MODEL when
+ * it's set (e.g. gemini-3.5-flash-lite for gemini-3.5-flash): a model of the same provider, tried
+ * once when `model` is overloaded or limiting requests. Unset or "off" means no backup; the Claude
+ * default (claude-sonnet-5-5) doesn't apply, since other providers don't have it.
+ */
+export function singleModel(model: string, source: Pick<typeof env, "PATHFINDER_AI_FALLBACK_MODEL"> = env): ModelRoutes {
+  const fallback = source.PATHFINDER_AI_FALLBACK_MODEL;
+  return { main: model, reading: model, fallback: !fallback || fallback === "off" || fallback === model ? null : fallback };
 }
