@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { EMPTY_ANSWERS } from "@/lib/apply/answers";
 import type { AutoApplyScreenView } from "@/lib/apply/view";
 
-import { saveJobSearch, skipApplication, switchAutoApply } from "./actions";
+import { prepareApplicationAgain, saveJobSearch, skipApplication, switchAutoApply } from "./actions";
 import { AutoApplyScreen } from "./auto-apply-screen";
 import { listFrom, SetupScreen } from "./setup/setup-screen";
 
@@ -18,6 +18,7 @@ vi.mock("./actions", () => ({
   switchAutoApply: vi.fn(async () => ({ ok: true, data: null })),
   findMatchesNow: vi.fn(async () => ({ ok: true, data: { jobId: "run" } })),
   skipApplication: vi.fn(async () => ({ ok: true, data: null })),
+  prepareApplicationAgain: vi.fn(async () => ({ ok: true, data: null })),
 }));
 
 const preferences = { titles: ["Data Analyst"], skills: ["SQL"], countries: ["in"], cities: [], remoteOk: true, level: "entry" as const, employmentTypes: [] };
@@ -63,6 +64,14 @@ describe("the auto-apply dashboard (auto-apply step 4)", () => {
     await userEvent.click(screen.getByRole("button", { name: "Skip" }));
     expect(skipApplication).toHaveBeenCalledWith({ taskId: "t1" });
     expect(router.refresh).toHaveBeenCalled();
+  });
+
+  it("offers Try again for an application waiting on the student", async () => {
+    render(<AutoApplyScreen view={view()} />);
+    const rows = screen.getAllByRole("listitem");
+    expect(within(rows[1]).queryByRole("button", { name: "Try again" })).toBeNull();
+    await userEvent.click(within(rows[0]).getByRole("button", { name: "Try again" }));
+    expect(prepareApplicationAgain).toHaveBeenCalledWith({ taskId: "t1" });
   });
 
   it("sends a student who hasn't agreed yet to set up first", () => {

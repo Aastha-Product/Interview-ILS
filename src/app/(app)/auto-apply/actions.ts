@@ -5,7 +5,7 @@ import { z } from "zod";
 
 import { ApplyState } from "@/generated/prisma/enums";
 import { ActionError, toolAction } from "@/lib/action";
-import { planApplications } from "@/lib/apply/prepare";
+import { planApplications, prepareAgain } from "@/lib/apply/prepare";
 import { AutoApplyNotReady, giveConsent, loadAutoApply, saveAutoApply, setAutoApplyEnabled, settingsInputSchema } from "@/lib/apply/settings";
 import { startMatchRun } from "@/lib/match/jobs";
 import { prisma } from "@/lib/prisma";
@@ -58,6 +58,14 @@ export const findMatchesNow = toolAction(z.object({}), async () => {
   const jobId = await startMatchRun(preferences);
   refresh();
   return { jobId };
+});
+
+/** Try again, after updating the answers or the profile. */
+export const prepareApplicationAgain = toolAction(z.object({ taskId: z.string().min(1) }), async ({ taskId }, { toast }) => {
+  if (!(await prepareAgain(taskId))) throw new ActionError("That application can't be tried again now.");
+  refresh();
+  toast("Preparing it again with your latest answers.");
+  return null;
 });
 
 /** Skip: the job won't be applied for. Not once the browser may be submitting it. */

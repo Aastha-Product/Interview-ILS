@@ -415,6 +415,32 @@ describe("the job runner", () => {
       expect(wait).toBeLessThanOrEqual(120_000);
     });
 
+    it("doesn't count waits for a rate limit as attempts, however many there are", async () => {
+      // Five waits for a job with three attempts, then it runs.
+      const id = await startJob(flaky, { name: "Busy board", failures: ["later", "later", "later", "later", "later"] });
+      for (let wait = 1; wait <= 5; wait++) {
+        await eventually(async () => expect(await row(id)).toMatchObject({ status: "QUEUED", attempts: 0 }));
+        expect(runsOf.get("Busy board")).toBe(wait);
+        await waitOver(id);
+        await claimQueuedJobs();
+      }
+      await eventually(async () => expect(await row(id)).toMatchObject({ status: "DONE", result: { runs: 6 } }));
+    });
+
+    it("counts waits for a rate limit as attempts again after a day, so a job can't wait forever", async () => {
+      const id = await startJob(flaky, { name: "Day-long wait", failures: ["later", "later", "later", "later"] });
+      await eventually(async () => expect(await row(id)).toMatchObject({ status: "QUEUED", attempts: 0 }));
+      await rawClientOf(prisma()).job.update({ where: { id }, data: { createdAt: new Date(Date.now() - 25 * 3600_000) } });
+      for (const attempts of [1, 2]) {
+        await waitOver(id);
+        await claimQueuedJobs();
+        await eventually(async () => expect(await row(id)).toMatchObject({ status: "QUEUED", attempts }));
+      }
+      await waitOver(id);
+      await claimQueuedJobs();
+      await eventually(async () => expect(await row(id)).toMatchObject({ status: "FAILED", attempts: 3, error: "Waiting for the job board." }));
+    });
+
     it("keeps jobs a student started and is watching to one run, as before", async () => {
       const id = await startJob(gated, { name: "Watched", fail: "ai" });
       await release("Watched");

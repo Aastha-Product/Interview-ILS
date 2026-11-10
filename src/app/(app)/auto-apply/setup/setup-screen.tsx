@@ -29,7 +29,19 @@ const NOTICE_LABELS: Record<(typeof NOTICE_PERIODS)[number], string> = { immedia
 const DAILY = [1, 2, 3, 5, 10, 15, 20, 30];
 const PER_COMPANY = [1, 2, 3, 5];
 
-type YesNoKey = "workAuthorized" | "needsSponsorship" | "relativesAtCompany" | "backgroundCheckConsent" | "acceptPrivacyNotices" | "outsideActivities" | "willingToRelocate";
+type YesNoKey =
+  | "workAuthorized"
+  | "needsSponsorship"
+  | "relativesAtCompany"
+  | "backgroundCheckConsent"
+  | "acceptPrivacyNotices"
+  | "outsideActivities"
+  | "willingToRelocate"
+  | "adult"
+  | "employmentRestrictions"
+  | "governmentOfficial"
+  | "relativeOfGovernmentOfficial"
+  | "referredByEmployee";
 
 /** The yes/no questions forms ask most, as the student sees them. */
 const YES_NO: { key: YesNoKey; label: string; hint?: string }[] = [
@@ -40,6 +52,11 @@ const YES_NO: { key: YesNoKey; label: string; hint?: string }[] = [
   { key: "acceptPrivacyNotices", label: "Do you agree to employers' privacy notices for processing your application?", hint: "Many forms won't take an application without it." },
   { key: "outsideActivities", label: "Do you have advisory, consulting or board roles besides your job or studies?" },
   { key: "willingToRelocate", label: "Are you willing to relocate for a job?" },
+  { key: "adult", label: "Are you 18 or older?", hint: "Leave unanswered to use the date of birth in your profile." },
+  { key: "employmentRestrictions", label: "Are you bound by a non-compete or similar restriction from an employer?" },
+  { key: "governmentOfficial", label: "Are you, or were you in the last five years, a government or public official?" },
+  { key: "relativeOfGovernmentOfficial", label: "Is a close relative of yours a government or public official?" },
+  { key: "referredByEmployee", label: "Were you referred by someone who works at the companies you apply to?", hint: "Usually no for applications Pathfinder makes for you." },
 ];
 
 const answerValue = (value: boolean | null) => (value === null ? "" : value ? "yes" : "no");

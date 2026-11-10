@@ -55,7 +55,9 @@ export const greenhouse: BoardAdapter = {
       const crawled: CrawledJob = {
         externalId: job.id,
         title: tidy(job.title ?? ""),
-        companyName: tidy(job.company_name ?? company.name),
+        // Our own name for the company: boards name themselves ("Rubrik Job Board", "HackerRank Careers"),
+        // and forms ask "Have you worked at Rubrik?".
+        companyName: tidy(company.name || job.company_name || ""),
         location,
         country: countries[0] ?? "",
         remote,

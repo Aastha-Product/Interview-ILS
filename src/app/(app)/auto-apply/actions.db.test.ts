@@ -7,7 +7,7 @@ import { runAsUser } from "@/lib/owner/context";
 import { rawClientOf } from "@/lib/owner/scope";
 import { createTestClient, resetDatabase } from "@/test/db";
 
-import { agreeToAutoApply, findMatchesNow, saveJobSearch, skipApplication, switchAutoApply } from "./actions";
+import { agreeToAutoApply, findMatchesNow, prepareApplicationAgain, saveJobSearch, skipApplication, switchAutoApply } from "./actions";
 
 const db = vi.hoisted(() => ({ client: undefined as ReturnType<typeof createTestClient> | undefined }));
 vi.mock("@/lib/prisma", async () => {
@@ -98,6 +98,15 @@ describe("the auto-apply screens' actions (auto-apply step 4)", () => {
     expect(await skipApplication({ taskId: waiting.id })).toMatchObject({ ok: true });
     expect(await prisma().applyTask.findUniqueOrThrow({ where: { id: waiting.id } })).toMatchObject({ state: "SKIPPED", reason: "You skipped it." });
     expect(await skipApplication({ taskId: submitting.id })).toMatchObject({ ok: false, error: "That application can't be skipped now." });
+  });
+
+  it("tries an application waiting on the student again, and not one already sent", async () => {
+    const waiting = await taskIn("NEEDS_STUDENT");
+    const applied = await taskIn("APPLIED");
+    expect(await prepareApplicationAgain({ taskId: waiting.id })).toMatchObject({ ok: true, toast: "Preparing it again with your latest answers." });
+    expect(await prisma().applyTask.findUniqueOrThrow({ where: { id: waiting.id } })).toMatchObject({ state: "PREPARING", reason: null });
+    expect(vi.mocked(startJob)).toHaveBeenCalledWith(expect.objectContaining({ type: "prepare-application" }), { taskId: waiting.id }, expect.anything());
+    expect(await prepareApplicationAgain({ taskId: applied.id })).toMatchObject({ ok: false, error: "That application can't be tried again now." });
   });
 
   it("shows what waits on the student first, with the job's details", async () => {

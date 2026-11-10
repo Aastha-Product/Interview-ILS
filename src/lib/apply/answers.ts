@@ -33,6 +33,16 @@ export const savedAnswersSchema = z.object({
   willingToRelocate: yesNo,
   /** e.g. "2026"; empty to use the latest education's end year. */
   graduationYear: z.string().trim().max(4).default(""),
+  /** 18 or older; null to work it out from the profile's date of birth. */
+  adult: yesNo,
+  /** Bound by a non-compete or similar restriction from a current or past employer. */
+  employmentRestrictions: yesNo,
+  /** A government or public official now, or in the last few years. */
+  governmentOfficial: yesNo,
+  /** A close relative of one. */
+  relativeOfGovernmentOfficial: yesNo,
+  /** Referred to the job by someone who works there; auto-apply's applications usually aren't. */
+  referredByEmployee: yesNo,
 });
 export type SavedAnswers = z.output<typeof savedAnswersSchema>;
 
@@ -52,9 +62,25 @@ export type Answer =
 
 /** What the answers can draw on. */
 export type AnswerContext = {
-  basics: { name: string; email: string; phone: string; city: string; country: string; linkedin: string; website: string };
+  basics: {
+    name: string;
+    email: string;
+    phone: string;
+    city: string;
+    country: string;
+    linkedin: string;
+    website: string;
+    /** As the profile has them; "" when not given. */
+    address?: string;
+    dob?: string;
+  };
   /** Companies in the student's experience, to answer "have you worked for us before?". */
   pastEmployers: string[];
+  /** The current role, else the latest; "" without experience. */
+  currentCompany?: string;
+  currentTitle?: string;
+  /** The latest education's school; "" without one. */
+  university?: string;
   /** The latest year an education entry ends, as text; "" without one. */
   graduationYear: string;
   /** The company the form is for. */
@@ -164,10 +190,51 @@ function aboutThisCompany(label: string, company: string): boolean {
   return (name !== "" && text.includes(name)) || /\b(us|our|this company|subsidiar(y|ies)|affiliates?|group companies)\b/.test(text);
 }
 
+/** 18 or older by a date of birth ("2004-05-17", "17/05/2004"); null when it can't tell. */
+export function adultBy(dob: string | undefined, now = new Date()): boolean | null {
+  const text = (dob ?? "").trim();
+  if (!text) return null;
+  const iso = text.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  const dmy = text.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})$/);
+  const [year, month, day] = iso ? [Number(iso[1]), Number(iso[2]), Number(iso[3])] : dmy ? [Number(dmy[3]), Number(dmy[2]), Number(dmy[1])] : [NaN, NaN, NaN];
+  if (!year || !month || !day) return null;
+  const eighteenth = Date.UTC(year + 18, month - 1, day);
+  return now.getTime() >= eighteenth;
+}
+
+/** An option whose label names `country` ("India"), or the country as text. */
+function countryAnswer(field: FormField, country: string): Answer | null {
+  if (!country.trim()) return null;
+  const name = normal(country).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return choose(field, new RegExp(`\\b${name}\\b`), country);
+}
+
+/** Opting out of marketing messages: the "no" option, or nothing ticked on a checkbox. */
+function optOut(field: FormField): Answer | null | "skip" {
+  if (field.type === "single") {
+    const option = pick(field.options, false);
+    return option ? { kind: "option", value: option.value, label: option.label } : null;
+  }
+  if (field.type === "multi") return field.required ? null : "skip";
+  return { kind: "text", value: "No" };
+}
+
+// Things a person must do themselves: sign or agree to a legal document, or waive a right. Never
+// answered, even when optional, so a form that asks waits for the student.
+const NEVER = /\b(arbitration|nda|non disclosure agreement|waive|waiver|e ?signature|signature|sign (here|below|this)|(type|typing|enter) your (full |legal )?name)\b/;
+
 // Order matters: the first rule whose wording matches answers the question.
 const RULES: Rule[] = [
+  { test: NEVER, answer: () => null },
   // Follow-ups ("If yes, please describe") only matter after a yes, which auto-apply never gives to those questions.
   { test: /^if (yes|so)\b/, answer: (field) => (field.required ? text("N/A") : "skip") },
+  { test: /preferred (first )?name|what should we call you|nick ?name/, answer: (_field, c) => text(splitName(c.basics.name)[0]) },
+  // Before the questions about relatives and past employers, whose wording these share.
+  {
+    test: /(government|public) (official|employee)|politically exposed/,
+    answer: (field, c) => yesNoAnswer(field, /relative|family|spouse|partner|child|parent|sibling/.test(normal(field.label)) ? c.saved.relativeOfGovernmentOfficial : c.saved.governmentOfficial),
+  },
+  { test: /employment agreement|post employment|restrictive covenant|non compete|non solicit|restrictions? (with|from) (your|a) (current|previous|past|former)/, answer: (field, c) => yesNoAnswer(field, c.saved.employmentRestrictions) },
   { test: /\b(gender|race|ethnic|veteran|disabilit|sexual orientation|pronoun|transgender|caste)/, answer: (field) => choose(field, DECLINE, "") ?? (field.required ? null : "skip") },
   { test: /(authori[sz]ed|eligible|legally|right) to work|work (permit|authori[sz]ation)/, answer: (field, c) => yesNoAnswer(field, c.saved.workAuthorized) },
   { test: /sponsor/, answer: (field, c) => yesNoAnswer(field, c.saved.needsSponsorship) },
@@ -191,15 +258,30 @@ const RULES: Rule[] = [
   },
   { test: /background (verification|check|screening)/, answer: (field, c) => yesNoAnswer(field, c.saved.backgroundCheckConsent) },
   { test: /privacy|personal data|data protection|gdpr|process(ing)? (of )?my (personal )?data|consent .*data|candidate data/, answer: (field, c) => yesNoAnswer(field, c.saved.acceptPrivacyNotices) },
+  // "Do you understand that we may use AI tools to review applications?" is a notice like a privacy one.
+  { test: /\bai\b.{0,40}(assist|evaluat|review|process|screen)|ai disclaimer/, answer: (field, c) => yesNoAnswer(field, c.saved.acceptPrivacyNotices) },
   { test: /outside (business|activit|employment)|advisory|consulting|board (role|member|seat)/, answer: (field, c) => yesNoAnswer(field, c.saved.outsideActivities) },
+  { test: /(18|eighteen) years|at least 18|over 18|legal (working )?age/, answer: (field, c) => yesNoAnswer(field, c.saved.adult ?? adultBy(c.basics.dob)) },
+  { test: /whatsapp|\bsms\b|text messages?|marketing|newsletter|opt ?in|job alerts|talent (community|network)/, answer: (field) => optOut(field) },
+  { test: /how (should|would you like|do you prefer|can) (we|to be|you be) (communicat|contact)|preferred (method|mode|way) of (communication|contact)/, answer: (field) => choose(field, /e ?mail/, "Email") },
   { test: /relocat/, answer: (field, c) => yesNoAnswer(field, c.saved.willingToRelocate) },
   { test: /current (ctc|salary|compensation|pay|package)/, answer: (_field, c) => text(c.saved.currentSalary) },
   { test: /expected (ctc|salary|compensation|pay|package)|salary expectation/, answer: (_field, c) => text(c.saved.expectedSalary) },
   { test: /graduat(e|ion) (year|date)|year of (passing|graduation)|passing year/, answer: (_field, c) => text(c.saved.graduationYear || c.graduationYear) },
   { test: /how did you (hear|find|learn)|where did you (hear|find)|referral source|source of application/, answer: (field) => choose(field, /job board|job site|website|career|online|internet|other/, "Job board") },
+  { test: /\breferred\b|\breferral\b/, answer: (field, c) => yesNoAnswer(field, c.saved.referredByEmployee) },
   { test: /linkedin/, answer: (_field, c) => text(c.basics.linkedin) },
   { test: /website|portfolio|personal (site|page)/, answer: (_field, c) => text(c.basics.website) },
-  { test: /^(current )?(location|city)\b|where are you (based|located)|current city/, answer: (_field, c) => text([c.basics.city, c.basics.country].filter(Boolean).join(", ")) },
+  {
+    test: /(current|previous|recent|present|most recent|last) (company|employer|organi[sz]ation)|name of your (current )?(employer|company)|who is your (current )?(or previous )?employer/,
+    answer: (_field, c) => text(c.currentCompany ?? ""),
+  },
+  { test: /(current|previous|recent|present|most recent|last) (job )?(title|designation|role|position)/, answer: (_field, c) => text(c.currentTitle ?? "") },
+  { test: /(home|residential|permanent|current|postal|mailing) address|^address\b/, answer: (_field, c) => text(c.basics.address ?? "") },
+  { test: /countr(y|ies) .*(anticipate|expect|plan|intend|like) .*work|which countr(y|ies)/, answer: (field, c) => countryAnswer(field, c.basics.country) },
+  { test: /countr(y|ies) .*(resid|live|based)|(resid|live|based) .*countr(y|ies)|country of residence/, answer: (field, c) => countryAnswer(field, c.basics.country) },
+  { test: /^(current )?(location|city)\b|where are you (based|located)|current city|(city|state) .*(resid|live)|primary residence/, answer: (_field, c) => text([c.basics.city, c.basics.country].filter(Boolean).join(", ")) },
+  { test: /^(name of (your )?)?(university|college|institution)( name)?$|which (university|college)|university attended|college name/, answer: (_field, c) => text(c.university ?? "") },
 ];
 
 /** The answer for a standard field, by the name every system uses for it. */
