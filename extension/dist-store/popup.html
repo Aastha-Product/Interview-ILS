@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Pathfinder</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --text: #1d1c1a;
+        --muted: #6b6862;
+        --surface: #ffffff;
+        --line: #e4e1da;
+        --primary: #0a588e;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --text: #f4f2ed;
+          --muted: #b3afa6;
+          --surface: #1d1c1a;
+          --line: #3a3834;
+          --primary: #4f9fd6;
+        }
+      }
+      body {
+        margin: 0;
+        width: 300px;
+        background: var(--surface);
+        color: var(--text);
+        font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+      }
+      main {
+        padding: 14px 16px 16px;
+      }
+      h1 {
+        margin: 0 0 6px;
+        font-size: 15px;
+      }
+      p {
+        margin: 0 0 10px;
+      }
+      .muted {
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .status {
+        padding: 8px 10px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+      }
+      .actions {
+        display: grid;
+        gap: 8px;
+      }
+      button {
+        font: inherit;
+        padding: 6px 12px;
+        border-radius: 999px;
+        border: 1px solid var(--line);
+        background: transparent;
+        color: var(--text);
+        cursor: pointer;
+      }
+      button.primary {
+        background: var(--primary);
+        border-color: var(--primary);
+        color: #ffffff;
+      }
+    </style>
+  </head>
+  <body>
+    <main id="popup"></main>
+    <script src="popup.js"></script>
+  </body>
+</html>

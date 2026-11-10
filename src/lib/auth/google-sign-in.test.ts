@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  accessCodeProblem,
   beginSignIn,
   finishSignIn,
   GoogleSignInError,
@@ -43,6 +44,26 @@ const kindOf = (fn: () => unknown) => {
   }
   return "none";
 };
+
+describe("accessCodeProblem (QA C-3)", () => {
+  const nothing = { DOSSIER_GOOGLE_CLIENT_ID: undefined, DOSSIER_GOOGLE_CLIENT_SECRET: undefined, PATHFINDER_SIGN_IN: undefined };
+
+  it("stops a production server that fell back to the access code because sign-in isn't set up", () => {
+    expect(accessCodeProblem(nothing, "production")).toMatch(/^Sign-in isn't set up: .*PATHFINDER_SIGN_IN=code/);
+    // A half-set Google client is still the access code.
+    expect(accessCodeProblem({ ...nothing, DOSSIER_GOOGLE_CLIENT_ID: "id" }, "production")).not.toBeNull();
+  });
+
+  it("lets it start when the access code is chosen on purpose, or sign-in is set up, or it isn't production", () => {
+    expect(accessCodeProblem({ ...nothing, PATHFINDER_SIGN_IN: "code" }, "production")).toBeNull();
+    expect(accessCodeProblem({ ...nothing, DOSSIER_GOOGLE_CLIENT_ID: "id", DOSSIER_GOOGLE_CLIENT_SECRET: "secret" }, "production")).toBeNull();
+    expect(
+      accessCodeProblem({ ...nothing, PATHFINDER_FIREBASE_API_KEY: "k", PATHFINDER_FIREBASE_AUTH_DOMAIN: "d", PATHFINDER_FIREBASE_PROJECT_ID: "p" }, "production"),
+    ).toBeNull();
+    expect(accessCodeProblem(nothing, "development")).toBeNull();
+    expect(accessCodeProblem(nothing, "test")).toBeNull();
+  });
+});
 
 describe("signInMode (Pathfinder)", () => {
   it("uses Google once the client is set, the access code before, and PATHFINDER_SIGN_IN over both", () => {

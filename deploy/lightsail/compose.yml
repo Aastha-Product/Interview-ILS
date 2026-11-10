@@ -58,6 +58,7 @@ services:
       # The server runs the AI, job search, scoring and Google for every student (on unless set
       # to off): students never choose a provider or enter a key. off is self-hosted Dossier.
       PATHFINDER_MANAGED: ${PATHFINDER_MANAGED:-on}
+      PATHFINDER_PRIVATE_AI: ${PATHFINDER_PRIVATE_AI:-off}
       # No usage ping from this server.
       DOSSIER_TELEMETRY: "off"
       # The AI every student uses (in managed mode, the only one).
