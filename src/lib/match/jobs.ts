@@ -5,6 +5,8 @@ import { z } from "zod";
 import { MatchStatus } from "@/generated/prisma/enums";
 import { AiError } from "@/lib/ai/errors";
 import { defineJob, findUnfinishedJobs, JOB_MESSAGES, passing, startJob } from "@/lib/jobs/runner";
+import { planApplications } from "@/lib/apply/prepare";
+import { logServerError } from "@/lib/log";
 import { studentMessage } from "@/lib/managed";
 import { currentUserId } from "@/lib/owner/current";
 import { prisma, systemPrisma } from "@/lib/prisma";
@@ -100,10 +102,14 @@ export const scoreMatchJob = defineJob({
         profile,
         signal,
       );
+      const tier = tierFor(data.score);
       await prisma.jobMatch.update({
         where: { id: matchId },
-        data: { status: MatchStatus.SCORED, score: data.score, tier: tierFor(data.score), reasons: data.reasons, redFlags: data.redFlags, scoredWith, error: null },
+        data: { status: MatchStatus.SCORED, score: data.score, tier, reasons: data.reasons, redFlags: data.redFlags, scoredWith, error: null },
       });
+      // Pathfinder (step 4): a good match may be applied for straight away, if auto-apply is on.
+      // Planning failing doesn't undo the score; the schedule plans again later.
+      if (tier === "STRONG" || tier === "GOOD") await planApplications().catch((cause: unknown) => logServerError("auto-apply plan", cause));
       return { score: data.score };
     } catch (error) {
       // A failure that's final (or that waiting won't fix) is kept with the match, so it doesn't look pending forever.

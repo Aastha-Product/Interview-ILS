@@ -23,7 +23,7 @@ export const OWNED_MODELS = new Set([
   "Education", "Publication", "Reference", "Fact", "Theme", "Setting", "Application", "StatusEvent",
   "Document", "DocumentVersion", "ChatMessage", "Note", "Posting", "ClaudePaste", "AgentCandidate",
   "PostingScore", "PostingSearch", "Startup", "StartupBlock", "GoogleAccount", "EmailMessage", "Job",
-  "Feedback", "AiUsage", "ResumeAnalysis", "AiCall", "JobMatch",
+  "Feedback", "AiUsage", "ResumeAnalysis", "AiCall", "JobMatch", "AutoApplySettings", "ApplyTask",
 ]);
 
 /** Tables only system code may touch, through the unscoped client. */
