@@ -81,14 +81,14 @@ describe("Greenhouse's form (auto-apply step 5b)", () => {
       ["phone", "text", false],
       ["resume", "file", true],
       ["cover_letter", "file", false],
-      ["country", "single", true],
+      ["country", "text", true],
       ["question_1", "single", true],
       ["question_2[]", "multi", true],
       ["4014225007", "single", true],
       ["question_3", "textarea", false],
       ["question_4[]", "multi", true],
     ]);
-    // A list that only shows what's typed can't be read: the server sees no options.
+    // A list that only shows what's typed can't be read: the server is asked for a written answer.
     expect(fields.find((field) => field.key === "country")?.options).toEqual([]);
   });
 

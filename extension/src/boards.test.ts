@@ -45,6 +45,7 @@ describe("Lever's form (auto-apply step 5c)", () => {
     expect(fields[7].options.map((option) => option.label)).toEqual(["Male", "Female", "Other", "Prefer not to disclose"]);
     expect(fields[10].options).toEqual([
       { label: "Linkedin", value: "Linkedin" },
+      { label: "Meesho Job Site", value: "Meesho Job Site" },
       { label: "Naukri", value: "Naukri" },
     ]);
   });
@@ -97,7 +98,7 @@ describe("Ashby's form (auto-apply step 5c)", () => {
       ["_systemfield_resume", "Resume", "file", true],
       ["phone-1", "Phone Number", "text", true],
       ["gender-1", "Gender", "single", false],
-      ["_systemfield_location", "Location", "single", true],
+      ["_systemfield_location", "Location", "text", true],
       ["worked-1", "Have you previously worked at Acme?", "single", true],
       ["comp-1", "What type of compensation do you currently receive?", "multi", false],
       ["_systemfield_education_history", "Education History", "text", false],
@@ -136,6 +137,11 @@ describe("Ashby's form (auto-apply step 5c)", () => {
     expect(Array.from(document.querySelectorAll<HTMLInputElement>('[data-field-path="gender-1"] input')).map((input) => input.checked)).toEqual([false, false, true]);
     expect(field("#_systemfield_resume").files?.[0]?.name).toBe("Asha Rao - Resume.pdf");
     expect((await emptyRequired(ashby, form)).map((entry) => entry.label)).toEqual(["Email", "What is your notice period?"]);
+  });
+
+  it("finds a written place by its first part: \"Pune, India\" is Pune, Maharashtra, not Punjab", async () => {
+    expect(await fill(ashby, form, { _systemfield_location: { kind: "text", value: "Pune, India" } }, {})).toEqual([]);
+    expect(field('[data-field-path="_systemfield_location"] input').value).toBe("Pune, Maharashtra, India");
   });
 
   it("leaves a place it can't find empty, rather than whatever was typed", async () => {

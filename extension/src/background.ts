@@ -96,9 +96,10 @@ export async function pageLoaded(tabId: number): Promise<void> {
   if (held?.tabId !== tabId) return;
   try {
     await chrome.scripting.executeScript({ target: { tabId }, files: ["apply.js"] });
-  } catch {
+  } catch (error) {
     // A page the extension may not touch: the job moved to the company's own site (or didn't
     // load). Before Submit, it's the student's; otherwise it would be leased again and again.
+    console.warn("Pathfinder: can't fill this page", error);
     const link = await connection();
     if (link && !held.submitting) await finish(link, held, { outcome: "needs-student", reason: REASONS.noForm }, true);
   }

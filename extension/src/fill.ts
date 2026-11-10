@@ -114,7 +114,13 @@ export function comboboxChoices(input: HTMLInputElement): string[] {
 /** The same option: exactly, or (loose, for a written answer) one that starts with it, else contains it. */
 function matches(text: string | null | undefined, label: string, loose: boolean): boolean {
   const [have, want] = [norm(text), norm(label)];
-  return have === want || (loose && want !== "" && (have.startsWith(want) || have.includes(want)));
+  if (have === want) return true;
+  if (!loose || want === "") return false;
+  if (have.startsWith(want) || have.includes(want)) return true;
+  // "Pune, India" is "Pune, Maharashtra, India": it starts the same and has every word.
+  const words = want.split(" ");
+  const own = new Set(have.split(" "));
+  return have.startsWith(`${words[0]} `) && words.every((word) => own.has(word));
 }
 
 /** Opens a react-select's menu without focus: the drop-down arrow's mousedown opens it whatever the focus. */
@@ -160,9 +166,12 @@ export async function chooseInCombobox(input: HTMLInputElement, labels: string[]
   for (const label of labels) {
     if (already(label)) continue;
     let option = reactSelectOf(input) ? pickFrom(await openMenu(input), label, loose) : null;
-    if (!option) {
-      // Long lists (countries, schools, places) may only show what's typed.
-      setValue(input, label);
+    // Long lists (countries, schools, places) may only show what's typed; for a written answer,
+    // its first part too ("Pune" for "Pune, India"), as suggestions only contain what's typed.
+    const typings = loose ? [...new Set([label, label.split(",")[0].trim()])].filter(Boolean) : [label];
+    for (const typed of typings) {
+      if (option) break;
+      setValue(input, typed);
       option = await until(() => pickFrom(optionsOf(input), label, loose), { timeout: 3000, every: 150 });
     }
     if (!option) {
