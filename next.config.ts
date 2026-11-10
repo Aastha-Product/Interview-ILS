@@ -45,11 +45,14 @@ const nextConfig: NextConfig = {
         ],
       },
       // Browsers ignore COOP over plain HTTP (except on localhost) and say so
-      // in the console, so it's only sent behind HTTPS.
+      // in the console, so it's only sent behind HTTPS. "same-origin" would cut
+      // the "Continue with Google" popup off from the page that opened it (the
+      // popup's handler page has no COOP of its own), so Firebase never gets
+      // the result back; "same-origin-allow-popups" keeps that link.
       {
         source: "/:path*",
         has: [{ type: "header", key: "x-forwarded-proto", value: "https" }],
-        headers: [{ key: "Cross-Origin-Opener-Policy", value: "same-origin" }],
+        headers: [{ key: "Cross-Origin-Opener-Policy", value: "same-origin-allow-popups" }],
       },
     ];
   },
