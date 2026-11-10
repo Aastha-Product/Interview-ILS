@@ -1,5 +1,7 @@
 import "server-only";
 
+import { AsyncLocalStorage } from "node:async_hooks";
+
 import { env } from "@/lib/env";
 import { currentUserId } from "@/lib/owner/current";
 import { prisma, systemPrisma } from "@/lib/prisma";
@@ -14,6 +16,18 @@ import type { AIProvider, CompletionRequest, JsonCompletionRequest } from "./pro
 // An admin can give one student a different allowance (User.aiDailyLimit, from /admin).
 
 const DAY_ZONE = "Asia/Kolkata";
+
+// Auto-apply's own work (matching, scoring, preparing applications) isn't counted: the owner's
+// decision of 11 November 2026, after the pilot found it used up a student's free analyses after
+// two jobs and then couldn't prepare any. Its AI use is bounded by the student's applications a
+// day (at most 50) instead. The pilot also found refused requests were counted, so each automatic
+// retry used up more.
+const uncounted = new AsyncLocalStorage<true>();
+
+/** Runs `work` with its shared-key AI requests left out of the student's daily limit. */
+export function outsideDailyLimit<T>(work: () => Promise<T>): Promise<T> {
+  return uncounted.run(true, work);
+}
 
 /** The day in India, e.g. "2026-11-06": the limit resets at midnight IST. */
 export function limitDay(now: Date = new Date()): string {
@@ -32,7 +46,11 @@ export async function chargeSharedAi(limit: number, now: Date = new Date()): Pro
     update: { count: { increment: 1 } },
     select: { count: true },
   });
-  if (count > limit) throw AiError.of("daily-limit");
+  if (count > limit) {
+    // A refused request uses nothing, so it isn't kept in the count.
+    await prisma.aiUsage.update({ where: { userId_day: { userId: CURRENT_USER, day } }, data: { count: { decrement: 1 } } });
+    throw AiError.of("daily-limit");
+  }
 }
 
 /** How many shared-key requests the current student has made today. */
@@ -66,8 +84,10 @@ export function withDailyLimit(provider: AIProvider, sharedKey: boolean, limit: 
   function complete(request: CompletionRequest): Promise<string>;
   function complete<T>(request: JsonCompletionRequest<T>): Promise<T>;
   async function complete<T>(request: CompletionRequest | JsonCompletionRequest<T>): Promise<string | T> {
-    const today = typeof limit === "function" ? await limit() : limit;
-    if (today !== null) await chargeSharedAi(today);
+    if (!uncounted.getStore()) {
+      const today = typeof limit === "function" ? await limit() : limit;
+      if (today !== null) await chargeSharedAi(today);
+    }
     return provider.complete(request as JsonCompletionRequest<T>);
   }
   return {

@@ -31,6 +31,9 @@ export function withoutStudentConfig<T extends Partial<SettingsData>>(settings: 
   };
 }
 
+/** The daily limit, in managed mode, where students can't add a key of their own. */
+export const MANAGED_DAILY_LIMIT = "You've used today's AI limit. It resets at midnight (India time).";
+
 /** What a student reads when a managed feature isn't working, instead of "check your key". */
 export const MANAGED_UNAVAILABLE = {
   ai: "The AI is busy or unavailable right now. Please try again in a few minutes.",
@@ -46,6 +49,8 @@ export const MANAGED_UNAVAILABLE = {
  */
 export function studentMessage(message: string): string {
   if (!managedMode()) return message;
+  // The daily limit says so, not "busy": waiting a few minutes won't help (found in the pilot).
+  if (/today's AI limit/i.test(message)) return MANAGED_DAILY_LIMIT;
   if (/Settings → AI provider|AI provider in Settings/i.test(message)) return MANAGED_UNAVAILABLE.ai;
   if (/Settings → Job search/i.test(message)) return MANAGED_UNAVAILABLE.jobs;
   if (/Settings → Scoring/i.test(message)) return MANAGED_UNAVAILABLE.scoring;

@@ -10,6 +10,7 @@ import type { Extracted } from "@/lib/application-data";
 import { postingText } from "@/lib/job-search/search";
 import { readPostingJob } from "@/lib/jobs/read-posting";
 import { RetryLater } from "@/lib/jobs/retry-later";
+import { outsideDailyLimit } from "@/lib/ai/daily-limit";
 import { defineJob, JOB_MESSAGES, passing, startJob, type JobContext } from "@/lib/jobs/runner";
 import { writeDocumentsJob } from "@/lib/jobs/write-documents";
 import { studentMessage } from "@/lib/managed";
@@ -172,45 +173,48 @@ export const prepareApplicationJob = defineJob({
   result: z.object({ state: z.enum(ApplyState) }),
   queue: "ai",
   attempts: 3,
-  async run({ taskId }, context) {
-    const task = await prisma.applyTask.findUnique({ where: { id: taskId }, include: { jobMatch: { select: { score: true } } } });
-    if (!task || task.state !== ApplyState.PREPARING) return { state: task?.state ?? ApplyState.SKIPPED };
-    const posting = await systemPrisma.sharedPosting.findUnique({ where: { id: task.sharedPostingId }, include: { company: { select: { boardToken: true } } } });
-
-    const finish = async (state: ApplyState, data: { reason?: string | null; answers?: FormAnswers["answers"] | null } = {}) => {
-      await prisma.applyTask.updateMany({
-        where: { id: taskId, state: ApplyState.PREPARING },
-        data: { state, reason: data.reason ?? null, ...(data.answers !== undefined ? { answers: data.answers ?? undefined } : {}) },
-      });
-      return { state };
-    };
-    if (!posting || posting.closedAt) return finish(ApplyState.SKIPPED, { reason: "The job closed before its application was ready." });
-
-    try {
-      // Greenhouse publishes its forms, so they're answered first: a form asking something the
-      // student hasn't answered waits for them before any AI is spent tailoring documents for it.
-      // The extension reads other forms when it opens them and asks for answers then (step 5).
-      let answers: FormAnswers["answers"] | null = null;
-      if (posting.system === "GREENHOUSE") {
-        await context.step("Reading the application form");
-        const fields = await greenhouseForm(posting.company.boardToken, posting.externalId, context.signal);
-        const form = answerForm(fields, await answerContext(posting.companyName));
-        if (form.missing.length > 0) return finish(ApplyState.NEEDS_STUDENT, { reason: needsAnswers(form.missing), answers: form.answers });
-        answers = form.answers;
-      }
-      if (!task.applicationId) await writeApplication(taskId, posting, task.jobMatch.score ?? 0, context);
-      return finish(ApplyState.READY, { answers });
-    } catch (error) {
-      // A failure that's final, or that waiting won't fix, is kept with the task in the student's
-      // words. A wait for a rate limit isn't one: the runner queues the job again.
-      if (!context.signal.aborted && !(error instanceof RetryLater) && (context.finalAttempt || !passing(error))) {
-        const message = error instanceof AiError ? studentMessage(error.message) : error instanceof ActionError ? error.message : JOB_MESSAGES.failed;
-        await finish(ApplyState.FAILED, { reason: message }).catch(() => {});
-      }
-      throw error;
-    }
-  },
+  // Auto-apply's AI isn't counted towards the daily limit (src/lib/ai/daily-limit.ts).
+  run: (input, context) => outsideDailyLimit(() => prepare(input, context)),
 });
+
+async function prepare({ taskId }: { taskId: string }, context: JobContext): Promise<{ state: ApplyState }> {
+  const task = await prisma.applyTask.findUnique({ where: { id: taskId }, include: { jobMatch: { select: { score: true } } } });
+  if (!task || task.state !== ApplyState.PREPARING) return { state: task?.state ?? ApplyState.SKIPPED };
+  const posting = await systemPrisma.sharedPosting.findUnique({ where: { id: task.sharedPostingId }, include: { company: { select: { boardToken: true } } } });
+
+  const finish = async (state: ApplyState, data: { reason?: string | null; answers?: FormAnswers["answers"] | null } = {}) => {
+    await prisma.applyTask.updateMany({
+      where: { id: taskId, state: ApplyState.PREPARING },
+      data: { state, reason: data.reason ?? null, ...(data.answers !== undefined ? { answers: data.answers ?? undefined } : {}) },
+    });
+    return { state };
+  };
+  if (!posting || posting.closedAt) return finish(ApplyState.SKIPPED, { reason: "The job closed before its application was ready." });
+
+  try {
+    // Greenhouse publishes its forms, so they're answered first: a form asking something the
+    // student hasn't answered waits for them before any AI is spent tailoring documents for it.
+    // The extension reads other forms when it opens them and asks for answers then (step 5).
+    let answers: FormAnswers["answers"] | null = null;
+    if (posting.system === "GREENHOUSE") {
+      await context.step("Reading the application form");
+      const fields = await greenhouseForm(posting.company.boardToken, posting.externalId, context.signal);
+      const form = answerForm(fields, await answerContext(posting.companyName));
+      if (form.missing.length > 0) return finish(ApplyState.NEEDS_STUDENT, { reason: needsAnswers(form.missing), answers: form.answers });
+      answers = form.answers;
+    }
+    if (!task.applicationId) await writeApplication(taskId, posting, task.jobMatch.score ?? 0, context);
+    return finish(ApplyState.READY, { answers });
+  } catch (error) {
+    // A failure that's final, or that waiting won't fix, is kept with the task in the student's
+    // words. A wait for a rate limit isn't one: the runner queues the job again.
+    if (!context.signal.aborted && !(error instanceof RetryLater) && (context.finalAttempt || !passing(error))) {
+      const message = error instanceof AiError ? studentMessage(error.message) : error instanceof ActionError ? error.message : JOB_MESSAGES.failed;
+      await finish(ApplyState.FAILED, { reason: message }).catch(() => {});
+    }
+    throw error;
+  }
+}
 
 /**
  * Try again: an application waiting for the student, or that failed, is prepared again, with
