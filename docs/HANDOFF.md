@@ -105,6 +105,16 @@ https://claude.ai/artifact/GSHLW1T2jiX99CUiBtAUov): all five P0 tasks.
 
 Newest first. One entry per session: date, account, branch, what changed, what's next.
 
+- **2026-11-10 · account 3 · `fix/google-popup-coop`** — Found why "Continue with Google" fails: the
+  site sent `Cross-Origin-Opener-Policy: same-origin` (`next.config.ts`), which cuts the Google
+  popup off from the sign-in page (the popup's `/__/auth/handler` page has no COOP), so Firebase's
+  `signInWithPopup` never got the result and nothing reached the server. Now
+  `same-origin-allow-popups`, with a test (`src/lib/security-headers.test.ts`). Checks: type-check
+  and lint clean; unit tests pass except the 6 known Windows-only failures. **Next:** owner merges the
+  pull request and deploys (commands under Current state), then tests Google sign-in on the live
+  site. If it still fails, get the screenshot and follow the plan in the entry below
+  (`signInWithRedirect`, or the firebaseapp.com authDomain fallback).
+
 - **2026-11-09 · account 2 · `chore/handoff-google-sign-in`** — Merged and deployed #11 (backup model;
   server has `PATHFINDER_AI_FALLBACK_MODEL=gemini-3.5-flash-lite`) and #12 (no email verification:
   sign-up goes straight in, an unverified address never takes over an existing student; a verified
