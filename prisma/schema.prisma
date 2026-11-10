@@ -75,6 +75,7 @@ model User {
   aiUsage          AiUsage[]
   aiCalls          AiCall[]
   resumeAnalyses   ResumeAnalysis[]
+  jobMatches       JobMatch[]
 }
 
 model ProfileField {
@@ -1127,10 +1128,59 @@ model SharedPosting {
   dedupeKey      String
   /// A hash of what's shown, so a crawl only rewrites jobs that changed.
   contentHash    String
+  // Pathfinder (step 3): the database also keeps a full-text search column, "search" (title,
+  // department and description, generated from them, with a GIN index). Prisma can't describe
+  // generated columns, so it lives only in migration 20261115090000_job_matching and is read
+  // through raw SQL (src/lib/match/rank.ts).
+  matches        JobMatch[]
 
   @@unique([companyId, externalId])
   @@index([closedAt, country])
   @@index([dedupeKey])
+}
+
+/// How well a job fits a student, as Pathfinder sorts its matches.
+enum MatchTier {
+  STRONG
+  GOOD
+  PARTIAL
+  NOT_RECOMMENDED
+}
+
+/// Where a match stands: shortlisted by the ranking, then scored by the AI (or failed to be).
+enum MatchStatus {
+  RANKED
+  SCORED
+  FAILED
+}
+
+/// Pathfinder (auto-apply step 3): a shared job shortlisted for one student, and how well it fits.
+model JobMatch {
+  /// The student this belongs to.
+  userId          String        @default(dbgenerated("current_setting('app.user_id')"))
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id              String        @id @default(cuid())
+  sharedPostingId String
+  sharedPosting   SharedPosting @relation(fields: [sharedPostingId], references: [id], onDelete: Cascade)
+  /// The full-text ranking's score when it was shortlisted; higher is closer to the profile.
+  rank            Float
+  status          MatchStatus   @default(RANKED)
+  /// 0–100 from score-posting, once scored.
+  score           Int?
+  tier            MatchTier?
+  /// Why it fits, and what gives pause (the gaps), as JSON lists of strings.
+  reasons         Json?
+  redFlags        Json?
+  /// What scored it: the prompt version, e.g. "score-posting@1".
+  scoredWith      String?
+  /// Why scoring failed, in the student's words.
+  error           String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@unique([userId, sharedPostingId])
+  @@index([userId, tier])
+  @@index([sharedPostingId])
 }
 
 // ─── Sign-in (E3-4) ──────────────────────────────────────────────────────────
