@@ -78,7 +78,8 @@ const fullAnswers = {
   workAuthorized: true,
   needsSponsorship: false,
   noticePeriod: "immediate" as const,
-  currentSalary: "",
+  // What a fresher writes for current pay.
+  currentSalary: "0",
   expectedSalary: "6 LPA",
   relativesAtCompany: false,
   backgroundCheckConsent: true,
@@ -100,6 +101,9 @@ const fresher = {
   currentCompany: "Persistent Systems",
   currentTitle: "Data Analyst Intern",
   university: "Savitribai Phule Pune University",
+  // A six-month internship.
+  experienceMonths: 6,
+  experienceMonthsWithoutInternships: 0,
   graduationYear: "2026",
 };
 

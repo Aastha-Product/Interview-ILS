@@ -14,6 +14,7 @@ import { defineJob, JOB_MESSAGES, passing, startJob, type JobContext } from "@/l
 import { writeDocumentsJob } from "@/lib/jobs/write-documents";
 import { studentMessage } from "@/lib/managed";
 import { prisma, systemPrisma } from "@/lib/prisma";
+import { experienceMonths } from "@/lib/match/preferences";
 import { loadProfile } from "@/lib/profile-data";
 import { loadSettings } from "@/lib/settings-data";
 
@@ -132,6 +133,8 @@ async function answerContext(company: string): Promise<AnswerContext> {
     currentCompany: role?.company ?? "",
     currentTitle: role?.role ?? "",
     university: profile.education[0]?.school ?? "",
+    experienceMonths: experienceMonths(profile.experience),
+    experienceMonthsWithoutInternships: experienceMonths(profile.experience.filter((entry) => !/\bintern(ship)?\b|\btrainee\b/i.test(entry.role))),
     graduationYear: years.length > 0 ? String(Math.max(...years)) : "",
     company,
     saved: settings.answers,

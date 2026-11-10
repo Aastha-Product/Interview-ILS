@@ -220,6 +220,53 @@ describe("answering a form (auto-apply step 4)", () => {
     });
   });
 
+  it("reads yes and no in the words real options use", () => {
+    const form = [
+      // Rubrik's form on 10 November 2026.
+      field("rubrik", "Are you currently or have you ever been employed by Rubrik or contracted to provide services to Rubrik?", "single", true, [
+        { label: "I have never been employed by Rubrik or contracted to provide services to Rubrik", value: "never" },
+        { label: "I am currently a full/part-time employee for Rubrik", value: "current" },
+      ]),
+      // Airbnb's: one option to choose.
+      field("airbnb", "Consent to Privacy Notice (Airbnb Global Capability Center Private Limited)", "single", true, [{ label: "I have read and consent to the Privacy Notice.", value: "ok" }]),
+      field("guide[]", "By checking this box, I confirm I have read, reviewed and understood the guidelines outlined above.", "multi", true, [{ label: "Yes", value: "y" }]),
+      field("both", "Do you agree to our privacy notice?", "single", true, [
+        { label: "I have read and do not consent", value: "no" },
+        { label: "I have read and consent", value: "yes" },
+      ]),
+    ];
+    expect(answerForm(form, context({ company: "Rubrik" })).answers).toMatchObject({
+      rubrik: { value: "never" },
+      airbnb: { value: "ok" },
+      "guide[]": { values: ["y"] },
+      both: { value: "yes" },
+    });
+  });
+
+  it("answers how soon they can join, where they are, and their total experience", () => {
+    const ranges = ["0-2 years", "3-4 years", "5-7 years", "16 or more years"].map((label) => ({ label, value: label }));
+    const form = [
+      field("join", "How soon can you join us?", "text"),
+      field("loc", "What is your current location", "text"),
+      field("from", "From where do you intend to work?", "text"),
+      field("exp", "Total experience?", "text"),
+      field("excl", "What is your total years of experience? (excluding internships)", "single", true, ranges),
+      field("follow", "If you selected a response to the prior question other than “None of the above,” please describe", "text"),
+      field("specific", "How many years of relevant experience do you have in disaster response operations?", "single", true, ranges),
+    ];
+    const { answers, missing } = answerForm(form, context({ experienceMonths: 30, experienceMonthsWithoutInternships: 0 }));
+    expect(answers).toMatchObject({
+      join: { value: "Immediately" },
+      loc: { value: "Pune, India" },
+      from: { value: "Pune, India" },
+      exp: { value: "2" },
+      excl: { value: "0-2 years" },
+      follow: { value: "N/A" },
+    });
+    // Experience in one field isn't the total: the student answers it.
+    expect(missing).toEqual(["How many years of relevant experience do you have in disaster response operations?"]);
+  });
+
   it("never signs, waives or agrees to a legal document for the student", () => {
     const form = [
       field("nda", "Please Review the NDA and indicate your agreement by typing your full name below", "text"),
