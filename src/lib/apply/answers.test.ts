@@ -170,6 +170,45 @@ describe("answering a form (auto-apply step 4)", () => {
     });
   });
 
+  it("answers Greenhouse's own Country question, but not citizenship (found in the Chrome tests)", () => {
+    const countries = [
+      { label: "Indonesia", value: "ID" },
+      { label: "India", value: "IN" },
+    ];
+    const form = [field("country", "Country", "single", true, countries), field("c2", "Country/Region", "text"), field("n", "Country of citizenship", "single", true, countries)];
+    const { answers, missing } = answerForm(form, context());
+    expect(answers).toEqual({ country: { kind: "option", value: "IN", label: "India" }, c2: { kind: "text", value: "India" } });
+    expect(missing).toEqual(["Country of citizenship"]);
+  });
+
+  it("answers name, email, phone and resume by Ashby's field names or their plain wording (found in the Chrome tests)", () => {
+    const form = [
+      field("_systemfield_name", "Name", "text"),
+      field("_systemfield_email", "Email", "text"),
+      field("8c1f", "Phone Number", "text"),
+      field("_systemfield_resume", "Resume", "file"),
+      field("a1", "Email address", "text"),
+      field("a2", "Mobile No", "text"),
+      field("a3", "Name as per Aadhaar card", "text"),
+    ];
+    const { answers, missing } = answerForm(form, context());
+    expect(answers).toEqual({
+      _systemfield_name: { kind: "text", value: "Asha Rani Verma" },
+      _systemfield_email: { kind: "text", value: "asha@example.com" },
+      "8c1f": { kind: "text", value: "+91 98765 43210" },
+      _systemfield_resume: { kind: "file", file: "resume" },
+      a1: { kind: "text", value: "asha@example.com" },
+      a2: { kind: "text", value: "+91 98765 43210" },
+    });
+    expect(missing).toEqual(["Name as per Aadhaar card"]);
+  });
+
+  it("reads Meesho's wording of how they heard of the job, and leaves it when no option is honest", () => {
+    const meesho = (options: string[]) => [field("s", "How did you get to know about this role?", "single", true, options.map((label) => ({ label, value: label })))];
+    expect(answerForm(meesho(["Linkedin", "Meesho Job Site", "Naukri"]), context()).answers).toEqual({ s: { kind: "option", value: "Meesho Job Site", label: "Meesho Job Site" } });
+    expect(answerForm(meesho(["Linkedin", "Naukri"]), context()).missing).toEqual(["How did you get to know about this role?"]);
+  });
+
   it("answers the questions real forms asked that the pipeline check found unanswered", () => {
     const countries = [
       { label: "India", value: "IN" },

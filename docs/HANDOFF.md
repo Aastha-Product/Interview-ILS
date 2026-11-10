@@ -115,6 +115,28 @@ https://claude.ai/artifact/GSHLW1T2jiX99CUiBtAUov): all five P0 tasks.
 
 Newest first. One entry per session: date, account, branch, what changed, what's next.
 
+- **2026-11-10 · account 3 · `feature/extension-e2e`**: Merged #23 at the owner's request (not
+  deployed). Auto-apply **step 6: the extension tested in Chrome, and a load test.**
+  - **Chrome tests:** `yarn test:extension` (`extension/e2e/`, new CI job "Extension in
+    Chrome"). Chromium with the extension loaded, against mock Greenhouse (the real
+    react-select), Lever and Ashby boards and a fake Pathfinder that uses the real answer rules.
+    Each applies and confirms; a dry run stays unsubmitted; a company's own site goes to the
+    student; nothing is submitted twice.
+  - **Never the real boards:** their hostnames resolve to a local HTTPS server and every other
+    hostname to nothing. Playwright's `route()` alone let the extension's own tabs reach the real
+    job-boards.greenhouse.io. That happened once, on 10 November: a GET of a "page not found",
+    nothing submitted.
+  - **What the Chrome tests found, all fixed:**
+    - Answer rules: a question worded just "Country"; Meesho's "How did you get to know about
+      this role?"; name, email and phone by their plain wording or Ashby's `_systemfield_` names.
+    - The extension: an autocomplete (no options until typed) is now asked as a written answer, and
+      "Pune, India" picks "Pune, Maharashtra, India".
+  - **Load test:** `PATHFINDER_LOAD_TEST=1`, `src/lib/apply/load.db.test.ts`. 100 students × 5
+    applications with two browsers each: 2,199 requests in 2.9 s, p95 607 ms. 300 students: p95
+    1.5 s, no errors. Every application was submitted exactly once, by its own student.
+  - **Next:** the owner deploys `main` (HANDOFF commands, with `PATHFINDER_CRAWL=on`) and starts the
+    dry-run pilot in `extension/README.md`.
+
 - **2026-11-10 · account 3 · `feature/extension-boards`**: Merged #20, #21 and #22 into `main` at the
   owner's request (not deployed). Auto-apply **step 5c: Lever and Ashby** in the extension.
   - **One form engine.** The Greenhouse-only code is now `extension/src/form.ts`, shared by every

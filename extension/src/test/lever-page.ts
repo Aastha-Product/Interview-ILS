@@ -27,7 +27,7 @@ export function leverPage(doc: Document, { parsedName = "NAME FROM RESUME" }: { 
       ${radios("Gender", "cards[c1][field0]", ["Male", "Female", "Other", "Prefer not to disclose"])}
       <li class="application-question custom-question"><div><div class="application-label full-width text"><div class="text">Total Years of experience${required}</div></div><div class="application-field full-width required-field"><input required class="card-field-input" type="text" name="cards[c1][field1]"></div></div></li>
       ${radios("Are you willing to relocate to Bangalore?", "cards[c1][field2]", ["Yes", "No"])}
-      <li class="application-question custom-question"><div><div class="application-label full-width text"><div class="text">How did you get to know about this role?${required}</div></div><div class="application-field full-width required-field"><select required name="cards[c1][field8]"><option value="">Select...</option><option value="Linkedin">Linkedin</option><option value="Naukri">Naukri</option></select></div></div></li>
+      <li class="application-question custom-question"><div><div class="application-label full-width text"><div class="text">How did you get to know about this role?${required}</div></div><div class="application-field full-width required-field"><select required name="cards[c1][field8]"><option value="">Select...</option><option value="Linkedin">Linkedin</option><option value="Meesho Job Site">Meesho Job Site</option><option value="Naukri">Naukri</option></select></div></div></li>
     </ul>
     <input type="hidden" name="origin" value="">
     <div class="h-captcha"><iframe src="https://newassets.hcaptcha.com/captcha/v1/abc" style="visibility: hidden"></iframe></div>

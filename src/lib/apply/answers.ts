@@ -309,7 +309,8 @@ const RULES: Rule[] = [
   { test: /current (ctc|salary|compensation|pay|package)/, answer: (_field, c) => text(c.saved.currentSalary) },
   { test: /expected (ctc|salary|compensation|pay|package)|salary expectation/, answer: (_field, c) => text(c.saved.expectedSalary) },
   { test: /graduat(e|ion) (year|date)|year of (passing|graduation)|passing year/, answer: (_field, c) => text(c.saved.graduationYear || c.graduationYear) },
-  { test: /how did you (hear|find|learn)|where did you (hear|find)|referral source|source of application/, answer: (field) => choose(field, /job board|job site|website|career|online|internet|other/, "Job board") },
+  // "How did you get to know about this role?" is Meesho's wording (found in the Chrome tests).
+  { test: /how did you (hear|find|learn|get to know|come to know|come across)|where did you (hear|find)|referral source|source of application/, answer: (field) => choose(field, /job board|job site|website|career|online|internet|other/, "Job board") },
   { test: /\breferred\b|\breferral\b/, answer: (field, c) => yesNoAnswer(field, c.saved.referredByEmployee) },
   { test: /linkedin/, answer: (_field, c) => text(c.basics.linkedin) },
   { test: /website|portfolio|personal (site|page)/, answer: (_field, c) => text(c.basics.website) },
@@ -320,7 +321,9 @@ const RULES: Rule[] = [
   { test: /(current|previous|recent|present|most recent|last) (job )?(title|designation|role|position)/, answer: (_field, c) => text(c.currentTitle ?? "") },
   { test: /(home|residential|permanent|current|postal|mailing) address|^address\b/, answer: (_field, c) => text(c.basics.address ?? "") },
   { test: /countr(y|ies) .*(anticipate|expect|plan|intend|like) .*work|which countr(y|ies)/, answer: (field, c) => countryAnswer(field, c.basics.country) },
-  { test: /countr(y|ies) .*(resid|live|based)|(resid|live|based) .*countr(y|ies)|country of residence/, answer: (field, c) => countryAnswer(field, c.basics.country) },
+  // Also the question worded just "Country" (Greenhouse's own field): where the student is. Not
+  // citizenship or nationality, which are asked in those words and left to the student.
+  { test: /countr(y|ies) .*(resid|live|based)|(resid|live|based) .*countr(y|ies)|country of residence|^(current |your )?country( region| or region)?$/, answer: (field, c) => countryAnswer(field, c.basics.country) },
   {
     test: /^(current )?(location|city)\b|where are you (currently )?(based|located)|current (city|location)|currently (located|based)|(city|state) .*(resid|live)|primary residence|(from )?where do you (intend|plan) to work|preferred (work )?location/,
     answer: (_field, c) => text([c.basics.city, c.basics.country].filter(Boolean).join(", ")),
@@ -353,8 +356,28 @@ function standard(field: FormField, context: AnswerContext): Answer | null | und
     case "cover_letter":
       return { kind: "file", file: "cover_letter" };
     default:
-      return undefined;
+      return byWording(field, context);
   }
+}
+
+// The same fields on forms that name them otherwise (Ashby's _systemfield_email, a uuid for the
+// phone): by their exact wording, so "Name as per Aadhaar card" is still the student's to answer.
+const ASHBY_FIELDS: Record<string, string> = { _systemfield_name: "name", _systemfield_email: "email", _systemfield_phone: "phone", _systemfield_resume: "resume" };
+const WORDINGS: [RegExp, string][] = [
+  [/^(full |your |legal )?name$/, "name"],
+  [/^(your )?first name$/, "first_name"],
+  [/^(your )?(last|sur|family) ?name$/, "last_name"],
+  [/^(your )?e ?mail( address| id)?$/, "email"],
+  [/^(your )?(phone|mobile|contact|telephone|cell)( phone)?( number| no)?$/, "phone"],
+  [/^(resume|cv|resume cv|cv resume)$/, "resume"],
+];
+
+function byWording(field: FormField, context: AnswerContext): Answer | undefined {
+  if (field.type !== "text" && field.type !== "file") return undefined;
+  const label = normal(field.label);
+  const key = ASHBY_FIELDS[field.key] ?? WORDINGS.find(([wording]) => wording.test(label))?.[1];
+  if (!key || (key === "resume") !== (field.type === "file")) return undefined;
+  return standard({ ...field, key }, context) ?? undefined;
 }
 
 /** Answers a form's questions; `missing` lists the required ones it couldn't. */

@@ -106,6 +106,41 @@ jobs:
         if: always()
         run: node .github/scripts/coverage-summary.mjs >> "$GITHUB_STEP_SUMMARY"
 
+  # Auto-apply step 6: the Chrome extension loaded in Chromium, against mock job boards (Greenhouse
+  # with the real react-select, Lever, Ashby) and a fake Pathfinder. No app or database; the
+  # browser can't reach the internet (extension/e2e/extension.spec.ts).
+  extension:
+    name: Extension in Chrome
+    needs: checked
+    if: ${{ !cancelled() && needs.checked.outputs.skip != 'true' }}
+    runs-on: ubuntu-latest
+    env:
+      COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - run: corepack enable
+
+      - name: Locate the Yarn cache
+        id: yarn-cache
+        run: echo "dir=$(yarn config get cacheFolder)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/cache@v6
+        with:
+          path: ${{ steps.yarn-cache.outputs.dir }}
+          key: yarn-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
+          restore-keys: yarn-${{ runner.os }}-
+
+      - run: yarn install --immutable
+      # Full Chromium: extensions don't load in the headless shell.
+      - run: yarn playwright install --with-deps chromium
+      - run: yarn test:extension
+
   e2e:
     name: End-to-end tests
     needs: checked

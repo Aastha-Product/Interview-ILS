@@ -94,6 +94,9 @@ async function fieldOf({ key, label, required, control }: Question): Promise<For
     case "combobox": {
       const multi = key.endsWith("[]") || control.element.closest("[aria-multiselectable='true']") !== null;
       const options = (await comboboxOptions(control.element)).map((text) => ({ label: text, value: text }));
+      // Suggestions that only come once something's typed (a place, a school): asked as a written
+      // answer, which then picks the suggestion that starts with it.
+      if (options.length === 0 && !multi) return { ...base, type: "text", options: [] };
       return { ...base, type: multi ? "multi" : "single", options };
     }
   }

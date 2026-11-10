@@ -9,10 +9,14 @@ export const BRIDGE = {
   connected: "pathfinder-extension-connected",
 } as const;
 
-/** Pathfinder's own sites, where the bridge runs and where the token may be sent. */
-export const PATHFINDER_ORIGINS = ["https://pathfinderedtech.com", "https://www.pathfinderedtech.com", "http://localhost:3000"] as const;
+/** Set only in the Chrome tests' build (build.mjs --test): their fake Pathfinder. */
+declare const __PATHFINDER_TEST_ORIGIN__: string | undefined;
+const TEST_ORIGIN = typeof __PATHFINDER_TEST_ORIGIN__ === "string" ? [__PATHFINDER_TEST_ORIGIN__] : [];
 
-export const isPathfinderOrigin = (origin: string): boolean => (PATHFINDER_ORIGINS as readonly string[]).includes(origin);
+/** Pathfinder's own sites, where the bridge runs and where the token may be sent. */
+export const PATHFINDER_ORIGINS: readonly string[] = ["https://pathfinderedtech.com", "https://www.pathfinderedtech.com", "http://localhost:3000", ...TEST_ORIGIN];
+
+export const isPathfinderOrigin = (origin: string): boolean => PATHFINDER_ORIGINS.includes(origin);
 
 export type FieldType = "text" | "textarea" | "file" | "single" | "multi" | "hidden";
 export type FieldOption = { label: string; value: string };
