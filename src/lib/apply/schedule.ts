@@ -6,6 +6,7 @@ import { MATCH_RUN_KEY, startMatchRun } from "@/lib/match/jobs";
 import { forEachStudent } from "@/lib/owner/students";
 import { systemPrisma } from "@/lib/prisma";
 
+import { sweepLeases } from "./lease";
 import { planApplications } from "./prepare";
 import { loadAutoApply } from "./settings";
 
@@ -29,6 +30,8 @@ export async function autoApplyRound(now = new Date()): Promise<void> {
 
 /** One round for every student who switched auto-apply on. */
 export async function autoApplyRounds(): Promise<void> {
+  // Step 5: holds browsers let run out (closed mid-form, or no answer after Submit), for everyone.
+  await sweepLeases(new Date(), { allStudents: true });
   // Only the students who switched it on: a cheap query, so the round costs nothing for the rest.
   const enabled = new Set((await systemPrisma.autoApplySettings.findMany({ where: { enabled: true }, select: { userId: true } })).map((row) => row.userId));
   if (enabled.size === 0) return;

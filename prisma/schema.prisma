@@ -78,6 +78,7 @@ model User {
   jobMatches       JobMatch[]
   autoApply        AutoApplySettings?
   applyTasks       ApplyTask[]
+  extensionTokens  ExtensionToken[]
 }
 
 model ProfileField {
@@ -1213,6 +1214,27 @@ model AutoApplySettings {
   /// Answers to the questions most forms ask (SavedAnswers), given once.
   answers         Json      @default("{}")
   updatedAt       DateTime  @updatedAt
+}
+
+/// Pathfinder (auto-apply step 5): a browser's Pathfinder extension, connected to a student. The
+/// extension sends the token with each request; only its hash is kept, so the database can't
+/// give it away.
+model ExtensionToken {
+  /// The student this belongs to.
+  userId     String    @default(dbgenerated("current_setting('app.user_id')"))
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id         String    @id @default(cuid())
+  /// SHA-256 of the token, hex.
+  tokenHash  String    @unique
+  /// Which browser, as the student sees it ("Chrome on Windows").
+  label      String    @default("")
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime?
+  expiresAt  DateTime
+  /// Disconnected by the student; refused from then on.
+  revokedAt  DateTime?
+
+  @@index([userId])
 }
 
 /// Where an application auto-apply prepares stands. The extension moves it on from READY.

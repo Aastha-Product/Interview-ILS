@@ -107,14 +107,30 @@ describe("session checks (E11-5)", () => {
     }
   });
 
+  // Pathfinder: the extension's API has no session cookie; extensionRoute() checks its token and
+  // runs the handler as the student it belongs to.
+  const isExtensionRoute = (file: string) => file.replaceAll("\\", "/").startsWith("src/app/api/ext/");
+
   it("defines every route handler with route()", () => {
     const unchecked = globSync("src/app/**/route.ts")
-      .filter((file) => !OPEN_ROUTES.has(file))
+      .filter((file) => !OPEN_ROUTES.has(file) && !isExtensionRoute(file))
       .flatMap((file) =>
         exportsOf(read(file))
           .filter(([, name, wrapper]) => /^(GET|HEAD|POST|PUT|PATCH|DELETE|OPTIONS)$/.test(name) && wrapper !== "route")
           .map(([line]) => `${file}: ${line}`),
       );
     expect(unchecked).toEqual([]);
+  });
+
+  it("checks the extension's token on every one of its routes (Pathfinder)", () => {
+    const files = globSync("src/app/api/ext/**/route.ts");
+    expect(files.length).toBeGreaterThan(0);
+    const unchecked = files.flatMap((file) =>
+      exportsOf(read(file))
+        .filter(([, name, wrapper]) => /^(GET|HEAD|POST|PUT|PATCH|DELETE|OPTIONS)$/.test(name) && wrapper !== "extensionRoute")
+        .map(([line]) => `${file}: ${line}`),
+    );
+    expect(unchecked).toEqual([]);
+    expect(read("src/lib/extension/route.ts")).toContain("await verifyExtensionToken(token)");
   });
 });

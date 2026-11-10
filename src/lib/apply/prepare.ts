@@ -111,8 +111,8 @@ function detailsFrom(extracted: Extracted, fallback: { title: string; company: s
   };
 }
 
-/** What the answers can draw on, from the profile and the saved answers. */
-async function answerContext(company: string): Promise<AnswerContext> {
+/** What the answers can draw on, from the profile and the saved answers; also for forms the extension reads. */
+export async function answerContext(company: string): Promise<AnswerContext> {
   const [profile, settings] = await Promise.all([loadProfile(), loadAutoApply()]);
   const years = profile.education.map((entry) => (entry.current ? null : entry.endYear)).filter((year): year is number => year !== null);
   // The current role, else the first in the profile's order (newest first).

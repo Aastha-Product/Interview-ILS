@@ -14,7 +14,7 @@ import type { ActionResult } from "@/lib/action";
 import type { ApplyTaskView, AutoApplyScreenView } from "@/lib/apply/view";
 import { TIER_LABELS } from "@/lib/match/tiers";
 
-import { findMatchesNow, prepareApplicationAgain, skipApplication, switchAutoApply } from "./actions";
+import { findMatchesNow, markApplied, prepareApplicationAgain, skipApplication, switchAutoApply } from "./actions";
 
 /** Each state as the student reads it, and which group it shows in. */
 export const STATE_LABELS: Record<ApplyState, string> = {
@@ -29,8 +29,10 @@ export const STATE_LABELS: Record<ApplyState, string> = {
   SKIPPED: "Skipped",
 };
 
-const SKIPPABLE: readonly ApplyState[] = ["PREPARING", "READY", "NEEDS_STUDENT", "FAILED"];
+const SKIPPABLE: readonly ApplyState[] = ["PREPARING", "READY", "NEEDS_STUDENT", "FAILED", "UNCERTAIN"];
 const RETRYABLE: readonly ApplyState[] = ["NEEDS_STUDENT", "FAILED"];
+/** After a dry run they submitted themselves, or an uncertain one they checked. */
+const MARKABLE: readonly ApplyState[] = ["NEEDS_STUDENT", "UNCERTAIN"];
 
 function Count({ label, value, note }: { label: string; value: number; note?: string }) {
   return (
@@ -42,7 +44,9 @@ function Count({ label, value, note }: { label: string; value: number; note?: st
   );
 }
 
-function TaskRow({ task, onSkip, onRetry, busy }: { task: ApplyTaskView; onSkip: (id: string) => void; onRetry: (id: string) => void; busy: boolean }) {
+type RowActions = { onSkip: (id: string) => void; onRetry: (id: string) => void; onMarkApplied: (id: string) => void };
+
+function TaskRow({ task, onSkip, onRetry, onMarkApplied, busy }: { task: ApplyTaskView; busy: boolean } & RowActions) {
   const needsYou = task.state === "NEEDS_STUDENT" || task.state === "UNCERTAIN";
   return (
     <li className="flex flex-col gap-2 border-t border-line py-4 first:border-t-0 sm:flex-row sm:items-start sm:justify-between">
@@ -66,6 +70,11 @@ function TaskRow({ task, onSkip, onRetry, busy }: { task: ApplyTaskView; onSkip:
           <a href={task.url} target="_blank" rel="noreferrer" className={buttonClassName("text", "sm")}>
             Job
           </a>
+        ) : null}
+        {MARKABLE.includes(task.state) ? (
+          <Button variant="secondary" size="sm" aria-disabled={busy || undefined} onClick={() => !busy && onMarkApplied(task.id)}>
+            Mark as applied
+          </Button>
         ) : null}
         {RETRYABLE.includes(task.state) ? (
           <Button variant="secondary" size="sm" aria-disabled={busy || undefined} onClick={() => !busy && onRetry(task.id)}>
@@ -141,7 +150,10 @@ export function AutoApplyScreen({ view }: { view: AutoApplyScreenView }) {
           </p>
         )}
         <p className="text-meta text-muted">
-          Applications are submitted by the Pathfinder extension in your Chrome, so it needs to be installed and Chrome open. Coming next.
+          Applications are submitted by the Pathfinder extension in your Chrome, so it needs to be installed, connected and Chrome open.{" "}
+          <Link href="/auto-apply/extension" className="font-medium underline underline-offset-2">
+            Connect the extension
+          </Link>
         </p>
       </Card>
 
@@ -167,6 +179,7 @@ export function AutoApplyScreen({ view }: { view: AutoApplyScreenView }) {
                 busy={pending}
                 onSkip={(taskId) => act(() => skipApplication({ taskId }))}
                 onRetry={(taskId) => act(() => prepareApplicationAgain({ taskId }))}
+                onMarkApplied={(taskId) => act(() => markApplied({ taskId }))}
               />
             ))}
           </ul>

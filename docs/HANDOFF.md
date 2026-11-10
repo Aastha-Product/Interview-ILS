@@ -115,6 +115,25 @@ https://claude.ai/artifact/GSHLW1T2jiX99CUiBtAUov): all five P0 tasks.
 
 Newest first. One entry per session: date, account, branch, what changed, what's next.
 
+- **2026-11-10 · account 3 · `feature/extension-api`** — Auto-apply **step 5a, the extension's API**
+  (built on #20, `fix/pipeline-findings`: merge that first). Also done this session: step 4 part 2
+  (Set up job search and the dashboard, #19, merged) and the pipeline check against 89 real
+  Greenhouse forms (`src/lib/pipeline-check.db.test.ts`, run with `PATHFINDER_PIPELINE_CHECK=1`;
+  34% of forms answerable in full, 100 students at once with no duplicates or crossed data; results
+  on #20). This branch: table `ExtensionToken` (only a hash stored, 90 days, revocable; migration
+  `20261117090000_extension_tokens`), `src/lib/extension/` (`extensionRoute()` checks the bearer
+  token and runs the handler as its student; the session audit test requires it on every
+  `/api/ext/` route), `src/lib/apply/lease.ts` (lease the oldest READY task for 10 minutes; once the
+  extension says SUBMITTING it's never handed out again: no answer within 3 minutes makes it
+  UNCERTAIN for the student to check, so nothing is ever submitted twice; "applied" marks the
+  application SENT), routes `/api/ext/status`, `lease`, `tasks/[id]/answers` (answers a form the
+  extension read), `document` (the tailored PDF) and `report`; the page Connect the extension
+  (`/auto-apply/extension`, hands the token to the extension through `window.postMessage`) and
+  Mark as applied on the dashboard. **Next:** step 5b, the Chrome extension itself (`extension/`:
+  bridge, background loop, Greenhouse filler; dry run fills only), then 5c (Lever, Ashby) and step
+  6 (tests on mock boards, load test, dry-run pilot). **Owner:** add companies that hire freshers
+  (the starter list is mostly global firms); legal review of `CONSENT_TEXT`.
+
 - **2026-11-10 · account 3 · `feature/auto-apply-prepare`** — Merged #14 to #17 into `main` at the
   owner's request (not deployed). Auto-apply **step 4, part 1 (server)**: `src/lib/apply/`. Tables
   `AutoApplySettings` (consent with its wording's version, preferences, tier, daily and per-company
