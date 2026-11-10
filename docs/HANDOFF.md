@@ -105,6 +105,18 @@ https://claude.ai/artifact/GSHLW1T2jiX99CUiBtAUov): all five P0 tasks.
 
 Newest first. One entry per session: date, account, branch, what changed, what's next.
 
+- **2026-11-10 · account 3 · `feature/job-board-crawler`** — Auto-apply **step 2 of 6** (built on
+  #15, merge that first). The crawler (`src/lib/crawl/`) reads companies' public job boards on
+  Greenhouse, Lever, Ashby and SmartRecruiters every 6 hours into `SharedPosting`, one shared pool
+  for every student (tables `Company`, which is also the crawl schedule, and `SharedPosting`; both
+  system tables, no owner; migration `20261114090000_job_boards`). Keeps jobs in each company's
+  countries (India by default) and remote jobs open worldwide or in Asia; loads only new or changed
+  jobs; closes jobs gone from a board; a failing board waits 15 min, 1 h, 4 h… up to a day; a board
+  that doesn't exist is paused. Uses step 1's shared rate limits. **Off unless `PATHFINDER_CRAWL=on`**.
+  Starter list: 33 companies checked live on 10 Nov to have India jobs (~1,700 then), in
+  `src/lib/crawl/companies.ts`. A live crawl of one board per system matched the boards exactly.
+  **Next:** step 3, matching (pgvector, CPU embeddings, AI score and tiers).
+
 - **2026-11-10 · account 3 · `feature/queue-hardening`** — **New direction (owner's decision):** the
   core MVP feature is end-to-end auto-apply, through a Pathfinder extension in the student's own
   Chrome (Greenhouse, Lever and Ashby forms all carry CAPTCHAs, so never from our servers). Plans:

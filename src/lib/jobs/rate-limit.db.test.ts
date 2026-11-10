@@ -59,4 +59,17 @@ describe("shared rate limits (auto-apply step 1)", () => {
     expect(error).toBeInstanceOf(RetryLater);
     expect((error as RetryLater).afterMs).toBeGreaterThan(50_000);
   });
+
+  it("stops waiting when the job is cancelled", async () => {
+    const limit = { perMinute: 6, burst: 1 };
+    await withRateLimit("cancelled", limit, async () => "first");
+    const controller = new AbortController();
+    const waiting = withRateLimit("cancelled", limit, async () => "second", { maxWaitMs: 60_000, signal: controller.signal });
+    setTimeout(() => controller.abort(new Error("Cancelled.")), 50);
+    await expect(waiting).rejects.toThrow("Cancelled.");
+  });
+
+  it("refuses a limit that makes no sense", async () => {
+    await expect(takeToken("nonsense", { perMinute: 0 })).rejects.toThrow("Invalid rate limit for nonsense.");
+  });
 });

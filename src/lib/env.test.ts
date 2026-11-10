@@ -33,6 +33,7 @@ describe("parseEnv", () => {
       PATHFINDER_STARTUPS: "off", // Pathfinder: unset means off
       PATHFINDER_TOOLS: "on", // Pathfinder: the job-search tools, unset means on
       PATHFINDER_MANAGED: "on", // Pathfinder: the server runs the AI, job search and Google, unset means on
+      PATHFINDER_CRAWL: "off", // Pathfinder: the job-board crawler, unset means off
     });
   });
 
@@ -56,6 +57,9 @@ describe("parseEnv", () => {
     });
     expect(parseEnv(valid).PATHFINDER_QUEUES).toBeUndefined();
     expect(parseEnv({ ...valid, PATHFINDER_QUEUES: " Crawl, ai ,crawl " }).PATHFINDER_QUEUES).toEqual(["crawl", "ai"]);
+    expect(parseEnv(valid).PATHFINDER_CRAWL).toBe("off");
+    expect(parseEnv({ ...valid, PATHFINDER_CRAWL: " On " }).PATHFINDER_CRAWL).toBe("on");
+    expect(problems({ ...valid, PATHFINDER_CRAWL: "yes" })).toEqual(['PATHFINDER_CRAWL must be on or off (got "yes").']);
     expect(problems({ ...valid, PATHFINDER_QUEUES: "crawl;ai" })).toEqual([
       'PATHFINDER_QUEUES must be queue names separated by commas, e.g. "default,ai" (got "crawl;ai").',
     ]);

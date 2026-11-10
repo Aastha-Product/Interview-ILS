@@ -45,6 +45,11 @@ export async function register() {
         startAgentSchedule();
       }
 
+      // Pathfinder (auto-apply step 2): companies' public job boards, read every 6 hours into the
+      // shared job pool, while PATHFINDER_CRAWL is on.
+      const { startCrawler } = await import("@/lib/crawl/crawl");
+      void startCrawler();
+
       // Startups' daily refresh, once it was refreshed by hand and while the screen is in use (#222).
       const { startStartupsSchedule } = await import("@/lib/startups/schedule");
       startStartupsSchedule();

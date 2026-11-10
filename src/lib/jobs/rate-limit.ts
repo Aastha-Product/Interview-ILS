@@ -2,7 +2,7 @@ import "server-only";
 
 import { systemPrisma } from "@/lib/prisma";
 
-import { RetryLater } from "./runner";
+import { RetryLater } from "./retry-later";
 
 // Pathfinder (auto-apply step 1): a shared rate limit per outside service, so every worker together
 // stays within what a job board or an AI provider allows, however many students' jobs run at once.

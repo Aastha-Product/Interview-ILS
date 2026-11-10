@@ -1055,6 +1055,84 @@ model EmailMessage {
   @@index([sentAt])
 }
 
+// ─── Job boards (Pathfinder, auto-apply step 2) ──────────────────────────────
+
+/// A job-board system whose public API the crawler reads, and whose forms the extension can fill.
+enum BoardSystem {
+  GREENHOUSE
+  LEVER
+  ASHBY
+  SMARTRECRUITERS
+}
+
+/// A company whose public job board the crawler reads. Shared by everyone: no owner.
+/// The table is also the crawl schedule: a worker takes companies whose nextCrawlAt has come.
+model Company {
+  id            String          @id @default(cuid())
+  name          String
+  system        BoardSystem
+  /// The board's name on its system: Greenhouse board token, Lever site, Ashby job board, SmartRecruiters company id.
+  boardToken    String
+  /// Countries whose jobs are kept, as ISO codes ("in"); remote jobs open to anywhere are kept too.
+  countries     String[]        @default(["in"])
+  active        Boolean         @default(true)
+  nextCrawlAt   DateTime        @default(now())
+  /// A worker crawling it holds it until then; a crashed worker's hold just runs out.
+  crawlingUntil DateTime?
+  lastCrawledAt DateTime?
+  /// Crawls in a row that failed; the wait before the next one grows with it.
+  failures      Int             @default(0)
+  /// Why the last crawl failed, for the admin console; never a posting's text.
+  lastError     String?
+  /// Open jobs kept from the last crawl.
+  openJobs      Int             @default(0)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  postings      SharedPosting[]
+
+  @@unique([system, boardToken])
+  @@index([active, nextCrawlAt])
+}
+
+/// A job from a company's public job board, shared by every student: job ads aren't personal.
+model SharedPosting {
+  id             String      @id @default(cuid())
+  companyId      String
+  company        Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  system         BoardSystem
+  /// The board's own id for it.
+  externalId     String
+  title          String
+  companyName    String
+  location       String      @default("")
+  /// ISO code ("in"), or "" when the board doesn't say and the place doesn't tell.
+  country        String      @default("")
+  /// Null when the board doesn't say.
+  remote         Boolean?
+  employmentType String      @default("")
+  department     String      @default("")
+  salary         String      @default("")
+  /// Plain text, at most 100,000 characters.
+  description    String
+  /// The job's page.
+  url            String
+  /// The application form, where the extension applies.
+  applyUrl       String
+  postedAt       DateTime?
+  firstSeenAt    DateTime    @default(now())
+  lastSeenAt     DateTime    @default(now())
+  /// Gone from the board since; set again to null if it comes back.
+  closedAt       DateTime?
+  /// A hash of company, title and place, so the same job from another source matches.
+  dedupeKey      String
+  /// A hash of what's shown, so a crawl only rewrites jobs that changed.
+  contentHash    String
+
+  @@unique([companyId, externalId])
+  @@index([closedAt, country])
+  @@index([dedupeKey])
+}
+
 // ─── Sign-in (E3-4) ──────────────────────────────────────────────────────────
 
 /// Failed sign-in attempts, for rate limiting (AUTH-5): one row per client IP,

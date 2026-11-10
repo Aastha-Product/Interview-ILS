@@ -252,6 +252,15 @@ const schema = z.object({
       })
       .transform((value) => [...new Set(value.split(",").map((name) => name.trim()))]),
   ),
+  // Pathfinder: whether this server reads companies' public job boards (Greenhouse, Lever, Ashby,
+  // SmartRecruiters) every 6 hours into the shared job pool. Off unless set to on.
+  PATHFINDER_CRAWL: optional(
+    z
+      .string()
+      .trim()
+      .toLowerCase()
+      .pipe(z.enum(["on", "off"], { error: (issue) => `PATHFINDER_CRAWL must be on or off (got "${String(issue.input)}").` })),
+  ).transform((value) => value ?? "off"),
   // Pathfinder: how many AI requests each student may make per day on the server's shared key
   // (DOSSIER_AI_KEY); the count resets at midnight IST. Students with their own key in Settings
   // aren't limited. Unset means no limit.
