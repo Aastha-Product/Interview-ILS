@@ -209,13 +209,21 @@ export function crawlerEnabled(): boolean {
   }
 }
 
-/** Called once at startup where this process runs jobs and the crawler is on. */
-export function startCrawler(): void {
+/**
+ * Called once at startup where this process runs jobs and the crawler is on. Resolves once the
+ * starter companies are in and the first look for due companies has been made.
+ */
+export async function startCrawler(): Promise<void> {
   if (state.timer || !crawlerEnabled()) return;
-  const tick = () => void crawlDue().catch((error: unknown) => logServerError("crawl", error));
-  state.timer = setInterval(tick, LOOP_MS);
+  const tick = () => crawlDue().catch((error: unknown) => logServerError("crawl", error));
+  state.timer = setInterval(() => void tick(), LOOP_MS);
   state.timer.unref?.();
-  void addStarterCompanies()
-    .catch((error: unknown) => logServerError("crawl", error))
-    .then(tick);
+  await addStarterCompanies().catch((error: unknown) => logServerError("crawl", error));
+  await tick();
+}
+
+/** Stops looking for due companies; crawls under way finish. */
+export function stopCrawler(): void {
+  clearInterval(state.timer);
+  state.timer = undefined;
 }
