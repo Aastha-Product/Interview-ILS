@@ -44,6 +44,11 @@ export type JobContext = {
   step: (name: string) => Promise<void>;
   /** Aborts when the job is cancelled; pass it on to AI calls. */
   signal: AbortSignal;
+  /**
+   * Pathfinder: whether a failure now is final (no automatic retry left), so the job can record
+   * it. Unset when the job is run outside the runner, as tests do.
+   */
+  finalAttempt?: boolean;
 };
 
 export type JobDefinition<I, R> = {
@@ -74,7 +79,7 @@ export { RetryLater };
 const PASSING_AI_FAILURES = new Set(["unreachable", "rate-limited", "busy", "timeout", "provider", "invalid-output", "cut-off"]);
 
 /** Whether running the job again later can help. */
-function passing(error: unknown): boolean {
+export function passing(error: unknown): boolean {
   return error instanceof RetryLater || (error instanceof AiError && PASSING_AI_FAILURES.has(error.kind));
 }
 
@@ -473,6 +478,7 @@ async function execute(id: string, userId: string, controller: AbortController):
     const result = await definition.run(definition.input.parse(job.input), {
       id,
       signal: controller.signal,
+      finalAttempt: job.attempts >= job.maxAttempts,
       step: async (name) => {
         // Deleted meanwhile, or given up as interrupted and run elsewhere: there's no one left to do it for here.
         const { count } = await prisma.job.updateMany({ where: { id, status: JobStatus.RUNNING, workerId: state.workerId }, data: { step: name } });
