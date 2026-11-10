@@ -75,10 +75,26 @@ export function appEnv(): Record<string, string> {
 
 let pool: Pool | undefined;
 
-/** Runs SQL against the test database, for setting up and checking data. */
+/**
+ * Runs SQL against the test database, for setting up and checking data. It acts as the student
+ * the runs sign in as (E2E_EMAIL), as the app does: rows it adds are theirs, by the userId
+ * columns' default (Pathfinder: private accounts).
+ */
 export async function sql<Row extends object = Record<string, unknown>>(text: string, values: unknown[] = []): Promise<Row[]> {
   pool ??= new Pool({ connectionString: e2eDatabaseUrl(), max: 2 });
-  return (await pool.query<Row>(text, values)).rows;
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query(`SELECT set_config('app.user_id', coalesce((SELECT id FROM "User" WHERE email = $1), ''), true)`, [E2E_EMAIL]);
+    const { rows } = await client.query<Row>(text, values);
+    await client.query("COMMIT");
+    return rows;
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => undefined);
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 /** USAGE_PING_TEXT_VERSION in src/lib/usage-ping.ts, which a spec can't import (it's server-only). */
@@ -107,7 +123,8 @@ export async function resetData(): Promise<void> {
   );
   await sql(`TRUNCATE TABLE ${tables.map(({ tablename }) => `"${tablename}"`).join(", ")} RESTART IDENTITY CASCADE`);
   execFileSync("yarn", ["prisma", "db", "seed", "--", "--demo"], {
-    env: { ...process.env, DATABASE_URL: e2eDatabaseUrl() },
+    // The demo data goes to the student the runs sign in as.
+    env: { ...process.env, DATABASE_URL: e2eDatabaseUrl(), DEMO_EMAIL: E2E_EMAIL },
     stdio: "pipe",
   });
   await answerUsagePing("off");

@@ -17,7 +17,7 @@ async function found({ version, url }: { version: string; url: string }) {
   ]) {
     await sql(
       `INSERT INTO "Setting" (key, value, "updatedAt") VALUES ($1, $2, now())
-       ON CONFLICT (key) DO UPDATE SET value = $2, "updatedAt" = now()`,
+       ON CONFLICT ("userId", key) DO UPDATE SET value = $2, "updatedAt" = now()`,
       [key, value],
     );
   }
