@@ -35,6 +35,8 @@ export function e2eDatabaseUrl(): string {
 
 /** The student the runs sign in as (Pathfinder: private accounts). */
 export const E2E_EMAIL = "jane.doe@example.com";
+/** Their id, the same after every resetData(). */
+export const E2E_USER_ID = "e2e-student";
 
 /** The app's environment for a run. */
 export function appEnv(): Record<string, string> {
@@ -122,6 +124,9 @@ export async function resetData(): Promise<void> {
     "SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tablename <> '_prisma_migrations'",
   );
   await sql(`TRUNCATE TABLE ${tables.map(({ tablename }) => `"${tablename}"`).join(", ")} RESTART IDENTITY CASCADE`);
+  // The student keeps the same id, so the session setup.ts signed in with stays theirs (and one a
+  // spec signed out is good again: the session version starts at 0).
+  await sql(`INSERT INTO "User" (id, email, name, "updatedAt") VALUES ($1, $2, 'Jane Doe', now())`, [E2E_USER_ID, E2E_EMAIL]);
   execFileSync("yarn", ["prisma", "db", "seed", "--", "--demo"], {
     // The demo data goes to the student the runs sign in as.
     env: { ...process.env, DATABASE_URL: e2eDatabaseUrl(), DEMO_EMAIL: E2E_EMAIL },
