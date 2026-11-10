@@ -37,6 +37,7 @@ const eslintConfig = defineConfig([
     // The built Chrome extension (node extension/build.mjs).
     "extension/dist/**",
     "extension/dist-test/**",
+    "extension/dist-store/**",
   ]),
 ]);
 

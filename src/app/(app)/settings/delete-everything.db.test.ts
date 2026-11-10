@@ -79,7 +79,21 @@ describe("deleteEverything (E10-8)", () => {
     // A posting pasted for Claude chat, and the connector, which goes off (#221).
     await prisma().claudePaste.create({ data: { text: "A posting", expiresAt: new Date(Date.now() + 60_000) } });
     await prisma().setting.create({ data: { key: "connectorEnabledAt", value: "2026-10-23T09:00:00.000Z" } });
+    // And auto-apply's: settings and consent, a match, an application with its answers, a browser (Pathfinder).
+    const company = await rawClientOf(prisma()).company.create({ data: { name: "Acme", system: "GREENHOUSE", boardToken: "acme" } });
+    const job = await rawClientOf(prisma()).sharedPosting.create({
+      data: { companyId: company.id, system: "GREENHOUSE", externalId: "1", title: "Analyst", companyName: "Acme", description: "", url: "https://job-boards.greenhouse.io/acme/jobs/1", applyUrl: "https://job-boards.greenhouse.io/acme/jobs/1", dedupeKey: "acme-1", contentHash: "v1" },
+    });
+    await prisma().autoApplySettings.create({ data: { enabled: true, consentAt: now, consentVersion: "2026-11-10", answers: { workAuthorized: true } } });
+    const match = await prisma().jobMatch.create({ data: { sharedPostingId: job.id, rank: 1, status: "SCORED", score: 85, tier: "STRONG" } });
+    await prisma().applyTask.create({ data: { jobMatchId: match.id, sharedPostingId: job.id, state: "APPLIED", answers: { first_name: { kind: "text", value: "Asha" } }, evidence: { text: "Thank you" } } });
+    await prisma().extensionToken.create({ data: { tokenHash: "f".repeat(64), label: "Chrome", expiresAt: new Date(Date.now() + 60_000) } });
     await expect(deleteEverything({ confirm: "DELETE" })).rejects.toThrow("NEXT_REDIRECT");
+    expect(
+      await Promise.all([prisma().applyTask.count(), prisma().jobMatch.count(), prisma().autoApplySettings.count(), prisma().extensionToken.count()]),
+    ).toEqual([0, 0, 0, 0]);
+    // The job itself is shared by everyone, and stays.
+    expect(await rawClientOf(prisma()).sharedPosting.count()).toBe(1);
     expect(redirected.to).toBe("/");
     const counts = await Promise.all([
       prisma().posting.count(),

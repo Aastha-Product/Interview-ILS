@@ -16,6 +16,7 @@
     "hash-password": "tsx scripts/hash-password.ts",
     "generate": "prisma generate",
     "extension:build": "node extension/build.mjs",
+    "extension:package": "node extension/build.mjs --store",
     "test:extension": "playwright test -c extension/playwright.config.ts"
   },
   "dependencies": {
