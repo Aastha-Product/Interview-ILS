@@ -53,7 +53,53 @@ export type JobDefinition<I, R> = {
    * write its data idempotently (upsert, or replace in one transaction).
    */
   run: (input: I, context: JobContext) => Promise<R>;
+  /** Pathfinder: the worker pool that takes it (PATHFINDER_QUEUES); "default" unless given. */
+  queue?: string;
+  /** Pathfinder: among one student's turn, higher runs first; 0 unless given. */
+  priority?: number;
+  /**
+   * Pathfinder: runs in all before it stays failed, for background work nobody watches (a crawl, a
+   * campaign's scoring). A passing failure (the AI or a job board busy, RetryLater) or a worker
+   * that stopped mid-run queues it again after a growing wait. Unset means 1: it fails at once and
+   * the page offers Retry, as for work a student started and is watching.
+   */
+  attempts?: number;
 };
+
+/**
+ * Pathfinder: thrown by a job to say "not now, later": a job board's quota is used up until a
+ * reset, or a shared rate limit (src/lib/jobs/rate-limit.ts) needs a longer wait than is worth
+ * holding a worker for. The job runs again after `afterMs` if it has attempts left.
+ */
+export class RetryLater extends Error {
+  override name = "RetryLater";
+
+  constructor(
+    /** For the student while it waits, and as the failure if no attempts are left. */
+    message: string,
+    readonly afterMs?: number,
+  ) {
+    super(message);
+  }
+}
+
+/** AI failures that tend to pass on their own; the others (a bad key, too long) won't on a rerun. */
+const PASSING_AI_FAILURES = new Set(["unreachable", "rate-limited", "busy", "timeout", "provider", "invalid-output", "cut-off"]);
+
+/** Whether running the job again later can help. */
+function passing(error: unknown): boolean {
+  return error instanceof RetryLater || (error instanceof AiError && PASSING_AI_FAILURES.has(error.kind));
+}
+
+/** The first automatic retry waits about 30 s, each next one four times longer, at most 15 min. */
+const RETRY_BASE_MS = 30_000;
+const RETRY_MAX_MS = 15 * 60_000;
+
+/** How long to wait before run number `attempt + 1`, with ±20% jitter so retries don't bunch up. */
+export function retryDelay(attempt: number, random = Math.random): number {
+  const plain = Math.min(RETRY_MAX_MS, RETRY_BASE_MS * 4 ** Math.max(0, attempt - 1));
+  return Math.round(plain * (0.8 + 0.4 * random()));
+}
 
 /** What a page learns about a job. */
 export type JobView<R = unknown> = {
@@ -179,7 +225,7 @@ export function isFinished(job: Pick<JobView, "status">): boolean {
 export async function startJob<I, R>(
   definition: JobDefinition<I, R>,
   input: NoInfer<I>,
-  options: { key?: string; applicationId?: string } = {},
+  options: { key?: string; applicationId?: string; priority?: number } = {},
 ): Promise<string> {
   defineJob(definition);
   const job = await prisma.job.create({
@@ -188,6 +234,9 @@ export async function startJob<I, R>(
       key: options.key,
       applicationId: options.applicationId,
       input: definition.input.parse(input) as Prisma.InputJsonValue,
+      queue: definition.queue ?? "default",
+      priority: options.priority ?? definition.priority ?? 0,
+      maxAttempts: Math.max(1, definition.attempts ?? 1),
     },
     select: { id: true },
   });
@@ -195,7 +244,7 @@ export async function startJob<I, R>(
   return job.id;
 }
 
-/** Runs a failed job again, as the same job with the same input. */
+/** Runs a failed job again, as the same job with the same input, with all its attempts back. */
 export async function retryJob(id: string): Promise<boolean> {
   const { count } = await prisma.job.updateMany({
     where: { id, status: JobStatus.FAILED },
@@ -209,6 +258,9 @@ export async function retryJob(id: string): Promise<boolean> {
       workerId: null,
       heartbeatAt: null,
       cancelRequested: false,
+      attempts: 0,
+      runAfter: null,
+      lastError: null,
     },
   });
   if (count === 0) return false;
@@ -289,13 +341,35 @@ async function queued(): Promise<void> {
   await signal({ kind: "queued" });
 }
 
-/** Records how a job ended; one deleted meanwhile (its application, a discarded import) just ends. */
+/**
+ * Records how a job ended; one deleted meanwhile (its application, a discarded import) just ends.
+ * Only while this worker still holds it: a job given up as interrupted and run again elsewhere
+ * belongs to that run now.
+ */
 async function finish(
   id: string,
   data: { status: JobStatus; result?: Prisma.InputJsonValue; error?: string },
 ): Promise<void> {
-  const { count } = await prisma.job.updateMany({ where: { id }, data: { ...data, finishedAt: new Date() } });
+  const { count } = await prisma.job.updateMany({
+    where: { id, status: JobStatus.RUNNING, workerId: state.workerId },
+    data: { ...data, lastError: null, finishedAt: new Date() },
+  });
   if (count > 0) await notify(id);
+}
+
+/** Puts a job that failed in passing back in the queue, to run again after `waitMs`. */
+async function requeue(id: string, waitMs: number, lastError: string): Promise<boolean> {
+  const { count } = await prisma.job.updateMany({
+    where: { id, status: JobStatus.RUNNING, workerId: state.workerId },
+    data: { status: JobStatus.QUEUED, runAfter: new Date(Date.now() + waitMs), lastError, step: null, startedAt: null, workerId: null, heartbeatAt: null },
+  });
+  if (count > 0) await notify(id);
+  return count > 0;
+}
+
+/** The queues this process takes (PATHFINDER_QUEUES); null for every queue. */
+function ownQueues(): string[] | null {
+  return setting(() => env.PATHFINDER_QUEUES) ?? null;
 }
 
 /** Jobs this process runs at once: one for a local model, more for a hosted one. */
@@ -310,8 +384,10 @@ async function concurrency(): Promise<number> {
 
 /**
  * Takes as many queued jobs as this process has room for and starts them. Students take turns:
- * everyone's oldest job comes before anyone's second, and no one gets more than PER_STUDENT
+ * everyone's first job comes before anyone's second, and no one gets more than PER_STUDENT
  * running. Locked rows are skipped, so two workers claiming at once take different jobs.
+ * Pathfinder: only jobs in this process's queues, and not before their runAfter; within a
+ * student's turn, higher priority first.
  */
 async function claim(): Promise<void> {
   if (!runsJobs()) return;
@@ -325,8 +401,13 @@ async function claim(): Promise<void> {
       state.again = false;
       // The AI provider sets the pace; it can be each student's own (self-hosted), so the next
       // job's student's counts, as before.
+      const queues = ownQueues();
       const next = await systemPrisma.job.findFirst({
-        where: { status: JobStatus.QUEUED },
+        where: {
+          status: JobStatus.QUEUED,
+          OR: [{ runAfter: null }, { runAfter: { lte: new Date() } }],
+          ...(queues ? { queue: { in: queues } } : {}),
+        },
         orderBy: { createdAt: "asc" },
         select: { userId: true },
       });
@@ -334,29 +415,37 @@ async function claim(): Promise<void> {
       const room = (await runAsUser(next.userId, concurrency)) - state.running.size;
       if (room <= 0) break;
       const perStudent = setting(() => env.PATHFINDER_JOBS_PER_STUDENT) ?? PER_STUDENT;
+      const inQueues = queues ? Prisma.sql`AND j.queue IN (${Prisma.join(queues)})` : Prisma.empty;
       // Prisma keeps times in UTC in columns without a time zone, so now() is turned into UTC too.
       const claimed = await systemPrisma.$queryRaw<{ id: string; userId: string }[]>`
-        WITH turns AS (
-          SELECT id, row_number() OVER (PARTITION BY "userId" ORDER BY "createdAt") AS turn
-          FROM "Job" WHERE status = 'QUEUED'
+        WITH utc AS (SELECT now() AT TIME ZONE 'UTC' AS now),
+        ready AS (
+          -- Jobs this process may take now: in its queues, and not waiting to be retried.
+          SELECT j.id, j."userId", j.priority, j."createdAt" FROM "Job" j, utc
+          WHERE j.status = 'QUEUED' AND (j."runAfter" IS NULL OR j."runAfter" <= utc.now) ${inQueues}
+        ),
+        turns AS (
+          SELECT id, row_number() OVER (PARTITION BY "userId" ORDER BY priority DESC, "createdAt") AS turn FROM ready
         ),
         busy AS (
           -- A job whose worker went quiet doesn't hold up its student's queue while it waits to be marked interrupted.
-          SELECT "userId", count(*) AS running FROM "Job"
-          WHERE status = 'RUNNING' AND "heartbeatAt" > (now() AT TIME ZONE 'UTC') - make_interval(secs => ${STALE_MS / 1000})
-          GROUP BY "userId"
+          SELECT "Job"."userId", count(*) AS running FROM "Job", utc
+          WHERE status = 'RUNNING' AND "heartbeatAt" > utc.now - make_interval(secs => ${STALE_MS / 1000})
+          GROUP BY "Job"."userId"
         ),
         picked AS (
           SELECT j.id FROM "Job" j
           JOIN turns t ON t.id = j.id
+          JOIN ready r ON r.id = j.id
           LEFT JOIN busy b ON b."userId" = j."userId"
           WHERE j.status = 'QUEUED' AND t.turn + coalesce(b.running, 0) <= ${perStudent}
-          ORDER BY t.turn, j."createdAt"
+          ORDER BY t.turn, r.priority DESC, r."createdAt"
           LIMIT ${room}
           FOR UPDATE OF j SKIP LOCKED
         )
-        UPDATE "Job" SET status = 'RUNNING', "startedAt" = utc.now, "heartbeatAt" = utc.now, "workerId" = ${state.workerId}, "updatedAt" = utc.now
-        FROM picked, (SELECT now() AT TIME ZONE 'UTC' AS now) utc
+        UPDATE "Job" SET status = 'RUNNING', attempts = "Job".attempts + 1, "runAfter" = NULL,
+          "startedAt" = utc.now, "heartbeatAt" = utc.now, "workerId" = ${state.workerId}, "updatedAt" = utc.now
+        FROM picked, utc
         WHERE "Job".id = picked.id
         RETURNING "Job".id, "Job"."userId"`;
       for (const job of claimed) launch(job.id, job.userId);
@@ -383,9 +472,11 @@ function launch(id: string, userId: string): void {
 }
 
 async function execute(id: string, userId: string, controller: AbortController): Promise<void> {
+  let runs: { attempts: number; maxAttempts: number } | null = null;
   try {
     // The claim marked it running; deleted since, it throws and ends below.
-    const job = await prisma.job.findUniqueOrThrow({ where: { id }, select: { type: true, input: true } });
+    const job = await prisma.job.findUniqueOrThrow({ where: { id }, select: { type: true, input: true, attempts: true, maxAttempts: true } });
+    runs = job;
     await notify(id);
     // Job types register when their module loads; make sure they all have.
     await import("./definitions");
@@ -396,8 +487,8 @@ async function execute(id: string, userId: string, controller: AbortController):
       id,
       signal: controller.signal,
       step: async (name) => {
-        // Deleted meanwhile: there's no one left to do it for.
-        const { count } = await prisma.job.updateMany({ where: { id }, data: { step: name } });
+        // Deleted meanwhile, or given up as interrupted and run elsewhere: there's no one left to do it for here.
+        const { count } = await prisma.job.updateMany({ where: { id, status: JobStatus.RUNNING, workerId: state.workerId }, data: { step: name } });
         if (count === 0) controller.abort();
         else await notify(id);
       },
@@ -411,10 +502,21 @@ async function execute(id: string, userId: string, controller: AbortController):
     // logs the failure for whoever runs it (the message names the problem, never the request).
     const message = controller.signal.aborted
       ? JOB_MESSAGES.cancelled
-      : error instanceof AiError
-        ? studentMessage(error.message)
-        : JOB_MESSAGES.failed;
-    if (!controller.signal.aborted && (!(error instanceof AiError) || managedMode())) logServerError(`job ${id}`, error);
+      : error instanceof RetryLater
+        ? error.message
+        : error instanceof AiError
+          ? studentMessage(error.message)
+          : JOB_MESSAGES.failed;
+    if (!controller.signal.aborted && (!(error instanceof AiError) || managedMode()) && !(error instanceof RetryLater)) logServerError(`job ${id}`, error);
+    // Pathfinder: a passing failure with runs left goes back in the queue to wait a while.
+    if (!controller.signal.aborted && runs && runs.attempts < runs.maxAttempts && passing(error)) {
+      const wait = error instanceof RetryLater && error.afterMs !== undefined ? Math.max(1_000, error.afterMs) : retryDelay(runs.attempts);
+      try {
+        if (await requeue(id, wait, message)) return;
+      } catch (cause) {
+        logServerError(`job ${id}`, cause);
+      }
+    }
     try {
       await finish(id, { status: JobStatus.FAILED, error: message });
     } catch (cause) {
@@ -432,7 +534,8 @@ async function execute(id: string, userId: string, controller: AbortController):
 async function failIfUnfinished(id: string, userId: string, error: string): Promise<void> {
   try {
     await systemPrisma.job.updateMany({
-      where: { id, userId, status: { in: [JobStatus.QUEUED, JobStatus.RUNNING] } },
+      // Only while this worker still holds it, so a job queued again for a retry stays queued.
+      where: { id, userId, status: JobStatus.RUNNING, workerId: state.workerId },
       data: { status: JobStatus.FAILED, error, finishedAt: new Date() },
     });
   } catch (cause) {
@@ -441,24 +544,38 @@ async function failIfUnfinished(id: string, userId: string, error: string): Prom
 }
 
 /**
- * Running jobs whose worker went quiet (it stopped or crashed) can't finish, so they're marked
+ * Running jobs whose worker went quiet (it stopped or crashed) can't finish. Pathfinder: one with
+ * runs left (a background job, `attempts` above 1) goes back in the queue; the others are marked
  * failed and the page offers Retry. Queued jobs wait for a worker: the queue keeps them.
  */
 export async function recoverInterruptedJobs(now = new Date()): Promise<number> {
   // Every student's jobs: this runs for no one in particular.
   const stale = new Date(now.getTime() - STALE_MS);
-  const { count } = await systemPrisma.job.updateMany({
-    where: { status: JobStatus.RUNNING, OR: [{ heartbeatAt: null }, { heartbeatAt: { lt: stale } }] },
+  const quiet = { status: JobStatus.RUNNING, OR: [{ heartbeatAt: null }, { heartbeatAt: { lt: stale } }] };
+  const requeued = await systemPrisma.job.updateMany({
+    where: { ...quiet, cancelRequested: false, maxAttempts: { gt: 1 }, attempts: { lt: systemPrisma.job.fields.maxAttempts } },
+    data: {
+      status: JobStatus.QUEUED,
+      runAfter: new Date(now.getTime() + RETRY_BASE_MS),
+      lastError: JOB_MESSAGES.interrupted,
+      step: null,
+      startedAt: null,
+      workerId: null,
+      heartbeatAt: null,
+    },
+  });
+  const failed = await systemPrisma.job.updateMany({
+    where: quiet,
     data: { status: JobStatus.FAILED, error: JOB_MESSAGES.interrupted, finishedAt: now },
   });
-  return count;
+  return requeued.count + failed.count;
 }
 
 /** Renews the heartbeat of the jobs running here, and stops those cancelled from elsewhere. */
 async function heartbeat(): Promise<void> {
   const ids = [...state.running.keys()];
   if (ids.length === 0) return;
-  await systemPrisma.job.updateMany({ where: { id: { in: ids }, status: JobStatus.RUNNING }, data: { heartbeatAt: new Date() } });
+  await systemPrisma.job.updateMany({ where: { id: { in: ids }, status: JobStatus.RUNNING, workerId: state.workerId }, data: { heartbeatAt: new Date() } });
   const cancelled = await systemPrisma.job.findMany({ where: { id: { in: ids }, cancelRequested: true }, select: { id: true } });
   for (const { id } of cancelled) state.running.get(id)?.controller.abort();
 }

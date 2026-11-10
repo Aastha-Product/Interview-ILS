@@ -6,7 +6,19 @@ import { contextUserId, runAsUser } from "@/lib/owner/context";
 import { rawClientOf } from "@/lib/owner/scope";
 import { createTestClient, resetDatabase } from "@/test/db";
 
-import { cancelApplicationJobs, cancelJob, claimQueuedJobs, defineJob, getJob, recoverInterruptedJobs, retryJob, startJob, subscribeJob } from "./runner";
+import {
+  cancelApplicationJobs,
+  cancelJob,
+  claimQueuedJobs,
+  defineJob,
+  getJob,
+  recoverInterruptedJobs,
+  retryDelay,
+  RetryLater,
+  retryJob,
+  startJob,
+  subscribeJob,
+} from "./runner";
 
 const db = vi.hoisted(() => ({ client: undefined as ReturnType<typeof createTestClient> | undefined }));
 vi.mock("@/lib/prisma", async () => {
@@ -16,7 +28,11 @@ vi.mock("@/lib/prisma", async () => {
 });
 const ai = vi.hoisted(() => ({ provider: "LOCAL" }));
 // Pathfinder (P0 task 3): what this process does, and how many jobs a student may run at once.
-const runner = vi.hoisted(() => ({ role: undefined as "all" | "web" | "worker" | undefined, perStudent: undefined as number | undefined }));
+const runner = vi.hoisted(() => ({
+  role: undefined as "all" | "web" | "worker" | undefined,
+  perStudent: undefined as number | undefined,
+  queues: undefined as string[] | undefined,
+}));
 vi.mock("@/lib/env", () => ({
   env: {
     get PATHFINDER_ROLE() {
@@ -24,6 +40,9 @@ vi.mock("@/lib/env", () => ({
     },
     get PATHFINDER_JOBS_PER_STUDENT() {
       return runner.perStudent;
+    },
+    get PATHFINDER_QUEUES() {
+      return runner.queues;
     },
   },
 }));
@@ -76,6 +95,37 @@ const whoAmI = defineJob({
   },
 });
 
+// Pathfinder (auto-apply step 1): a background job that fails the way the test says on each run.
+const runsOf = new Map<string, number>();
+const flaky = defineJob({
+  type: "test-flaky",
+  input: z.object({ name: z.string(), failures: z.array(z.enum(["busy", "auth", "error", "later"])) }),
+  result: z.object({ runs: z.number() }),
+  attempts: 3,
+  async run({ name, failures }) {
+    const run = (runsOf.get(name) ?? 0) + 1;
+    runsOf.set(name, run);
+    const failure = failures[run - 1];
+    if (failure === "busy") throw AiError.of("busy");
+    if (failure === "auth") throw AiError.of("auth");
+    if (failure === "error") throw new Error("broken");
+    if (failure === "later") throw new RetryLater("Waiting for the job board.", 120_000);
+    return { runs: run };
+  },
+});
+const crawl = defineJob({
+  type: "test-crawl",
+  input: z.object({}),
+  result: z.object({ greeting: z.string() }),
+  queue: "crawl",
+  async run() {
+    return { greeting: "crawled" };
+  },
+});
+
+/** Lets a job waiting for its retry run now, as if the wait were over. */
+const waitOver = (id: string) => rawClientOf(prisma()).job.update({ where: { id }, data: { runAfter: new Date(Date.now() - 1000) } });
+
 // The first job in a process loads every job type before its first step, which can take a few seconds.
 const release = (name: string) => eventually(async () => {
   const open = gates.get(name);
@@ -88,9 +138,11 @@ beforeEach(async () => {
   await resetDatabase(prisma());
   // A cancelled job's gate is never opened: a later job of the same name must get its own.
   gates.clear();
+  runsOf.clear();
   ai.provider = "LOCAL";
   runner.role = undefined;
   runner.perStudent = undefined;
+  runner.queues = undefined;
 });
 afterAll(() => prisma().$disconnect());
 
@@ -101,7 +153,8 @@ describe("the job runner", () => {
     const stop = subscribeJob(id, (job) => seen.push(`${job.status}${job.step ? ` · ${job.step}` : ""}`));
     await eventually(async () => (await status(id)).toBe("RUNNING"));
     await release("Jane");
-    await eventually(async () => (await status(id)).toBe("DONE"));
+    // The first job in a run also loads every job type, which is slow on a busy machine.
+    await eventually(async () => (await status(id)).toBe("DONE"), 10_000);
     stop();
     expect(await getJob(id)).toMatchObject({ step: "Greeting", error: null, result: { greeting: "Hello, Jane" } });
     expect(seen).toContain("RUNNING · Waiting");
@@ -313,6 +366,124 @@ describe("the job runner", () => {
     });
     const id = await startJob(whoAmI, {});
     await eventually(async () => (await status(id)).toBe("DONE"));
+  });
+
+  describe("automatic retries (auto-apply step 1)", () => {
+    const row = (id: string) => rawClientOf(prisma()).job.findUniqueOrThrow({ where: { id } });
+
+    it("runs a background job again after a passing failure, and remembers why it waited", async () => {
+      const id = await startJob(flaky, { name: "Busy once", failures: ["busy"] });
+      await eventually(async () => expect(await row(id)).toMatchObject({ status: "QUEUED", attempts: 1, maxAttempts: 3 }));
+      const waiting = await row(id);
+      expect(waiting.lastError).toBe("The AI provider is overloaded right now. Try again in a moment.");
+      // The first wait is about 30 seconds, give or take a fifth.
+      expect(waiting.runAfter!.getTime() - Date.now()).toBeGreaterThan(20_000);
+      // Not before its time.
+      await claimQueuedJobs();
+      expect((await row(id)).status).toBe("QUEUED");
+      await waitOver(id);
+      await claimQueuedJobs();
+      await eventually(async () => expect(await row(id)).toMatchObject({ status: "DONE", attempts: 2, lastError: null, result: { runs: 2 } }));
+    });
+
+    it("stays failed after its last attempt, with the student's words", async () => {
+      const id = await startJob(flaky, { name: "Always busy", failures: ["busy", "busy", "busy"] });
+      for (const attempt of [1, 2]) {
+        await eventually(async () => expect(await row(id)).toMatchObject({ status: "QUEUED", attempts: attempt }));
+        await waitOver(id);
+        await claimQueuedJobs();
+      }
+      await eventually(async () => expect(await row(id)).toMatchObject({ status: "FAILED", attempts: 3 }));
+      expect((await getJob(id))?.error).toBe("The AI provider is overloaded right now. Try again in a moment.");
+      expect(runsOf.get("Always busy")).toBe(3);
+    });
+
+    it("doesn't run again for failures that won't pass on their own", async () => {
+      const auth = await startJob(flaky, { name: "Bad key", failures: ["auth"] });
+      const broken = await startJob(flaky, { name: "Broken", failures: ["error"] });
+      await eventually(async () => {
+        expect(await row(auth)).toMatchObject({ status: "FAILED", attempts: 1 });
+        expect(await row(broken)).toMatchObject({ status: "FAILED", attempts: 1, error: "Something went wrong while working on this. Try again." });
+      });
+    });
+
+    it("waits as long as RetryLater asks", async () => {
+      const id = await startJob(flaky, { name: "Quota", failures: ["later"] });
+      await eventually(async () => expect(await row(id)).toMatchObject({ status: "QUEUED", lastError: "Waiting for the job board." }));
+      const wait = (await row(id)).runAfter!.getTime() - Date.now();
+      expect(wait).toBeGreaterThan(100_000);
+      expect(wait).toBeLessThanOrEqual(120_000);
+    });
+
+    it("keeps jobs a student started and is watching to one run, as before", async () => {
+      const id = await startJob(gated, { name: "Watched", fail: "ai" });
+      await release("Watched");
+      await eventually(async () => expect(await row(id)).toMatchObject({ status: "FAILED", maxAttempts: 1 }));
+    });
+
+    it("gives all attempts back on a manual Retry", async () => {
+      const id = await startJob(flaky, { name: "Manual", failures: ["auth", "busy"] });
+      await eventually(async () => (await status(id)).toBe("FAILED"));
+      expect(await retryJob(id)).toBe(true);
+      await eventually(async () => expect(await row(id)).toMatchObject({ status: "QUEUED", attempts: 1 }));
+      await waitOver(id);
+      await claimQueuedJobs();
+      await eventually(async () => expect(await row(id)).toMatchObject({ status: "DONE", attempts: 2 }));
+    });
+
+    it("queues a background job again when its worker stopped, and fails the others as before", async () => {
+      const quiet = new Date(Date.now() - 120_000);
+      await prisma().job.createMany({
+        data: [
+          { id: "background", type: "test-flaky", status: "RUNNING", input: {}, heartbeatAt: quiet, attempts: 1, maxAttempts: 3 },
+          { id: "last-run", type: "test-flaky", status: "RUNNING", input: {}, heartbeatAt: quiet, attempts: 3, maxAttempts: 3 },
+          { id: "watched", type: "test-gated", status: "RUNNING", input: {}, heartbeatAt: quiet },
+        ],
+      });
+      runner.role = "web";
+      expect(await recoverInterruptedJobs()).toBe(3);
+      expect(await row("background")).toMatchObject({ status: "QUEUED", workerId: null, lastError: "Dossier restarted before this finished. Try again." });
+      expect(await row("last-run")).toMatchObject({ status: "FAILED" });
+      expect(await row("watched")).toMatchObject({ status: "FAILED" });
+    });
+
+    it("waits about 30 s, then four times longer each time, at most 15 minutes", () => {
+      const middle = () => 0.5;
+      expect([1, 2, 3, 4, 5].map((attempt) => retryDelay(attempt, middle))).toEqual([30_000, 120_000, 480_000, 900_000, 900_000]);
+      expect(retryDelay(1, () => 0)).toBe(24_000);
+      expect(retryDelay(1, () => 1)).toBe(36_000);
+    });
+  });
+
+  describe("queues and priorities (auto-apply step 1)", () => {
+    it("takes only jobs in this worker's queues", async () => {
+      ai.provider = "ANTHROPIC";
+      runner.role = "web";
+      const id = await startJob(crawl, {});
+      expect((await rawClientOf(prisma()).job.findUniqueOrThrow({ where: { id } })).queue).toBe("crawl");
+      runner.role = "worker";
+      runner.queues = ["default", "ai"];
+      await claimQueuedJobs();
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      (await status(id)).toBe("QUEUED");
+      runner.queues = ["crawl"];
+      await claimQueuedJobs();
+      await eventually(async () => (await status(id)).toBe("DONE"));
+    });
+
+    it("runs a student's higher-priority job first", async () => {
+      runner.role = "web";
+      const low = await startJob(gated, { name: "Low", fail: "no" });
+      const high = await startJob(gated, { name: "High", fail: "no" }, { priority: 5 });
+      runner.role = "all";
+      await claimQueuedJobs();
+      await eventually(async () => (await status(high)).toBe("RUNNING"));
+      (await status(low)).toBe("QUEUED");
+      await release("High");
+      await eventually(async () => (await status(low)).toBe("RUNNING"));
+      await release("Low");
+      await eventually(async () => (await status(low)).toBe("DONE"));
+    });
   });
 
   it("asks the worker running a job elsewhere to cancel it, only for its own student (P0 task 3)", async () => {

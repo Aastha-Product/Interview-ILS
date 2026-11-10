@@ -240,6 +240,18 @@ const schema = z.object({
       .transform(Number)
       .pipe(z.number().min(1, { error: "PATHFINDER_JOBS_PER_STUDENT must be at least 1." })),
   ),
+  // Pathfinder: the job queues this worker takes, comma-separated (e.g. "crawl" or "default,ai"), so
+  // worker pools can grow apart. Unset means every queue.
+  PATHFINDER_QUEUES: optional(
+    z
+      .string()
+      .trim()
+      .toLowerCase()
+      .regex(/^[a-z0-9-]+(\s*,\s*[a-z0-9-]+)*$/, {
+        error: (issue) => `PATHFINDER_QUEUES must be queue names separated by commas, e.g. "default,ai" (got "${String(issue.input)}").`,
+      })
+      .transform((value) => [...new Set(value.split(",").map((name) => name.trim()))]),
+  ),
   // Pathfinder: how many AI requests each student may make per day on the server's shared key
   // (DOSSIER_AI_KEY); the count resets at midnight IST. Students with their own key in Settings
   // aren't limited. Unset means no limit.

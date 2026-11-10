@@ -54,6 +54,11 @@ describe("parseEnv", () => {
       PATHFINDER_JOB_CONCURRENCY: 25,
       PATHFINDER_JOBS_PER_STUDENT: 3,
     });
+    expect(parseEnv(valid).PATHFINDER_QUEUES).toBeUndefined();
+    expect(parseEnv({ ...valid, PATHFINDER_QUEUES: " Crawl, ai ,crawl " }).PATHFINDER_QUEUES).toEqual(["crawl", "ai"]);
+    expect(problems({ ...valid, PATHFINDER_QUEUES: "crawl;ai" })).toEqual([
+      'PATHFINDER_QUEUES must be queue names separated by commas, e.g. "default,ai" (got "crawl;ai").',
+    ]);
   });
 
   it("reads whether Startups is offered (Pathfinder)", () => {

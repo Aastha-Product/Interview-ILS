@@ -105,6 +105,22 @@ https://claude.ai/artifact/GSHLW1T2jiX99CUiBtAUov): all five P0 tasks.
 
 Newest first. One entry per session: date, account, branch, what changed, what's next.
 
+- **2026-11-10 · account 3 · `feature/queue-hardening`** — **New direction (owner's decision):** the
+  core MVP feature is end-to-end auto-apply, through a Pathfinder extension in the student's own
+  Chrome (Greenhouse, Lever and Ashby forms all carry CAPTCHAs, so never from our servers). Plans:
+  https://claude.ai/artifact/LkinRgs8DH835N4qVVgKc5 (engine), https://claude.ai/artifact/LWn7WryAWi62rVTGjykG6J
+  (costs, free job sources), https://claude.ai/artifact/QDaCvksqrdvACSyazdrtmS (audit). The rule in
+  `docs/pathfinder-v1-plan.md` is updated to match. **Step 1 of 6 (this branch):** the job queue gains
+  queues (`PATHFINDER_QUEUES`), priorities, automatic retries for background jobs (`attempts` in a
+  job definition; passing AI failures and `RetryLater` wait 30 s, 2 min, 8 min… up to 15 min), a
+  stopped worker's background jobs queued again, and a worker's writes only while it still holds
+  the job; plus a shared rate limit per outside service (`src/lib/jobs/rate-limit.ts`, table
+  `ProviderBudget`). Jobs a student starts keep one run, as before. Migration
+  `20261113090000_queue_hardening`. Checks: type-check and lint clean; all tests pass except the 6
+  known Windows-only ones. Also open from this session: #14 (Google sign-in fix) waits for merge and
+  deploy. **Next:** step 2, the job-board crawler (Greenhouse, Lever, Ashby, SmartRecruiters) and the
+  shared job pool.
+
 - **2026-11-10 · account 3 · `fix/google-popup-coop`** — Found why "Continue with Google" fails: the
   site sent `Cross-Origin-Opener-Policy: same-origin` (`next.config.ts`), which cuts the Google
   popup off from the sign-in page (the popup's `/__/auth/handler` page has no COOP), so Firebase's
