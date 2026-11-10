@@ -47,6 +47,16 @@ with `pnpm services:up`. Six tests in `env.test.ts` and `session-audit.test.ts` 
 only (path separators); everything else must pass. The browser tests (`yarn test:e2e`) don't run
 on Windows yet; they need Linux or CI.
 
+**CI also checks test coverage** (`yarn test:coverage`, thresholds in `vitest.config.mts`): new code
+needs tests or the check fails. Locally the coverage summary only prints when every test passes, so
+move `src/lib/env.test.ts` and `src/lib/session-audit.test.ts` aside for that run and put them back.
+
+**Migrations are written by hand** here, named after the latest one (their dates run ahead of the
+calendar, so a generated one would sort first). Never run `prisma migrate dev` against this schema:
+`SharedPosting.search` (a generated full-text column) and the same-owner foreign keys live only in
+the migrations, and Prisma would try to drop them. Check a new migration with `prisma migrate diff
+--from-config-datasource --to-schema prisma/schema.prisma --script` against the test database.
+
 ## Current state (8 November 2026)
 
 | Branch | What it holds |
@@ -104,6 +114,21 @@ https://claude.ai/artifact/GSHLW1T2jiX99CUiBtAUov): all five P0 tasks.
 ## Log
 
 Newest first. One entry per session: date, account, branch, what changed, what's next.
+
+- **2026-11-10 · account 3 · `feature/job-matching`** — Auto-apply **step 3 of 6** (built on #16 and
+  #15; merge those first). Matching (`src/lib/match/`): `startMatchRun()` ranks the shared pool for a
+  student with Postgres full-text search (generated column `SharedPosting.search`, GIN index;
+  migration `20261115090000_job_matching`), no pgvector or embedding model: it's fast (under 20 ms on
+  455 real jobs), installs nothing, and the AI reads every shortlisted job anyway; embeddings can
+  slot in behind `rankPool` later if recall is weak. Title vs target roles counts 3× skills; hard
+  filters for countries/cities/remote, internships, not shortlisted before; for freshers, senior
+  titles and jobs asking 3+ years are dropped (`forNewGraduates`). Shortlists 25 per run; each gets
+  a `score-match` job (queue `ai`, 3 attempts) storing score, reasons, gaps and tier in `JobMatch`
+  (owned): Strong 80+, Good 65+, Partial 50+, else Not recommended. Preferences come from the
+  profile until step 4. **Finding:** a live check on 6 starter companies (455 jobs) found almost
+  no fresher software roles: global tech boards hire experienced people. The company list needs
+  employers that hire freshers and interns. Also on #16: tests added after CI's coverage check
+  failed. **Next:** step 4, auto-apply settings, consent, apply tasks and preparation.
 
 - **2026-11-10 · account 3 · `feature/job-board-crawler`** — Auto-apply **step 2 of 6** (built on
   #15, merge that first). The crawler (`src/lib/crawl/`) reads companies' public job boards on
