@@ -274,7 +274,7 @@ const RULES: Rule[] = [
     answer: (field, c) => yesNoAnswer(field, /relative|family|spouse|partner|child|parent|sibling/.test(normal(field.label)) ? c.saved.relativeOfGovernmentOfficial : c.saved.governmentOfficial),
   },
   { test: /employment agreement|post employment|restrictive covenant|non compete|non solicit|restrictions? (with|from) (your|a) (current|previous|past|former)/, answer: (field, c) => yesNoAnswer(field, c.saved.employmentRestrictions) },
-  { test: /\b(gender|race|ethnic|veteran|disabilit|sexual orientation|pronoun|transgender|caste)/, answer: (field) => choose(field, DECLINE, "") ?? (field.required ? null : "skip") },
+  { test: /\b(gender|sex\b|race|ethnic|veteran|disabilit|sexual orientation|pronoun|transgender|caste)/, answer: (field) => choose(field, DECLINE, "") ?? (field.required ? null : "skip") },
   { test: /(authori[sz]ed|eligible|legally|right) to work|work (permit|authori[sz]ation)/, answer: (field, c) => yesNoAnswer(field, c.saved.workAuthorized) },
   { test: /sponsor/, answer: (field, c) => yesNoAnswer(field, c.saved.needsSponsorship) },
   {

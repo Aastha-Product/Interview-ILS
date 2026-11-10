@@ -1,0 +1,24 @@
+{
+  "manifest_version": 3,
+  "name": "Pathfinder",
+  "version": "0.1.0",
+  "description": "Applies to the jobs Pathfinder prepared for you, from your own browser, within the limits you set.",
+  "minimum_chrome_version": "116",
+  "background": { "service_worker": "worker.js" },
+  "permissions": ["alarms", "storage", "scripting"],
+  "host_permissions": [
+    "https://pathfinderedtech.com/*",
+    "https://www.pathfinderedtech.com/*",
+    "http://localhost:3000/*",
+    "https://job-boards.greenhouse.io/*",
+    "https://boards.greenhouse.io/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["https://pathfinderedtech.com/*", "https://www.pathfinderedtech.com/*", "http://localhost:3000/*"],
+      "js": ["bridge.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": { "default_title": "Pathfinder" }
+}

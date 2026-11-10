@@ -431,7 +431,8 @@ describe("the job runner", () => {
 
     it("counts waits for a rate limit as attempts again after a day, so a job can't wait forever", async () => {
       const id = await startJob(flaky, { name: "Day-long wait", failures: ["later", "later", "later", "later"] });
-      await eventually(async () => expect(await row(id)).toMatchObject({ status: "QUEUED", attempts: 0 }));
+      // After its first run, not before it (a new job is QUEUED with 0 attempts too).
+      await eventually(async () => expect(await row(id)).toMatchObject({ status: "QUEUED", attempts: 0, lastError: "Waiting for the job board." }));
       await rawClientOf(prisma()).job.update({ where: { id }, data: { createdAt: new Date(Date.now() - 25 * 3600_000) } });
       for (const attempts of [1, 2]) {
         await waitOver(id);

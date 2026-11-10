@@ -34,6 +34,8 @@ const eslintConfig = defineConfig([
     // End-to-end test output.
     "playwright-report/**",
     "test-results/**",
+    // The built Chrome extension (node extension/build.mjs).
+    "extension/dist/**",
   ]),
 ]);
 

@@ -21,8 +21,9 @@ export default defineConfig({
     // Raise them as tests are added; CI fails when coverage drops below.
     coverage: {
       provider: "v8",
-      include: ["src/**"],
-      exclude: ["src/generated/**", "src/test/**", "**/*.d.ts"],
+      include: ["src/**", "extension/src/**"],
+      // The extension's entries only wire Chrome to the modules beside them.
+      exclude: ["src/generated/**", "src/test/**", "**/*.d.ts", "extension/src/worker.ts", "extension/src/apply.ts", "extension/src/test/**"],
       reporter: ["text-summary", "json-summary", "html"],
       reportsDirectory: "coverage",
       thresholds: {
@@ -67,6 +68,15 @@ export default defineConfig({
           environment: "jsdom",
           include: ["src/**/*.test.tsx"],
           setupFiles: ["./src/test/setup-dom.ts"],
+        },
+      },
+      {
+        // The Chrome extension (auto-apply step 5b): its form filling runs against pages.
+        extends: true,
+        test: {
+          name: "extension",
+          environment: "jsdom",
+          include: ["extension/**/*.test.ts"],
         },
       },
     ],
