@@ -315,6 +315,72 @@ describe("answering a form (auto-apply step 4)", () => {
     expect(missing).toEqual(["How many years of relevant experience do you have in disaster response operations?"]);
   });
 
+  it("answers the wording live forms used on 11 November 2026, from what the student gave", () => {
+    const form = [
+      // InMobi, FamPay, HackerRank, Atlan.
+      field("present", "What is your present CTC", "text"),
+      field("fixed", "What is your current fixed CTC?", "text"),
+      field("fixedExpected", "What is your expected fixed CTC?", "text"),
+      field("range", "Please provide the range of salary you seeking in LPA.", "text"),
+      field("expectations", "What are your compensation expectations for this role?", "textarea"),
+      // InMobi, HackerRank, FamPay.
+      field("where", "What is your present location ?", "text"),
+      field("earliest", "When is the earliest you can join the 3-6-month Internship program?", "text"),
+      field("years", "Please indicate your experience in number of years", "text"),
+      // Tekion (Ashby's Yes/No buttons), Meesho.
+      field("employee", 'Are you currently a Tekion employee? (If "yes" - please apply via Ashby\'s Internal Job Board)', "single", true, yesNo),
+      field("based", "Are you based out of Bangalore ?", "single", true, yesNo),
+    ];
+    const saved = { ...answered, currentSalary: "3 LPA", expectedSalary: "6 LPA" };
+    const { answers, missing } = answerForm(form, context({ company: "Tekion", saved, experienceMonths: 26, currentCompany: "Infosys" }));
+    expect(answers).toMatchObject({
+      present: { value: "3 LPA" },
+      fixed: { value: "3 LPA" },
+      fixedExpected: { value: "6 LPA" },
+      range: { value: "6 LPA" },
+      expectations: { value: "6 LPA" },
+      where: { value: "Pune, India" },
+      earliest: { value: "Immediately" },
+      years: { value: "2" },
+      employee: { label: "No" },
+      based: { label: "No" },
+    });
+    expect(missing).toEqual([]);
+  });
+
+  it("says whether they're based in a city by the profile's, knowing its other names, and leaves the rest", () => {
+    const ask = (label: string, city: string) => answerForm([field("q", label, "single", true, yesNo)], context({ basics: { ...context().basics, city } }));
+    expect(ask("Are you based out of Bangalore ?", "Bengaluru").answers.q).toMatchObject({ label: "Yes" });
+    expect(ask("Are you currently based in Mumbai/Bengaluru?", "Bangalore").answers.q).toMatchObject({ label: "Yes" });
+    expect(ask("Are you based in Delhi NCR?", "Gurgaon").answers.q).toMatchObject({ label: "Yes" });
+    expect(ask("Are you based in Delhi NCR?", "Pune").answers.q).toMatchObject({ label: "No" });
+    expect(ask("Are you based out of Hyderabad?", "Pune").answers.q).toMatchObject({ label: "No" });
+    // A state, or a city the profile doesn't give: the student answers.
+    expect(ask("Are you based in Karnataka?", "Bengaluru").missing).toEqual(["Are you based in Karnataka?"]);
+    expect(ask("Are you based out of Bangalore?", "").missing).toEqual(["Are you based out of Bangalore?"]);
+  });
+
+  it("still leaves commitments and the student's own work to them", () => {
+    const form = [
+      field("office", "Are you comfortable working 5 days from Bangalore office?", "single", true, yesNo),
+      field("onsite", "Are you ok to work Onsite in Mumbai/Bengaluru?", "single", true, yesNo),
+      field("hours", "This role requires working NAMER hours, 7:00pm to 4:00am IST. Are you able to commit to these hours on an ongoing basis?", "single", true, yesNo),
+      field("saas", "How many years of experience do you have working with a SaaS firm?", "text"),
+      field("pqe", "Total Post-Qualification Experience", "text"),
+      field("which", "Which location are you applying for?", "text"),
+      field("working", "Are you currently working?", "single", true, yesNo),
+    ];
+    const { answers, missing } = answerForm(form, context({ company: "Meesho", experienceMonths: 26, currentCompany: "Infosys" }));
+    expect(answers).toEqual({});
+    expect(missing).toHaveLength(form.length);
+  });
+
+  it("says yes to being a current employee only when the profile's current employer is the company", () => {
+    const form = [field("q", "Are you currently a Tekion employee?", "single", true, yesNo)];
+    expect(answerForm(form, context({ company: "Tekion", currentCompany: "Tekion Corp" })).answers.q).toMatchObject({ label: "Yes" });
+    expect(answerForm(form, context({ company: "Tekion", currentCompany: undefined })).answers.q).toMatchObject({ label: "No" });
+  });
+
   it("never signs, waives or agrees to a legal document for the student", () => {
     const form = [
       field("nda", "Please Review the NDA and indicate your agreement by typing your full name below", "text"),

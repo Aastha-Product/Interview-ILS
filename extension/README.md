@@ -40,6 +40,23 @@ yarn extension:build        # writes extension/dist
   - The first time, run `yarn playwright install chromium`. The tests also need `openssl` on PATH, or Git for Windows' copy.
 - **`PATHFINDER_LOAD_TEST=1`** runs the load test (`src/lib/apply/load.db.test.ts`), on request only. Many students, two browsers each, go through the real routes; `PATHFINDER_LOAD_STUDENTS` sets how many.
 
+## Check today's live forms (by hand)
+
+`extension/live-check/` reads live application forms without touching them. It checks that the board code still reads today's markup, and shows how much the answer rules answer.
+
+```powershell
+node extension/live-check/capture.mjs D:\Pathfinder	mp\live-forms
+$env:PATHFINDER_LIVE_FORMS = "D:\Pathfinder	mp\live-forms"
+corepack yarn vitest run --project extension extension/live-check --silent=false
+```
+
+- `capture.mjs` takes 2 current postings from each company's public job-board API, opens each application page in a headless Chromium **without the extension**, and saves it once the form appears. It never clicks, types, uploads or submits.
+- The test runs `boards.ts` and the server's answer rules on the saved pages, for a made-up student. It prints one line per form: questions, required ones answered, what goes to the student, and anything the board code misread. The report goes to `report.json` in the same folder.
+- **11 November 2026, 30 forms** (10 Greenhouse, 12 Lever, 8 Ashby):
+  - Every form, Submit button, resume input and question wording was read.
+  - The answer rules then learned the wording for: present or fixed CTC, salary ranges, compensation expectations, present location, "earliest you can join", "experience in number of years", "currently a <company> employee" and "based out of <city>".
+  - **6 of 30 forms are answered completely.** The rest each leave 1–7 questions to the student: job-specific experience, essays, office or shift commitments, Aadhaar name, nationality, Ashby's education history. These are what only the student can answer.
+
 ## Dry-run pilot (before switching dry run off for anyone)
 
 1. **You first.** On your own account, with Dry run on, let it prepare 10–20 applications. Open each "Needs you" tab and check every filled field against what you'd answer yourself. Note anything wrong.
