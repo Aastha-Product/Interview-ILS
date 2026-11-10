@@ -12,7 +12,14 @@ vi.mock("@/lib/prisma", async () => {
   db.client = createTestClient();
   return { prisma: db.client, systemPrisma: rawClientOf(db.client) };
 });
-vi.mock("@/lib/env", () => ({ env: {} }));
+const settings = vi.hoisted(() => ({ crawl: undefined as string | undefined }));
+vi.mock("@/lib/env", () => ({
+  env: {
+    get PATHFINDER_CRAWL() {
+      return settings.crawl;
+    },
+  },
+}));
 vi.spyOn(console, "error").mockImplementation(() => {});
 
 // A board the test controls: what its list says, and what loading each job gives.
@@ -29,7 +36,7 @@ vi.mock("./adapters", () => {
 });
 vi.mock("./companies", () => ({ STARTER_COMPANIES: [{ name: "Starter", system: "LEVER", boardToken: "starter" }] }));
 
-const { addStarterCompanies, claimDueCompanies, crawlAndRecord, crawlCompany, failureDelay } = await import("./crawl");
+const { addStarterCompanies, claimDueCompanies, crawlAndRecord, crawlCompany, crawlDue, crawlerEnabled, failureDelay, startCrawler, stopCrawler } = await import("./crawl");
 const { CrawlError } = await import("./http");
 
 const raw = () => rawClientOf(db.client!);
@@ -195,6 +202,38 @@ describe("the crawl schedule (auto-apply step 2)", () => {
     board.error = new CrawlError("gone", "boards-api.greenhouse.io has no board at /v1/boards/gone/jobs.");
     await crawlAndRecord(gone, () => now);
     expect(await raw().company.findUniqueOrThrow({ where: { id: gone.id } })).toMatchObject({ active: false });
+  });
+
+  it("crawls the companies that are due in the background", async () => {
+    const due = await company({ boardToken: "due", nextCrawlAt: new Date(Date.now() - 60_000) });
+    board.listed = [job("1")];
+    await crawlDue();
+    const deadline = Date.now() + 5_000;
+    while (!(await raw().company.findUniqueOrThrow({ where: { id: due.id } })).lastCrawledAt && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+    expect(await raw().company.findUniqueOrThrow({ where: { id: due.id } })).toMatchObject({ openJobs: 1, crawlingUntil: null });
+  });
+
+  it("stays off unless PATHFINDER_CRAWL is on, and when on adds the starter companies and crawls them", async () => {
+    settings.crawl = undefined;
+    expect(crawlerEnabled()).toBe(false);
+    await startCrawler();
+    expect(await raw().company.count()).toBe(0);
+
+    settings.crawl = "on";
+    board.listed = [job("1")];
+    try {
+      await startCrawler();
+      const deadline = Date.now() + 5_000;
+      while (!(await raw().company.findFirst({ where: { boardToken: "starter" } }))?.lastCrawledAt && Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 25));
+      }
+      expect(await raw().company.findFirstOrThrow({ where: { boardToken: "starter" } })).toMatchObject({ openJobs: 1 });
+    } finally {
+      stopCrawler();
+      settings.crawl = undefined;
+    }
   });
 
   it("adds the starter companies once, and never changes one that's there", async () => {
