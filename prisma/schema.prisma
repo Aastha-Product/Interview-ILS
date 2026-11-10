@@ -1072,6 +1072,16 @@ model LoginThrottle {
   @@index([updatedAt])
 }
 
+/// Pathfinder: a shared allowance per outside service (a job board, an AI provider), so all workers
+/// together stay within its rate limit. A token bucket: `tokens` refill over time up to the burst.
+/// No owner: it belongs to the server, not to a student.
+model ProviderBudget {
+  /// e.g. "greenhouse" or "ai:gemini".
+  provider  String   @id
+  tokens    Float
+  updatedAt DateTime @db.Timestamptz(3)
+}
+
 // ─── Background jobs (E6-7) ──────────────────────────────────────────────────
 
 /// A job goes queued → running → done, or failed.
@@ -1113,10 +1123,23 @@ model Job {
   heartbeatAt     DateTime?
   /// Cancel was asked for in another process; the worker running it stops it.
   cancelRequested Boolean      @default(false)
+  /// Pathfinder: the worker pool that takes it ("default", "crawl", "ai"…); PATHFINDER_QUEUES picks a worker's.
+  queue           String       @default("default")
+  /// Pathfinder: among one student's turn, higher runs first.
+  priority        Int          @default(0)
+  /// Pathfinder: times it was claimed, this run included.
+  attempts        Int          @default(0)
+  /// Pathfinder: runs before it stays failed. 1 means no automatic retry: the page offers Retry.
+  maxAttempts     Int          @default(1)
+  /// Pathfinder: not claimed before this, the wait before an automatic retry.
+  runAfter        DateTime?
+  /// Pathfinder: why the last run failed, in the student's words, while it waits to run again.
+  lastError       String?
 
   @@index([key, createdAt])
   @@index([status])
   @@index([status, createdAt])
+  @@index([status, runAfter])
   @@index([applicationId])
   @@index([userId])
 }

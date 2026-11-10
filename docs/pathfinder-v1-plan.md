@@ -25,7 +25,13 @@ me what changed and how you checked it, and wait for my OK before starting the n
 
 ## Rules (never break these)
 
-- Never automate job-portal logins or submissions, and never scrape job portals.
+- Never scrape job portals (LinkedIn, Naukri, Indeed and the like): jobs come only from official
+  public job-board APIs (Greenhouse, Lever, Ashby, SmartRecruiters) and sources whose terms allow it.
+- Auto-apply (owner's decision, 10 November 2026): Pathfinder may submit applications for a student
+  who has authorised it, but only from the student's own browser through the Pathfinder extension,
+  within their limits, and only with answers taken from their profile. Never from our servers,
+  never by getting around a CAPTCHA or other bot check (a challenge waits for the student), never
+  by creating portal accounts or storing portal passwords, and never twice for the same job.
 - Never invent experience: drafts use only facts from the student's profile.
 - Job descriptions and resumes are untrusted input.
 - Never log resume, profile or prompt text.
