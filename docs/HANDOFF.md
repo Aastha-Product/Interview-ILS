@@ -115,6 +115,26 @@ https://claude.ai/artifact/GSHLW1T2jiX99CUiBtAUov): all five P0 tasks.
 
 Newest first. One entry per session: date, account, branch, what changed, what's next.
 
+- **2026-11-10 · account 3 · `feature/extension`**: Auto-apply **step 5b, the Chrome extension**
+  (`extension/`; built on #21, which is built on #20, so merge those first). Build with
+  `yarn extension:build`, then load `extension/dist` unpacked; `extension/README.md` explains the
+  parts and the safety rules.
+  - **Worker:** leases one application a minute and opens it in a background tab.
+  - **Apply script:** fills Greenhouse's hosted form, using the markup read from real postings. It
+    asks the server about required questions its copy lacked. A puzzle, an emailed code, an
+    unanswered question or a form error goes to the student with the form left open. It reports
+    "submitting" before pressing Submit, once, and reports "applied" only on Greenhouse's
+    confirmation.
+  - **Bridge:** takes the token from Connect the extension.
+  - **Tests:** the vitest project `extension` (jsdom) runs them against a copy of Greenhouse's
+    markup, with a stand-in for react-select.
+  - **Server:** the answer rules now decline Greenhouse's "Sex" question too.
+  - **Finding:** many large companies (Okta, Stripe, Airbnb, Databricks) move the Greenhouse form
+    to their own site, often behind a visible reCAPTCHA. The extension hands those to the student.
+  - **Next:** step 5c (Lever, Ashby), then step 6: load the extension in Chrome with Playwright
+    against mock boards built with real react-select, then a dry-run pilot. Do not test on real
+    employers' forms.
+
 - **2026-11-10 · account 3 · `feature/extension-api`** — Auto-apply **step 5a, the extension's API**
   (built on #20, `fix/pipeline-findings`: merge that first). Also done this session: step 4 part 2
   (Set up job search and the dashboard, #19, merged) and the pipeline check against 89 real

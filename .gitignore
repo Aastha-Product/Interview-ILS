@@ -13,6 +13,9 @@
 # testing
 /coverage
 
+# The built Chrome extension (node extension/build.mjs)
+/extension/dist/
+
 # next.js
 /.next/
 /out/

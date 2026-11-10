@@ -122,9 +122,18 @@ describe("answering a form (auto-apply step 4)", () => {
         { label: "I don't wish to answer", value: "x" },
       ]),
       field("v", "Veteran status", "single", false, [{ label: "I am not a veteran", value: "n" }]),
+      // Greenhouse's own demographic question, as Zscaler's form showed it.
+      field("4014225007", "Sex", "single", true, [
+        { label: "Male", value: "Male" },
+        { label: "Female", value: "Female" },
+        { label: "Decline To Self Identify", value: "Decline To Self Identify" },
+      ]),
     ];
     const { answers, missing } = answerForm(form, context());
-    expect(answers).toEqual({ g: { kind: "option", value: "x", label: "I don't wish to answer" } });
+    expect(answers).toEqual({
+      g: { kind: "option", value: "x", label: "I don't wish to answer" },
+      "4014225007": { kind: "option", value: "Decline To Self Identify", label: "Decline To Self Identify" },
+    });
     expect(missing).toEqual([]);
   });
 
