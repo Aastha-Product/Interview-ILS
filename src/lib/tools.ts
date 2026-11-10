@@ -8,7 +8,7 @@ import { env } from "@/lib/env";
 // don't run.
 
 /** The tools' sections in the sidebar, by path. */
-export const TOOL_PATHS = ["/", "/resume", "/jobs", "/startups", "/agent", "/applications", "/inbox"] as const;
+export const TOOL_PATHS = ["/", "/resume", "/jobs", "/startups", "/agent", "/applications", "/inbox", "/auto-apply"] as const;
 
 /** Whether this server offers the job-search tools. */
 export function toolsEnabled(): boolean {

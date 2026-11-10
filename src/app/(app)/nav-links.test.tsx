@@ -26,6 +26,7 @@ describe("NavLinks", () => {
     render(<NavLinks />);
     expect(screen.getAllByRole("link").map((link) => link.textContent)).toEqual([
       "Home",
+      "Auto-apply",
       "Profile",
       "Base resume",
       "Job dashboard",
@@ -43,11 +44,11 @@ describe("NavLinks", () => {
     render(<NavLinks hidden={["/startups", "/admin"]} />);
     const labels = screen.getAllByRole("link").map((link) => link.textContent);
     expect(labels).not.toContain("Startups");
-    expect(labels).toEqual(["Home", "Profile", "Base resume", "Job dashboard", "Find jobs", "Agent", "Applications", "Inbox", "Settings"]);
+    expect(labels).toEqual(["Home", "Auto-apply", "Profile", "Base resume", "Job dashboard", "Find jobs", "Agent", "Applications", "Inbox", "Settings"]);
   });
 
   it("leaves out a group whose sections are all hidden (Pathfinder: the job-search tools while they're off)", () => {
-    render(<NavLinks hidden={["/", "/resume", "/jobs", "/startups", "/agent", "/applications", "/inbox", "/admin"]} />);
+    render(<NavLinks hidden={["/", "/resume", "/jobs", "/startups", "/agent", "/applications", "/inbox", "/auto-apply", "/admin"]} />);
     expect(screen.getAllByRole("link").map((link) => link.textContent)).toEqual(["Home", "Profile", "Settings"]);
     expect(screen.queryByText("More tools")).toBeNull();
   });

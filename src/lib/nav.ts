@@ -1,4 +1,4 @@
-import { Bot, BriefcaseBusiness, FileText, House, Inbox, LayoutDashboard, Rocket, Search, Settings, ShieldCheck, UserRound, type LucideIcon } from "lucide-react";
+import { Bot, BriefcaseBusiness, FileText, House, Inbox, LayoutDashboard, Rocket, Search, Settings, ShieldCheck, UserRound, Zap, type LucideIcon } from "lucide-react";
 
 // The app's sections, shared by the sidebar and the page bar so they always agree.
 
@@ -15,8 +15,14 @@ const within = (pathname: string, base: string) =>
 
 /** The sections in groups; the last group sits at the bottom. */
 export const NAV: { label?: string; items: NavItem[] }[] = [
-  // Pathfinder: the resume analysis is home; the job tools follow under More tools (PATHFINDER_TOOLS).
-  { items: [{ href: "/analyze", label: "Home", icon: House }] },
+  // Pathfinder: the resume analysis is home; auto-apply, the main feature, comes next; the job tools
+  // follow under More tools (PATHFINDER_TOOLS).
+  {
+    items: [
+      { href: "/analyze", label: "Home", icon: House },
+      { href: "/auto-apply", label: "Auto-apply", icon: Zap },
+    ],
+  },
   {
     label: "You",
     items: [
