@@ -83,6 +83,9 @@ export function passing(error: unknown): boolean {
   return error instanceof RetryLater || (error instanceof AiError && PASSING_AI_FAILURES.has(error.kind));
 }
 
+/** How long a background job keeps waiting for a rate limit before it fails. */
+const RATE_LIMIT_PATIENCE_MS = 24 * 3600_000;
+
 /** The first automatic retry waits about 30 s, each next one four times longer, at most 15 min. */
 const RETRY_BASE_MS = 30_000;
 const RETRY_MAX_MS = 15 * 60_000;
@@ -350,10 +353,20 @@ async function finish(
 }
 
 /** Puts a job that failed in passing back in the queue, to run again after `waitMs`. */
-async function requeue(id: string, waitMs: number, lastError: string): Promise<boolean> {
+async function requeue(id: string, waitMs: number, lastError: string, { refund = false } = {}): Promise<boolean> {
   const { count } = await prisma.job.updateMany({
     where: { id, status: JobStatus.RUNNING, workerId: state.workerId },
-    data: { status: JobStatus.QUEUED, runAfter: new Date(Date.now() + waitMs), lastError, step: null, startedAt: null, workerId: null, heartbeatAt: null },
+    data: {
+      status: JobStatus.QUEUED,
+      runAfter: new Date(Date.now() + waitMs),
+      lastError,
+      step: null,
+      startedAt: null,
+      workerId: null,
+      heartbeatAt: null,
+      // A wait for a rate limit isn't a failed attempt: it gives this run back.
+      ...(refund ? { attempts: { decrement: 1 } } : {}),
+    },
   });
   if (count > 0) await notify(id);
   return count > 0;
@@ -464,10 +477,10 @@ function launch(id: string, userId: string): void {
 }
 
 async function execute(id: string, userId: string, controller: AbortController): Promise<void> {
-  let runs: { attempts: number; maxAttempts: number } | null = null;
+  let runs: { attempts: number; maxAttempts: number; createdAt: Date } | null = null;
   try {
     // The claim marked it running; deleted since, it throws and ends below.
-    const job = await prisma.job.findUniqueOrThrow({ where: { id }, select: { type: true, input: true, attempts: true, maxAttempts: true } });
+    const job = await prisma.job.findUniqueOrThrow({ where: { id }, select: { type: true, input: true, attempts: true, maxAttempts: true, createdAt: true } });
     runs = job;
     await notify(id);
     // Job types register when their module loads; make sure they all have.
@@ -501,11 +514,15 @@ async function execute(id: string, userId: string, controller: AbortController):
           ? studentMessage(error.message)
           : JOB_MESSAGES.failed;
     if (!controller.signal.aborted && (!(error instanceof AiError) || managedMode()) && !(error instanceof RetryLater)) logServerError(`job ${id}`, error);
-    // Pathfinder: a passing failure with runs left goes back in the queue to wait a while.
-    if (!controller.signal.aborted && runs && runs.attempts < runs.maxAttempts && passing(error)) {
+    // Pathfinder: a passing failure with runs left goes back in the queue to wait a while. A
+    // background job waiting for a rate limit (RetryLater) keeps its attempts: under heavy load it
+    // may wait many times, which says nothing about whether the work fails. It gives up only after
+    // waiting a day.
+    const rateLimited = error instanceof RetryLater && runs !== null && runs.maxAttempts > 1 && Date.now() - runs.createdAt.getTime() < RATE_LIMIT_PATIENCE_MS;
+    if (!controller.signal.aborted && runs && (rateLimited || (runs.attempts < runs.maxAttempts && passing(error)))) {
       const wait = error instanceof RetryLater && error.afterMs !== undefined ? Math.max(1_000, error.afterMs) : retryDelay(runs.attempts);
       try {
-        if (await requeue(id, wait, message)) return;
+        if (await requeue(id, wait, message, { refund: rateLimited })) return;
       } catch (cause) {
         logServerError(`job ${id}`, cause);
       }

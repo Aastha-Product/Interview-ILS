@@ -14,7 +14,7 @@ import type { ActionResult } from "@/lib/action";
 import type { ApplyTaskView, AutoApplyScreenView } from "@/lib/apply/view";
 import { TIER_LABELS } from "@/lib/match/tiers";
 
-import { findMatchesNow, skipApplication, switchAutoApply } from "./actions";
+import { findMatchesNow, prepareApplicationAgain, skipApplication, switchAutoApply } from "./actions";
 
 /** Each state as the student reads it, and which group it shows in. */
 export const STATE_LABELS: Record<ApplyState, string> = {
@@ -30,6 +30,7 @@ export const STATE_LABELS: Record<ApplyState, string> = {
 };
 
 const SKIPPABLE: readonly ApplyState[] = ["PREPARING", "READY", "NEEDS_STUDENT", "FAILED"];
+const RETRYABLE: readonly ApplyState[] = ["NEEDS_STUDENT", "FAILED"];
 
 function Count({ label, value, note }: { label: string; value: number; note?: string }) {
   return (
@@ -41,7 +42,7 @@ function Count({ label, value, note }: { label: string; value: number; note?: st
   );
 }
 
-function TaskRow({ task, onSkip, busy }: { task: ApplyTaskView; onSkip: (id: string) => void; busy: boolean }) {
+function TaskRow({ task, onSkip, onRetry, busy }: { task: ApplyTaskView; onSkip: (id: string) => void; onRetry: (id: string) => void; busy: boolean }) {
   const needsYou = task.state === "NEEDS_STUDENT" || task.state === "UNCERTAIN";
   return (
     <li className="flex flex-col gap-2 border-t border-line py-4 first:border-t-0 sm:flex-row sm:items-start sm:justify-between">
@@ -65,6 +66,11 @@ function TaskRow({ task, onSkip, busy }: { task: ApplyTaskView; onSkip: (id: str
           <a href={task.url} target="_blank" rel="noreferrer" className={buttonClassName("text", "sm")}>
             Job
           </a>
+        ) : null}
+        {RETRYABLE.includes(task.state) ? (
+          <Button variant="secondary" size="sm" aria-disabled={busy || undefined} onClick={() => !busy && onRetry(task.id)}>
+            Try again
+          </Button>
         ) : null}
         {SKIPPABLE.includes(task.state) ? (
           <Button variant="text" size="sm" aria-disabled={busy || undefined} onClick={() => !busy && onSkip(task.id)}>
@@ -155,7 +161,13 @@ export function AutoApplyScreen({ view }: { view: AutoApplyScreenView }) {
         ) : (
           <ul className="flex flex-col">
             {tasks.map((task) => (
-              <TaskRow key={task.id} task={task} busy={pending} onSkip={(taskId) => act(() => skipApplication({ taskId }))} />
+              <TaskRow
+                key={task.id}
+                task={task}
+                busy={pending}
+                onSkip={(taskId) => act(() => skipApplication({ taskId }))}
+                onRetry={(taskId) => act(() => prepareApplicationAgain({ taskId }))}
+              />
             ))}
           </ul>
         )}

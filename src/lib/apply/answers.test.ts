@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { answerForm, EMPTY_ANSWERS, splitName, type AnswerContext, type FieldOption, type FormField, type SavedAnswers } from "./answers";
+import { adultBy, answerForm, EMPTY_ANSWERS, splitName, type AnswerContext, type FieldOption, type FormField, type SavedAnswers } from "./answers";
 
 const yesNo: FieldOption[] = [
   { label: "Yes", value: "1" },
@@ -159,6 +159,132 @@ describe("answering a form (auto-apply step 4)", () => {
       l: { kind: "text", value: "Pune, India" },
       h: { kind: "option", value: "w", label: "Company website" },
     });
+  });
+
+  it("answers the questions real forms asked that the pipeline check found unanswered", () => {
+    const countries = [
+      { label: "India", value: "IN" },
+      { label: "United States", value: "US" },
+    ];
+    const full: SavedAnswers = { ...answered, employmentRestrictions: false, governmentOfficial: false, relativeOfGovernmentOfficial: false, referredByEmployee: false };
+    const form = [
+      field("pfn", "Preferred First Name", "text"),
+      field("cc", "Current Company", "text"),
+      field("ct", "Current Title", "text"),
+      field("emp", "Who is your current or previous employer?", "text"),
+      field("job", "What is your current or previous job title?", "text"),
+      field("addr", "Home Address", "text"),
+      field("res", "What is your current country of residence?", "single", true, countries),
+      field("work[]", "Please select the country or countries you anticipate working in for the role in which you are applying.", "multi", true, countries),
+      field("city", "In what city and state is your primary residence? (e.g. San Jose, CA)", "text"),
+      field("adult", "Are you at least 18 years of age?", "single", true, yesNo),
+      field("restr", "Are you subject to any employment agreements and/or post-employment restrictions with your current employer or a past employer?", "single", true, yesNo),
+      field("gov", "Are you a current government official or were you a government official in the last five years?", "single", true, yesNo),
+      field("govrel", "Are you a close relative of a government official (i.e., child/step-child, spouse/partner, parent)?", "single", true, yesNo),
+      field("ref", "To your knowledge, were you referred to this position by a senior leader or decision-maker?", "single", true, yesNo),
+      field("wa", "Do you opt-in to receive WhatsApp messages from Stripe Recruiting?", "single", true, yesNo),
+      field("comm", "How should we communicate with you?", "single", true, [
+        { label: "Phone", value: "p" },
+        { label: "Email", value: "e" },
+      ]),
+      field("ai[]", "I understand that Coinbase may use AI tools to assist in the application and interview process.", "multi", true, [{ label: "I understand", value: "ok" }]),
+      field("uni", "University", "text"),
+    ];
+    const { answers, missing } = answerForm(form, {
+      ...context({ saved: full }),
+      basics: { ...context().basics, address: "12 MG Road, Pune", dob: "2004-05-17" },
+      currentCompany: "Infosys",
+      currentTitle: "Systems Engineer Trainee",
+      university: "Savitribai Phule Pune University",
+    });
+    expect(missing).toEqual([]);
+    expect(answers).toMatchObject({
+      pfn: { value: "Asha Rani" },
+      cc: { value: "Infosys" },
+      ct: { value: "Systems Engineer Trainee" },
+      emp: { value: "Infosys" },
+      job: { value: "Systems Engineer Trainee" },
+      addr: { value: "12 MG Road, Pune" },
+      res: { kind: "option", label: "India" },
+      "work[]": { kind: "options", labels: ["India"] },
+      city: { value: "Pune, India" },
+      adult: { label: "Yes" },
+      restr: { label: "No" },
+      gov: { label: "No" },
+      govrel: { label: "No" },
+      ref: { label: "No" },
+      wa: { label: "No" },
+      comm: { label: "Email" },
+      "ai[]": { labels: ["I understand"] },
+      uni: { value: "Savitribai Phule Pune University" },
+    });
+  });
+
+  it("reads yes and no in the words real options use", () => {
+    const form = [
+      // Rubrik's form on 10 November 2026.
+      field("rubrik", "Are you currently or have you ever been employed by Rubrik or contracted to provide services to Rubrik?", "single", true, [
+        { label: "I have never been employed by Rubrik or contracted to provide services to Rubrik", value: "never" },
+        { label: "I am currently a full/part-time employee for Rubrik", value: "current" },
+      ]),
+      // Airbnb's: one option to choose.
+      field("airbnb", "Consent to Privacy Notice (Airbnb Global Capability Center Private Limited)", "single", true, [{ label: "I have read and consent to the Privacy Notice.", value: "ok" }]),
+      field("guide[]", "By checking this box, I confirm I have read, reviewed and understood the guidelines outlined above.", "multi", true, [{ label: "Yes", value: "y" }]),
+      field("both", "Do you agree to our privacy notice?", "single", true, [
+        { label: "I have read and do not consent", value: "no" },
+        { label: "I have read and consent", value: "yes" },
+      ]),
+    ];
+    expect(answerForm(form, context({ company: "Rubrik" })).answers).toMatchObject({
+      rubrik: { value: "never" },
+      airbnb: { value: "ok" },
+      "guide[]": { values: ["y"] },
+      both: { value: "yes" },
+    });
+  });
+
+  it("answers how soon they can join, where they are, and their total experience", () => {
+    const ranges = ["0-2 years", "3-4 years", "5-7 years", "16 or more years"].map((label) => ({ label, value: label }));
+    const form = [
+      field("join", "How soon can you join us?", "text"),
+      field("loc", "What is your current location", "text"),
+      field("from", "From where do you intend to work?", "text"),
+      field("exp", "Total experience?", "text"),
+      field("excl", "What is your total years of experience? (excluding internships)", "single", true, ranges),
+      field("follow", "If you selected a response to the prior question other than “None of the above,” please describe", "text"),
+      field("specific", "How many years of relevant experience do you have in disaster response operations?", "single", true, ranges),
+    ];
+    const { answers, missing } = answerForm(form, context({ experienceMonths: 30, experienceMonthsWithoutInternships: 0 }));
+    expect(answers).toMatchObject({
+      join: { value: "Immediately" },
+      loc: { value: "Pune, India" },
+      from: { value: "Pune, India" },
+      exp: { value: "2" },
+      excl: { value: "0-2 years" },
+      follow: { value: "N/A" },
+    });
+    // Experience in one field isn't the total: the student answers it.
+    expect(missing).toEqual(["How many years of relevant experience do you have in disaster response operations?"]);
+  });
+
+  it("never signs, waives or agrees to a legal document for the student", () => {
+    const form = [
+      field("nda", "Please Review the NDA and indicate your agreement by typing your full name below", "text"),
+      field("arb[]", "Please confirm receipt of the above linked Global Data Privacy Notice and US Arbitration Agreement", "multi", true, [{ label: "Yes", value: "y" }]),
+      field("sig", "Signature", "text", false),
+    ];
+    const { answers, missing } = answerForm(form, context());
+    expect(answers).toEqual({});
+    expect(missing).toEqual([form[0].label, form[1].label]);
+  });
+
+  it("works out 18 or older from a date of birth", () => {
+    const now = new Date("2026-11-10T00:00:00Z");
+    expect(adultBy("2008-11-10", now)).toBe(true);
+    expect(adultBy("2008-11-11", now)).toBe(false);
+    expect(adultBy("17/05/2004", now)).toBe(true);
+    expect(adultBy("", now)).toBeNull();
+    expect(adultBy("sometime", now)).toBeNull();
   });
 
   it("splits a name into first and last", () => {

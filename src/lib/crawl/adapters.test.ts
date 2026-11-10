@@ -37,7 +37,8 @@ describe("Greenhouse", () => {
         {
           id: 4012,
           title: " Software Engineer, Payments ",
-          company_name: "Acme",
+          // Boards name themselves; the job keeps our name for the company.
+          company_name: "Acme Careers",
           absolute_url: "https://acme.example/careers/4012",
           updated_at: "2026-11-02T22:52:56-05:00",
           first_published: "2026-11-01T03:52:24-05:00",

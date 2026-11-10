@@ -68,7 +68,7 @@ vi.mock("@/lib/ai", async (importOriginal) => ({
 }));
 
 const { giveConsent, loadAutoApply, saveAutoApply, setAutoApplyEnabled, AutoApplyNotReady, CONSENT_VERSION } = await import("./settings");
-const { autoApplySummary, planApplications, prepareApplicationJob } = await import("./prepare");
+const { autoApplySummary, planApplications, prepareAgain, prepareApplicationJob } = await import("./prepare");
 const { autoApplyRound, autoApplyRounds } = await import("./schedule");
 
 const prisma = () => db.client!;
@@ -276,7 +276,28 @@ describe("preparing an application (auto-apply step 4)", () => {
     form.fields = [...groww, { key: "question_2", label: "Why do you want to join Acme?", required: true, type: "textarea", options: [] }];
     const task = await plannedTask();
     expect(await prepareApplicationJob.run({ taskId: task.id }, context())).toEqual({ state: "NEEDS_STUDENT" });
-    expect((await prisma().applyTask.findUniqueOrThrow({ where: { id: task.id } })).reason).toBe("Answer this question to apply: Why do you want to join Acme?");
+    const waiting = await prisma().applyTask.findUniqueOrThrow({ where: { id: task.id } });
+    expect(waiting.reason).toBe("Answer this question to apply: Why do you want to join Acme?");
+    // No AI spent on documents for a form that can't be sent yet.
+    expect(waiting.applicationId).toBeNull();
+    expect(await prisma().application.count()).toBe(0);
+  });
+
+  it("prepares it again on Try again, once the form can be answered", async () => {
+    form.fields = [...groww, { key: "question_2", label: "Are you a current government official?", required: true, type: "single", options: [{ label: "Yes", value: "1" }, { label: "No", value: "0" }] }];
+    const task = await plannedTask();
+    await prepareApplicationJob.run({ taskId: task.id }, context());
+    expect((await prisma().applyTask.findUniqueOrThrow({ where: { id: task.id } })).state).toBe("NEEDS_STUDENT");
+    // The student answers it in Set up job search, then tries again.
+    await saveAutoApply({ preferences, minTier: "GOOD", dailyLimit: 10, perCompanyLimit: 2, dryRun: true, answers: { ...answers, governmentOfficial: false } });
+    expect(await prepareAgain(task.id)).toBe(true);
+    expect(await prisma().job.count({ where: { type: "prepare-application", key: `apply:${task.id}` } })).toBeGreaterThan(0);
+    expect(await prepareApplicationJob.run({ taskId: task.id }, context())).toEqual({ state: "READY" });
+    const ready = await prisma().applyTask.findUniqueOrThrow({ where: { id: task.id } });
+    expect(ready.applicationId).not.toBeNull();
+    expect(ready.answers).toMatchObject({ question_2: { label: "No" } });
+    // Only from a state that can be tried again.
+    expect(await prepareAgain(task.id)).toBe(false);
   });
 
   it("leaves forms the server can't read for the extension, and skips jobs that closed", async () => {

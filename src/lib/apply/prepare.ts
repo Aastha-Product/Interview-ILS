@@ -9,10 +9,12 @@ import { createApplicationFromDocuments, type ApplicationDetails } from "@/lib/a
 import type { Extracted } from "@/lib/application-data";
 import { postingText } from "@/lib/job-search/search";
 import { readPostingJob } from "@/lib/jobs/read-posting";
+import { RetryLater } from "@/lib/jobs/retry-later";
 import { defineJob, JOB_MESSAGES, passing, startJob, type JobContext } from "@/lib/jobs/runner";
 import { writeDocumentsJob } from "@/lib/jobs/write-documents";
 import { studentMessage } from "@/lib/managed";
 import { prisma, systemPrisma } from "@/lib/prisma";
+import { experienceMonths } from "@/lib/match/preferences";
 import { loadProfile } from "@/lib/profile-data";
 import { loadSettings } from "@/lib/settings-data";
 
@@ -113,6 +115,8 @@ function detailsFrom(extracted: Extracted, fallback: { title: string; company: s
 async function answerContext(company: string): Promise<AnswerContext> {
   const [profile, settings] = await Promise.all([loadProfile(), loadAutoApply()]);
   const years = profile.education.map((entry) => (entry.current ? null : entry.endYear)).filter((year): year is number => year !== null);
+  // The current role, else the first in the profile's order (newest first).
+  const role = profile.experience.find((entry) => entry.current) ?? profile.experience[0];
   return {
     basics: {
       name: profile.basics.name,
@@ -122,8 +126,15 @@ async function answerContext(company: string): Promise<AnswerContext> {
       country: profile.basics.country,
       linkedin: profile.basics.linkedin,
       website: profile.basics.website,
+      address: profile.basics.address,
+      dob: profile.basics.dob,
     },
     pastEmployers: profile.experience.map((entry) => entry.company).filter(Boolean),
+    currentCompany: role?.company ?? "",
+    currentTitle: role?.role ?? "",
+    university: profile.education[0]?.school ?? "",
+    experienceMonths: experienceMonths(profile.experience),
+    experienceMonthsWithoutInternships: experienceMonths(profile.experience.filter((entry) => !/\bintern(ship)?\b|\btrainee\b/i.test(entry.role))),
     graduationYear: years.length > 0 ? String(Math.max(...years)) : "",
     company,
     saved: settings.answers,
@@ -174,19 +185,23 @@ export const prepareApplicationJob = defineJob({
     if (!posting || posting.closedAt) return finish(ApplyState.SKIPPED, { reason: "The job closed before its application was ready." });
 
     try {
+      // Greenhouse publishes its forms, so they're answered first: a form asking something the
+      // student hasn't answered waits for them before any AI is spent tailoring documents for it.
+      // The extension reads other forms when it opens them and asks for answers then (step 5).
+      let answers: FormAnswers["answers"] | null = null;
+      if (posting.system === "GREENHOUSE") {
+        await context.step("Reading the application form");
+        const fields = await greenhouseForm(posting.company.boardToken, posting.externalId, context.signal);
+        const form = answerForm(fields, await answerContext(posting.companyName));
+        if (form.missing.length > 0) return finish(ApplyState.NEEDS_STUDENT, { reason: needsAnswers(form.missing), answers: form.answers });
+        answers = form.answers;
+      }
       if (!task.applicationId) await writeApplication(taskId, posting, task.jobMatch.score ?? 0, context);
-
-      // Greenhouse publishes its forms, so they're answered now; the extension reads other forms
-      // when it opens them and asks for answers then (step 5).
-      if (posting.system !== "GREENHOUSE") return finish(ApplyState.READY);
-      await context.step("Answering the application form");
-      const fields = await greenhouseForm(posting.company.boardToken, posting.externalId, context.signal);
-      const { answers, missing } = answerForm(fields, await answerContext(posting.companyName));
-      if (missing.length > 0) return finish(ApplyState.NEEDS_STUDENT, { reason: needsAnswers(missing), answers });
       return finish(ApplyState.READY, { answers });
     } catch (error) {
-      // A failure that's final, or that waiting won't fix, is kept with the task in the student's words.
-      if (!context.signal.aborted && (context.finalAttempt || !passing(error))) {
+      // A failure that's final, or that waiting won't fix, is kept with the task in the student's
+      // words. A wait for a rate limit isn't one: the runner queues the job again.
+      if (!context.signal.aborted && !(error instanceof RetryLater) && (context.finalAttempt || !passing(error))) {
         const message = error instanceof AiError ? studentMessage(error.message) : error instanceof ActionError ? error.message : JOB_MESSAGES.failed;
         await finish(ApplyState.FAILED, { reason: message }).catch(() => {});
       }
@@ -194,6 +209,22 @@ export const prepareApplicationJob = defineJob({
     }
   },
 });
+
+/**
+ * Try again: an application waiting for the student, or that failed, is prepared again, with
+ * their answers and profile as they are now. Returns false when it's in no state to.
+ */
+export async function prepareAgain(taskId: string): Promise<boolean> {
+  const task = await prisma.applyTask.findUnique({ where: { id: taskId }, include: { jobMatch: { select: { score: true } } } });
+  if (!task) return false;
+  const { count } = await prisma.applyTask.updateMany({
+    where: { id: taskId, state: { in: [ApplyState.NEEDS_STUDENT, ApplyState.FAILED] } },
+    data: { state: ApplyState.PREPARING, reason: null },
+  });
+  if (count === 0) return false;
+  await startJob(prepareApplicationJob, { taskId }, { key: prepareJobKey(taskId), priority: task.jobMatch.score ?? 0 });
+  return true;
+}
 
 export type AutoApplySummary = {
   matches: Record<"STRONG" | "GOOD" | "PARTIAL" | "NOT_RECOMMENDED" | "pending" | "failed", number>;
