@@ -50,6 +50,11 @@ export async function register() {
       const { startCrawler } = await import("@/lib/crawl/crawl");
       void startCrawler();
 
+      // Pathfinder (auto-apply step 4): daily matching and preparing applications for the students
+      // who switched auto-apply on. Nothing happens for the others.
+      const { startAutoApplySchedule } = await import("@/lib/apply/schedule");
+      startAutoApplySchedule();
+
       // Startups' daily refresh, once it was refreshed by hand and while the screen is in use (#222).
       const { startStartupsSchedule } = await import("@/lib/startups/schedule");
       startStartupsSchedule();

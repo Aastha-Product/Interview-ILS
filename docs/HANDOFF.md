@@ -115,6 +115,20 @@ https://claude.ai/artifact/GSHLW1T2jiX99CUiBtAUov): all five P0 tasks.
 
 Newest first. One entry per session: date, account, branch, what changed, what's next.
 
+- **2026-11-10 · account 3 · `feature/auto-apply-prepare`** — Merged #14 to #17 into `main` at the
+  owner's request (not deployed). Auto-apply **step 4, part 1 (server)**: `src/lib/apply/`. Tables
+  `AutoApplySettings` (consent with its wording's version, preferences, tier, daily and per-company
+  limits, dry run on by default, saved answers) and `ApplyTask` (one per student and job, ever;
+  states PREPARING → READY → LEASED → SUBMITTING → APPLIED, or NEEDS_STUDENT, UNCERTAIN, FAILED,
+  SKIPPED); `ApplicationOrigin.AUTO_APPLY`; migration `20261116090000_auto_apply`. A Strong/Good
+  score (or the half-hourly schedule, which also runs matching daily) plans tasks within the limits;
+  `prepare-application` writes the tailored resume and letter through the same path as New
+  application (claim kind `auto-apply`: never two applications per task) and answers Greenhouse
+  forms from the public API with `answerForm` (rules for the questions most forms ask; nothing is
+  guessed: a required question it can't answer makes the task NEEDS_STUDENT). Consent wording
+  (`CONSENT_TEXT`) needs a legal review before launch. **Next:** step 4 part 2, the screens: Set up
+  job search (preferences, saved answers, consent, limits) and the auto-apply dashboard.
+
 - **2026-11-10 · account 3 · `feature/job-matching`** — Auto-apply **step 3 of 6** (built on #16 and
   #15; merge those first). Matching (`src/lib/match/`): `startMatchRun()` ranks the shared pool for a
   student with Postgres full-text search (generated column `SharedPosting.search`, GIN index;

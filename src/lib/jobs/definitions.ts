@@ -17,3 +17,4 @@ import "./score-posting";
 import "@/lib/startups/refresh";
 import "@/lib/connector/draft";
 import "@/lib/match/jobs";
+import "@/lib/apply/prepare";

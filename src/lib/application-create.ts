@@ -49,7 +49,9 @@ export type ApplicationReading = {
 export type ApplicationClaim =
   | { kind: "manual"; writeJobId: string; readJobId: string; postingId: string | null; startupId?: string | null }
   | { kind: "agent"; candidateId: string; score: number }
-  | { kind: "connector"; postingId: string | null };
+  | { kind: "connector"; postingId: string | null }
+  // Pathfinder (auto-apply step 4): the task being prepared; a retry finds the application it already made.
+  | { kind: "auto-apply"; taskId: string; score: number };
 
 export type CreateApplicationInput = {
   reading: ApplicationReading;
@@ -116,12 +118,20 @@ export async function createApplicationFromDocuments({ reading, documents, match
         data: { status: AgentCandidateStatus.DRAFTED, error: null },
       });
       if (count === 0) throw new ActionError("That posting is no longer waiting for a draft.");
+    } else if (claim.kind === "auto-apply") {
+      // Locked (by a write that changes nothing), so two runs of the same task line up here.
+      await tx.$executeRaw`UPDATE "ApplyTask" SET id = id WHERE id = ${claim.taskId}`;
+      const task = await tx.applyTask.findUnique({ where: { id: claim.taskId }, select: { applicationId: true, state: true } });
+      if (!task || task.state !== "PREPARING") throw new ActionError("That application is no longer being prepared.");
+      if (task.applicationId) return { id: task.applicationId, isNew: false };
     }
 
     const application = await tx.application.create({
       data: {
         // An agent draft stays on the Agent screen until it's approved (#195).
         ...(claim.kind === "agent" ? { origin: ApplicationOrigin.AGENT, agentScore: claim.score, awaitingReview: true } : {}),
+        // Auto-apply's applications show in Applications at once: the student agreed to them in advance.
+        ...(claim.kind === "auto-apply" ? { origin: ApplicationOrigin.AUTO_APPLY, agentScore: claim.score } : {}),
         title: details.title || [details.role, details.company].filter(Boolean).join(" · ") || "Untitled application",
         company: details.company,
         role: details.role,
@@ -176,6 +186,8 @@ export async function createApplicationFromDocuments({ reading, documents, match
       }
     } else if (claim.kind === "agent") {
       await tx.agentCandidate.update({ where: { id: claim.candidateId }, data: { applicationId: application.id } });
+    } else if (claim.kind === "auto-apply") {
+      await tx.applyTask.update({ where: { id: claim.taskId }, data: { applicationId: application.id } });
     } else if (claim.postingId) {
       await tx.posting.updateMany({ where: { id: claim.postingId, applicationId: null }, data: { applicationId: application.id } });
     }

@@ -76,6 +76,8 @@ model User {
   aiCalls          AiCall[]
   resumeAnalyses   ResumeAnalysis[]
   jobMatches       JobMatch[]
+  autoApply        AutoApplySettings?
+  applyTasks       ApplyTask[]
 }
 
 model ProfileField {
@@ -478,10 +480,11 @@ enum ApplicationStatus {
   DECLINED
 }
 
-/// How an application was made: by the user, or by the job agent (E16).
+/// How an application was made: by the user, by the job agent (E16), or by auto-apply (Pathfinder).
 enum ApplicationOrigin {
   MANUAL
   AGENT
+  AUTO_APPLY
 }
 
 /// Where a job agent candidate stands (E16).
@@ -565,6 +568,8 @@ model Application {
   agentCandidate      AgentCandidate?
   /// The startup it was started from on Startups, if any (#222).
   startup             Startup?
+  /// Pathfinder: the auto-apply task that prepared it, if any.
+  applyTask           ApplyTask?
   /// Mail sent and received about it through Gmail (E15-3).
   emails              EmailMessage[]
   events              StatusEvent[]
@@ -1133,6 +1138,7 @@ model SharedPosting {
   // generated columns, so it lives only in migration 20261115090000_job_matching and is read
   // through raw SQL (src/lib/match/rank.ts).
   matches        JobMatch[]
+  applyTasks     ApplyTask[]
 
   @@unique([companyId, externalId])
   @@index([closedAt, country])
@@ -1177,10 +1183,90 @@ model JobMatch {
   error           String?
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
+  applyTask       ApplyTask?
 
   @@unique([userId, sharedPostingId])
   @@index([userId, tier])
   @@index([sharedPostingId])
+}
+
+/// Pathfinder (auto-apply step 4): what a student allowed auto-apply to do, and the answers it uses.
+/// One row per student.
+model AutoApplySettings {
+  /// The student this belongs to.
+  userId          String    @id @default(dbgenerated("current_setting('app.user_id')"))
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Applications are submitted only while this is on, and only after consent.
+  enabled         Boolean   @default(false)
+  /// When the student agreed that Pathfinder may submit applications for them, and to which wording.
+  consentAt       DateTime?
+  consentVersion  String?
+  /// What they're looking for (MatchPreferences); null until "Set up job search" is saved.
+  preferences     Json?
+  /// The weakest match applied for: STRONG, or GOOD (Strong and Good).
+  minTier         MatchTier @default(GOOD)
+  /// Applications a day at most, and per company in 30 days.
+  dailyLimit      Int       @default(10)
+  perCompanyLimit Int       @default(2)
+  /// Fill everything but stop before Submit, to check the forms first. On until switched off.
+  dryRun          Boolean   @default(true)
+  /// Answers to the questions most forms ask (SavedAnswers), given once.
+  answers         Json      @default("{}")
+  updatedAt       DateTime  @updatedAt
+}
+
+/// Where an application auto-apply prepares stands. The extension moves it on from READY.
+enum ApplyState {
+  /// Tailoring the resume and answering the form on the server.
+  PREPARING
+  /// Complete, waiting for the student's browser.
+  READY
+  /// A browser took it.
+  LEASED
+  /// The browser said it's about to press Submit: never retried automatically from here.
+  SUBMITTING
+  /// The confirmation was seen.
+  APPLIED
+  /// A puzzle, an emailed code, a question without an answer, or a form error: waits for the student.
+  NEEDS_STUDENT
+  /// Submit was pressed but no answer came back: the student checks.
+  UNCERTAIN
+  FAILED
+  /// The student, or a limit, passed on it.
+  SKIPPED
+}
+
+/// Pathfinder (auto-apply step 4): one application auto-apply prepares and submits for a student.
+model ApplyTask {
+  /// The student this belongs to.
+  userId          String        @default(dbgenerated("current_setting('app.user_id')"))
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id              String        @id @default(cuid())
+  jobMatchId      String        @unique
+  jobMatch        JobMatch      @relation(fields: [jobMatchId], references: [id], onDelete: Cascade)
+  sharedPostingId String
+  sharedPosting   SharedPosting @relation(fields: [sharedPostingId], references: [id], onDelete: Cascade)
+  /// The application with the tailored resume and cover letter, once written.
+  applicationId   String?       @unique
+  application     Application?  @relation(fields: [applicationId], references: [id], onDelete: SetNull)
+  state           ApplyState    @default(PREPARING)
+  /// The form's answers, by the form's own field names; every value from the profile or saved answers.
+  answers         Json?
+  /// Why it needs the student, failed or was skipped, in their words.
+  reason          String?
+  /// Which browser holds it, and until when.
+  leaseId         String?
+  leaseUntil      DateTime?
+  /// Times a browser took it.
+  attempts        Int           @default(0)
+  /// What showed it was submitted: confirmation text, final address, time.
+  evidence        Json?
+  appliedAt       DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@unique([userId, sharedPostingId])
+  @@index([userId, state])
 }
 
 // ─── Sign-in (E3-4) ──────────────────────────────────────────────────────────
