@@ -85,19 +85,21 @@ async function switchedOn(overrides: Partial<{ minTier: "STRONG" | "GOOD"; daily
 }
 
 let companies: Record<string, string> = {};
-async function job(id: string, company: "acme" | "zeta" | "lever", options: { tier?: "STRONG" | "GOOD" | "PARTIAL"; score?: number; closed?: boolean } = {}) {
+async function job(id: string, company: "acme" | "zeta" | "lever", options: { tier?: "STRONG" | "GOOD" | "PARTIAL"; score?: number; closed?: boolean; url?: string; system?: "SMARTRECRUITERS"; applyUrl?: string } = {}) {
+  const system = options.system ?? (company === "lever" ? "LEVER" : "GREENHOUSE");
+  const board = company === "lever" ? `https://jobs.lever.co/lever/${id}` : `https://job-boards.greenhouse.io/${company}/jobs/${id}`;
   const posting = await raw().sharedPosting.create({
     data: {
       companyId: companies[company],
-      system: company === "lever" ? "LEVER" : "GREENHOUSE",
+      system,
       externalId: id,
       title: "Data Analyst",
       companyName: company === "zeta" ? "Zeta" : "Acme",
       location: "Pune",
       country: "in",
       description: "We need SQL.",
-      url: `https://acme.example/${id}`,
-      applyUrl: `https://job-boards.greenhouse.io/${company}/jobs/${id}`,
+      url: options.url ?? board,
+      applyUrl: options.applyUrl ?? (company === "lever" ? `${board}/apply` : board),
       closedAt: options.closed ? new Date() : null,
       dedupeKey: id,
       contentHash: "v1",
@@ -204,6 +206,17 @@ describe("planning applications (auto-apply step 4)", () => {
     // A day later there's room again, for the Strong match left.
     expect(await planApplications(new Date(Date.now() + 25 * 3600_000))).toBe(1);
     expect(await prisma().applyTask.count()).toBe(3);
+  });
+
+  it("skips jobs the extension can't apply to, without using up the day's room or any AI", async () => {
+    await switchedOn({ dailyLimit: 1 });
+    // The company moved Greenhouse's form to its own site; and a board the extension doesn't fill yet.
+    await job("okta", "acme", { score: 95, url: "https://www.okta.com/company/careers/opportunity/1?gh_jid=1" });
+    await job("sr", "zeta", { score: 94, system: "SMARTRECRUITERS", applyUrl: "https://jobs.smartrecruiters.com/Zeta/1" });
+    await job("ok", "zeta", { score: 80 });
+    expect(await planApplications()).toBe(1);
+    const tasks = await prisma().applyTask.findMany({ include: { sharedPosting: { select: { externalId: true } } } });
+    expect(tasks.map((task) => task.sharedPosting.externalId)).toEqual(["ok"]);
   });
 });
 

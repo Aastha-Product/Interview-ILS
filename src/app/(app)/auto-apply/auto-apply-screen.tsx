@@ -11,7 +11,7 @@ import { Card } from "@/components/ui/card";
 import { Toggle } from "@/components/ui/toggle";
 import type { ApplyState } from "@/generated/prisma/enums";
 import type { ActionResult } from "@/lib/action";
-import type { ApplyTaskView, AutoApplyScreenView } from "@/lib/apply/view";
+import type { ApplyTaskView, AutoApplyScreenView, BrowsersView } from "@/lib/apply/view";
 import { TIER_LABELS } from "@/lib/match/tiers";
 
 import { findMatchesNow, markApplied, prepareApplicationAgain, skipApplication, switchAutoApply } from "./actions";
@@ -44,6 +44,35 @@ function Count({ label, value, note }: { label: string; value: number; note?: st
   );
 }
 
+const day = (iso: string) => new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short" });
+
+/** Whether a browser will submit: none connected, none seen for a day, or all well. */
+function BrowserNote({ browsers, enabled, ready }: { browsers: BrowsersView; enabled: boolean; ready: number }) {
+  const link = (text: string) => (
+    <Link href="/auto-apply/extension" className="font-medium underline underline-offset-2">
+      {text}
+    </Link>
+  );
+  if (browsers.connected === 0)
+    return (
+      <p role={enabled ? "alert" : undefined} className={enabled ? "text-meta text-warning" : "text-meta text-muted"}>
+        No browser is connected, so nothing can be submitted. Applications are submitted by the Pathfinder extension in your Chrome. {link("Connect the extension")}
+      </p>
+    );
+  if (browsers.quiet && enabled)
+    return (
+      <p role="alert" className="text-meta text-warning">
+        {browsers.lastSeen ? `Chrome hasn't been open with the extension since ${day(browsers.lastSeen)}` : "The extension hasn't checked in yet"}
+        {ready > 0 ? `, and ${ready} ${ready === 1 ? "application is" : "applications are"} waiting` : ""}. Applications are submitted only while Chrome is open. {link("Your browsers")}
+      </p>
+    );
+  return (
+    <p className="text-meta text-muted">
+      Submitted by the Pathfinder extension in your Chrome: {browsers.connected === 1 ? "1 browser" : `${browsers.connected} browsers`} connected{browsers.lastSeen ? `, last seen ${day(browsers.lastSeen)}` : ""}. {link("Your browsers")}
+    </p>
+  );
+}
+
 type RowActions = { onSkip: (id: string) => void; onRetry: (id: string) => void; onMarkApplied: (id: string) => void };
 
 function TaskRow({ task, onSkip, onRetry, onMarkApplied, busy }: { task: ApplyTaskView; busy: boolean } & RowActions) {
@@ -56,6 +85,9 @@ function TaskRow({ task, onSkip, onRetry, onMarkApplied, busy }: { task: ApplyTa
           {[task.company, task.location, task.tier ? `${TIER_LABELS[task.tier]}${task.score !== null ? ` · ${task.score}` : ""}` : null].filter(Boolean).join(" · ")}
         </span>
         {task.reason ? <span className={needsYou ? "text-meta text-warning" : "text-meta text-muted"}>{task.reason}</span> : null}
+        {task.confirmation ? (
+          <span className="text-meta text-muted">{task.confirmation.by === "board" ? `Confirmed by the job site: “${task.confirmation.text}”` : "You marked it as applied."}</span>
+        ) : null}
       </div>
       <div className="flex shrink-0 flex-wrap items-center gap-2">
         <span className={needsYou ? "rounded-full bg-warning-surface px-2.5 py-0.5 text-meta text-warning" : "rounded-full bg-surface px-2.5 py-0.5 text-meta"}>
@@ -149,12 +181,7 @@ export function AutoApplyScreen({ view }: { view: AutoApplyScreenView }) {
             .
           </p>
         )}
-        <p className="text-meta text-muted">
-          Applications are submitted by the Pathfinder extension in your Chrome, so it needs to be installed, connected and Chrome open.{" "}
-          <Link href="/auto-apply/extension" className="font-medium underline underline-offset-2">
-            Connect the extension
-          </Link>
-        </p>
+        <BrowserNote browsers={view.browsers} enabled={settings.enabled} ready={summary.tasks.READY} />
       </Card>
 
       <section aria-label="Progress" className="grid grid-cols-2 gap-3 sm:grid-cols-4">

@@ -18,6 +18,7 @@ import { experienceMonths } from "@/lib/match/preferences";
 import { loadProfile } from "@/lib/profile-data";
 import { loadSettings } from "@/lib/settings-data";
 
+import { extensionCanApply } from "./appliable";
 import { answerForm, type AnswerContext, type FormAnswers } from "./answers";
 import { greenhouseForm } from "./greenhouse-form";
 import { loadAutoApply } from "./settings";
@@ -63,7 +64,7 @@ export async function planApplications(now = new Date()): Promise<number> {
     (
       await systemPrisma.sharedPosting.findMany({
         where: { id: { in: matches.map((match) => match.sharedPostingId) } },
-        select: { id: true, companyId: true, closedAt: true },
+        select: { id: true, companyId: true, closedAt: true, system: true, url: true, applyUrl: true },
       })
     ).map((posting) => [posting.id, posting]),
   );
@@ -80,7 +81,8 @@ export async function planApplications(now = new Date()): Promise<number> {
   for (const match of matches) {
     if (room <= 0) break;
     const posting = postings.get(match.sharedPostingId);
-    if (!posting || posting.closedAt) continue;
+    // Only forms the extension can fill: no AI spent on documents for one it would hand back.
+    if (!posting || posting.closedAt || !extensionCanApply(posting)) continue;
     if ((recentCompanies.get(posting.companyId) ?? 0) >= settings.perCompanyLimit) continue;
     // One task per student and job, ever (a unique key); another run may have made it meanwhile.
     const task = await prisma.applyTask
