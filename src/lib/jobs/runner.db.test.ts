@@ -419,8 +419,10 @@ describe("the job runner", () => {
       // Five waits for a job with three attempts, then it runs.
       const id = await startJob(flaky, { name: "Busy board", failures: ["later", "later", "later", "later", "later"] });
       for (let wait = 1; wait <= 5; wait++) {
-        await eventually(async () => expect(await row(id)).toMatchObject({ status: "QUEUED", attempts: 0 }));
-        expect(runsOf.get("Busy board")).toBe(wait);
+        // Ran this many times, then back in the queue with no attempt used. (Right after startJob
+        // it's queued with no attempts too, before it ran: so the run count comes first.)
+        await eventually(async () => expect(runsOf.get("Busy board")).toBe(wait));
+        await eventually(async () => expect(await row(id)).toMatchObject({ status: "QUEUED", attempts: 0, lastError: "Waiting for the job board." }));
         await waitOver(id);
         await claimQueuedJobs();
       }
