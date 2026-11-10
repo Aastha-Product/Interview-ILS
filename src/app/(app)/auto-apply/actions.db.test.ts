@@ -2,6 +2,7 @@ import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { EMPTY_ANSWERS } from "@/lib/apply/answers";
 import { loadAutoApplyScreen } from "@/lib/apply/view";
+import { createExtensionToken } from "@/lib/extension/tokens";
 import { startJob } from "@/lib/jobs/runner";
 import { runAsUser } from "@/lib/owner/context";
 import { rawClientOf } from "@/lib/owner/scope";
@@ -58,6 +59,7 @@ beforeEach(async () => {
   await raw().jobMatch.deleteMany();
   await raw().sharedPosting.deleteMany();
   await raw().company.deleteMany();
+  await raw().extensionToken.deleteMany();
   vi.mocked(startJob).mockClear();
 });
 afterAll(() => prisma().$disconnect());
@@ -118,6 +120,21 @@ describe("the auto-apply screens' actions (auto-apply step 4)", () => {
     expect(view.tasks[0]).toMatchObject({ title: "Analyst NEEDS_STUDENT", company: "Acme", tier: "STRONG", score: 85, reason: "Answer this question to apply: Why us?" });
     expect(view.summary.tasks).toMatchObject({ APPLIED: 1, NEEDS_STUDENT: 1, READY: 1 });
     expect(view.openJobs).toBe(3);
+  });
+
+  it("says how each application was confirmed, and whether a browser would submit (step 5)", async () => {
+    const byBoard = await taskIn("APPLIED");
+    await prisma().applyTask.update({ where: { id: byBoard.id }, data: { evidence: { url: "https://acme.example/thanks", text: "Thank you for applying.", at: "2026-11-10T08:00:00Z" } } });
+    const now = new Date("2026-11-10T12:00:00Z");
+    expect((await loadAutoApplyScreen(now)).browsers).toEqual({ connected: 0, lastSeen: null, quiet: false });
+    expect((await loadAutoApplyScreen(now)).tasks[0].confirmation).toEqual({ by: "board", text: "Thank you for applying." });
+
+    const { id } = await createExtensionToken("Chrome", new Date("2026-11-01T00:00:00Z"));
+    expect((await loadAutoApplyScreen(now)).browsers).toEqual({ connected: 1, lastSeen: null, quiet: true });
+    await raw().extensionToken.update({ where: { id }, data: { lastUsedAt: new Date("2026-11-08T09:00:00Z") } });
+    expect((await loadAutoApplyScreen(now)).browsers).toMatchObject({ lastSeen: "2026-11-08T09:00:00.000Z", quiet: true });
+    await raw().extensionToken.update({ where: { id }, data: { lastUsedAt: new Date("2026-11-10T11:59:00Z") } });
+    expect((await loadAutoApplyScreen(now)).browsers.quiet).toBe(false);
   });
 
   it("doesn't let one student skip or see another's applications", async () => {

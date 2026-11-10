@@ -61,7 +61,8 @@ describe("shared rate limits (auto-apply step 1)", () => {
   });
 
   it("stops waiting when the job is cancelled", async () => {
-    const limit = { perMinute: 6, burst: 1 };
+    // A token a minute: however slow the machine, the second call is still waiting when it's cancelled.
+    const limit = { perMinute: 1, burst: 1 };
     await withRateLimit("cancelled", limit, async () => "first");
     const controller = new AbortController();
     const waiting = withRateLimit("cancelled", limit, async () => "second", { maxWaitMs: 60_000, signal: controller.signal });

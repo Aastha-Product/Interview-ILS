@@ -115,6 +115,21 @@ https://claude.ai/artifact/GSHLW1T2jiX99CUiBtAUov): all five P0 tasks.
 
 Newest first. One entry per session: date, account, branch, what changed, what's next.
 
+- **2026-11-10 · account 3 · `feature/auto-apply-gaps`** (built on #24): the three gaps the
+  assessment found before a pilot.
+  - **Only jobs the extension can apply to become applications** (`src/lib/apply/appliable.ts`).
+    SmartRecruiters jobs, and Greenhouse jobs whose company hosts the form itself (the API's
+    `absolute_url` isn't on greenhouse.io, as with Okta), are left out, so no AI is spent on them.
+    They don't count towards the daily limit.
+  - **Dashboard:** warns when no browser is connected, or none has checked in for a day (the
+    extension checks in every minute while Chrome is open), saying how many applications are
+    waiting. Each applied one shows its proof: the job site's confirmation, or "You marked it as
+    applied".
+  - **Extension:** icons, and a popup showing whose account this browser applies for, what it's
+    doing now, **Pause in this browser**, and Open Auto-apply.
+  - **Owner:** the icon is the site's own, still Dossier's "D". Change both when there's a
+    Pathfinder logo.
+
 - **2026-11-10 · account 3 · `feature/extension-e2e`**: Merged #23 at the owner's request (not
   deployed). Auto-apply **step 6: the extension tested in Chrome, and a load test.**
   - **Chrome tests:** `yarn test:extension` (`extension/e2e/`, new CI job "Extension in

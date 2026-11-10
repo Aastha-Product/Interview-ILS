@@ -31,11 +31,12 @@ const view = (overrides: Partial<AutoApplyScreenView> = {}): AutoApplyScreenView
   consentText: "I allow Pathfinder to submit job applications for me.",
   summary: { matches: { STRONG: 4, GOOD: 2, PARTIAL: 5, NOT_RECOMMENDED: 9, pending: 0, failed: 0 }, tasks },
   tasks: [
-    { id: "t1", state: "NEEDS_STUDENT", title: "Data Analyst", company: "Groww", location: "Bengaluru", url: "https://groww.example/1", score: 86, tier: "STRONG", reason: "Answer this question to apply: Why Groww?", applicationId: "app-1", appliedAt: null, updatedAt: "2026-11-10T08:00:00Z" },
-    { id: "t2", state: "APPLIED", title: "Business Analyst", company: "Paytm", location: "Noida", url: "", score: 72, tier: "GOOD", reason: null, applicationId: "app-2", appliedAt: "2026-11-10T07:00:00Z", updatedAt: "2026-11-10T07:00:00Z" },
+    { id: "t1", state: "NEEDS_STUDENT", title: "Data Analyst", company: "Groww", location: "Bengaluru", url: "https://groww.example/1", score: 86, tier: "STRONG", reason: "Answer this question to apply: Why Groww?", applicationId: "app-1", appliedAt: null, confirmation: null, updatedAt: "2026-11-10T08:00:00Z" },
+    { id: "t2", state: "APPLIED", title: "Business Analyst", company: "Paytm", location: "Noida", url: "", score: 72, tier: "GOOD", reason: null, applicationId: "app-2", appliedAt: "2026-11-10T07:00:00Z", confirmation: { by: "board", text: "Thank you for applying to Paytm." }, updatedAt: "2026-11-10T07:00:00Z" },
   ],
   matchRunId: null,
   openJobs: 1734,
+  browsers: { connected: 0, lastSeen: null, quiet: false },
   ...overrides,
 });
 
@@ -77,6 +78,26 @@ describe("the auto-apply dashboard (auto-apply step 4)", () => {
     await userEvent.click(within(rows[2]).getByRole("button", { name: "Mark as applied" }));
     expect(markApplied).toHaveBeenCalledWith({ taskId: "t3" });
     expect(screen.getByRole("link", { name: "Connect the extension" })).toHaveAttribute("href", "/auto-apply/extension");
+  });
+
+  it("shows how each application was confirmed (step 5)", () => {
+    render(<AutoApplyScreen view={view({ tasks: [view().tasks[1], { ...view().tasks[1], id: "t4", confirmation: { by: "student" } }] })} />);
+    const rows = screen.getAllByRole("listitem");
+    expect(within(rows[0]).getByText("Confirmed by the job site: “Thank you for applying to Paytm.”")).toBeInTheDocument();
+    expect(within(rows[1]).getByText("You marked it as applied.")).toBeInTheDocument();
+  });
+
+  it("warns when no browser would submit: none connected, or none seen for a day", () => {
+    const on = { ...settings, enabled: true };
+    const { unmount } = render(<AutoApplyScreen view={view({ settings: on })} />);
+    expect(screen.getByRole("alert")).toHaveTextContent("No browser is connected, so nothing can be submitted.");
+    unmount();
+    const quiet = render(<AutoApplyScreen view={view({ settings: on, browsers: { connected: 1, lastSeen: "2026-11-08T09:00:00Z", quiet: true } })} />);
+    expect(screen.getByRole("alert")).toHaveTextContent(/hasn't been open with the extension since .*8.*, and 2 applications are waiting/);
+    quiet.unmount();
+    render(<AutoApplyScreen view={view({ settings: on, browsers: { connected: 2, lastSeen: "2026-11-10T09:00:00Z", quiet: false } })} />);
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.getByText(/2 browsers connected, last seen/)).toBeInTheDocument();
   });
 
   it("offers Try again for an application waiting on the student", async () => {

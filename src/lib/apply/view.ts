@@ -4,6 +4,7 @@ import type { ApplyState, MatchTier } from "@/generated/prisma/enums";
 import { findLatestJob } from "@/lib/jobs/runner";
 import { MATCH_RUN_KEY } from "@/lib/match/jobs";
 import { preferencesFromProfile, type MatchPreferences } from "@/lib/match/preferences";
+import { listExtensionTokens } from "@/lib/extension/tokens";
 import { prisma, systemPrisma } from "@/lib/prisma";
 import { loadProfile } from "@/lib/profile-data";
 
@@ -27,7 +28,20 @@ export type ApplyTaskView = {
   /** The application with the tailored documents, once written. */
   applicationId: string | null;
   appliedAt: string | null;
+  /** Applied: the words the job board confirmed it with, or that the student said so. */
+  confirmation: Confirmation | null;
   updatedAt: string;
+};
+
+export type Confirmation = { by: "board"; text: string } | { by: "student" };
+
+/** The student's connected browsers: none means nothing is submitted. */
+export type BrowsersView = {
+  connected: number;
+  /** When one last asked for work (every minute while Chrome is open); null if never. */
+  lastSeen: string | null;
+  /** Connected, but none seen for a day: applications wait until Chrome is open. */
+  quiet: boolean;
 };
 
 export type AutoApplyScreenView = {
@@ -42,17 +56,30 @@ export type AutoApplyScreenView = {
   matchRunId: string | null;
   /** Open jobs in the shared pool, to show the crawler is working. */
   openJobs: number;
+  browsers: BrowsersView;
 };
 
 const TASKS_SHOWN = 100;
+const QUIET_MS = 24 * 3600_000;
 
-export async function loadAutoApplyScreen(): Promise<AutoApplyScreenView> {
-  const [settings, summary, latest, openJobs] = await Promise.all([
+/** The words an applied task was confirmed with (src/lib/apply/lease.ts keeps them). */
+export function confirmationOf(evidence: unknown): Confirmation | null {
+  const value = evidence as { text?: unknown; byStudent?: unknown } | null;
+  if (value?.byStudent === true) return { by: "student" };
+  return typeof value?.text === "string" && value.text.trim() ? { by: "board", text: value.text.trim() } : null;
+}
+
+export async function loadAutoApplyScreen(now = new Date()): Promise<AutoApplyScreenView> {
+  const [settings, summary, latest, openJobs, tokens] = await Promise.all([
     loadAutoApply(),
     autoApplySummary(),
     findLatestJob(MATCH_RUN_KEY),
     systemPrisma.sharedPosting.count({ where: { closedAt: null } }),
+    listExtensionTokens(now),
   ]);
+  const seen = tokens.map((token) => token.lastUsedAt).filter((at): at is string => at !== null).sort();
+  const lastSeen = seen.at(-1) ?? null;
+  const browsers: BrowsersView = { connected: tokens.length, lastSeen, quiet: tokens.length > 0 && (lastSeen === null || now.getTime() - Date.parse(lastSeen) > QUIET_MS) };
   const preferences = settings.preferences ?? preferencesFromProfile(await loadProfile());
 
   const tasks = await prisma.applyTask.findMany({
@@ -85,10 +112,11 @@ export async function loadAutoApplyScreen(): Promise<AutoApplyScreenView> {
         reason: task.reason,
         applicationId: task.applicationId,
         appliedAt: task.appliedAt?.toISOString() ?? null,
+        confirmation: task.state === "APPLIED" ? confirmationOf(task.evidence) : null,
         updatedAt: task.updatedAt.toISOString(),
       };
     })
     .sort((a, b) => waitingFirst(a.state) - waitingFirst(b.state));
 
-  return { settings, preferences, consentText: CONSENT_TEXT, summary, tasks: views, matchRunId: latest?.id ?? null, openJobs };
+  return { settings, preferences, consentText: CONSENT_TEXT, summary, tasks: views, matchRunId: latest?.id ?? null, openJobs, browsers };
 }

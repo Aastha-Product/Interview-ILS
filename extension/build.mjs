@@ -3,7 +3,7 @@
 //
 // --test builds extension/dist-test for the Chrome tests (extension/e2e): the same extension, also
 // allowed to talk to a fake Pathfinder at TEST_ORIGIN. The real build never includes it.
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { copyFile, cp, mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -23,9 +23,11 @@ export async function build({ test = false, watch = false } = {}) {
     manifest.content_scripts[0].matches.push(`${TEST_ORIGIN}/*`);
   }
   await writeFile(join(out, "manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`);
+  await copyFile(join(root, "popup.html"), join(out, "popup.html"));
+  await cp(join(root, "icons"), join(out, "icons"), { recursive: true, filter: (source) => !source.endsWith(".mjs") });
 
   const options = {
-    entryPoints: { worker: join(root, "src/worker.ts"), apply: join(root, "src/apply.ts"), bridge: join(root, "src/bridge.ts") },
+    entryPoints: { worker: join(root, "src/worker.ts"), apply: join(root, "src/apply.ts"), bridge: join(root, "src/bridge.ts"), popup: join(root, "src/popup.ts") },
     outdir: out,
     bundle: true,
     format: "iife",

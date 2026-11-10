@@ -93,7 +93,8 @@ describe("connecting (auto-apply step 5b)", () => {
     expect(fake.stores.local.has("connection")).toBe(false);
 
     expect(await worker.handle(connect, { id: "pathfinder-extension", origin: BASE })).toEqual({ ok: true, data: { name: "Asha Rao" } });
-    expect(fake.stores.local.get("connection")).toEqual({ token: "pfx_token", base: BASE });
+    // The name only for the popup to show.
+    expect(fake.stores.local.get("connection")).toEqual({ token: "pfx_token", base: BASE, name: "Asha Rao" });
     expect(server.calls[0]).toMatchObject({ path: "/api/ext/status", auth: "Bearer pfx_token" });
   });
 
@@ -144,6 +145,21 @@ describe("taking applications one at a time", () => {
     expect(server.calls.at(-1)?.body).toEqual({ leaseId: "lease-1", outcome: "needs-student", reason: REASONS.noForm });
     expect(fake.chrome.tabs.remove).not.toHaveBeenCalled();
     expect(await worker.current()).toBeNull();
+  });
+
+  it("starts nothing new while paused from the popup, but finishes what's under way", async () => {
+    connectNow();
+    fake.stores.local.set("paused", true);
+    await worker.tick(0);
+    expect(server.calls).toEqual([]);
+    fake.stores.local.set("paused", false);
+    await worker.tick(0);
+    expect(paths()).toEqual(["POST /api/ext/lease"]);
+    // Paused mid-application: the stale one is still given back when its time runs out.
+    fake.stores.local.set("paused", true);
+    await worker.tick(worker.HOLD_MS);
+    expect(server.calls.at(-1)?.body).toEqual({ leaseId: "lease-1", outcome: "release" });
+    expect(paths().filter((path) => path === "POST /api/ext/lease")).toHaveLength(1);
   });
 
   it("waits when there's nothing to apply for", async () => {

@@ -219,6 +219,29 @@ test("hands the student a job on the company's own site, without touching it", a
   expect(tabFor("careers.example.com")).toBeDefined();
 });
 
+test("the popup says whose account it is, and pausing there stops new applications", async () => {
+  const id = new URL(context.serviceWorkers()[0].url()).host;
+  const popup = await context.newPage();
+  await popup.goto(`chrome-extension://${id}/popup.html`);
+  await expect(popup.locator("#popup")).toContainText("Connected to Asha Rao's account.");
+  await expect(popup.locator("#popup")).toContainText("Waiting for the next application");
+  // The icon Chrome shows for it.
+  expect(await popup.evaluate(async () => (await fetch("icons/icon-128.png")).headers.get("content-type"))).toBe("image/png");
+
+  await popup.getByRole("button", { name: "Pause in this browser" }).click();
+  await expect(popup.locator("#popup")).toContainText("Paused in this browser");
+  pathfinder.add(task("gh-3", { applyUrl: "https://job-boards.greenhouse.io/acme/jobs/3", dryRun: true }));
+  await nextTick();
+  await connectPage.waitForTimeout(2000);
+  expect(pathfinder.tasks.find((candidate) => candidate.taskId === "gh-3")?.state).toBe("queued");
+
+  await popup.getByRole("button", { name: "Resume" }).click();
+  await nextTick();
+  await finished("gh-3");
+  expect(pathfinder.outcomes("gh-3")).toEqual(["dry-run"]);
+  await popup.close();
+});
+
 test("never submits anything twice", () => {
   for (const id of ["gh-1", "lv-1", "ab-1"]) expect(pathfinder.outcomes(id).filter((outcome) => outcome === "submitting")).toHaveLength(1);
   expect(submitted.greenhouse.length + submitted.lever.length + submitted.ashby.length).toBe(3);

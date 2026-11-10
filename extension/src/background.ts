@@ -21,6 +21,13 @@ export async function connection(): Promise<Connection | null> {
   return value?.token && value.base && isPathfinderOrigin(value.base) ? { token: value.token, base: value.base } : null;
 }
 
+export const PAUSED_BADGE = "Off";
+
+/** Paused in this browser, from the popup. */
+export async function isPaused(): Promise<boolean> {
+  return (await chrome.storage.local.get("paused")).paused === true;
+}
+
 // What's in progress lives in session storage: the worker is stopped when idle and started again.
 export async function current(): Promise<Current | null> {
   return ((await chrome.storage.session.get("current")).current as Current | undefined) ?? null;
@@ -78,6 +85,8 @@ async function runTick(now: number): Promise<void> {
     await finish(link, held, held.submitting ? null : { outcome: "release" }, held.submitting);
     return;
   }
+  // Paused from the popup: nothing new (what was under way above still finishes).
+  if (await isPaused()) return;
   const response = await call(link, "/api/ext/lease", { method: "POST" });
   if (response.status !== 200) return;
   await badge("", "Pathfinder: connected");
@@ -138,9 +147,10 @@ async function connect(request: BridgeRequest, sender: chrome.runtime.MessageSen
   const link = { token: request.token, base: origin };
   const response = await fetch(`${origin}/api/ext/status`, { headers: { authorization: `Bearer ${link.token}` }, credentials: "omit", cache: "no-store" });
   if (!response.ok) return fail(await errorOf(response));
-  await chrome.storage.local.set({ connection: link });
-  await badge("", "Pathfinder: connected");
   const { name } = (await response.json()) as { name: string };
+  // The name only for the popup to say whose account this browser applies for.
+  await chrome.storage.local.set({ connection: { ...link, name } });
+  await badge((await isPaused()) ? PAUSED_BADGE : "", "Pathfinder: connected");
   void tick();
   return ok({ name });
 }
