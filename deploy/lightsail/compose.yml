@@ -93,6 +93,8 @@ services:
       PATHFINDER_JOBS_PER_STUDENT: ${PATHFINDER_JOBS_PER_STUDENT:-}
       # The job queues this worker takes, comma-separated (default: all).
       PATHFINDER_QUEUES: ${PATHFINDER_QUEUES:-}
+      # Read companies' public job boards every 6 hours into the shared job pool (off unless on).
+      PATHFINDER_CRAWL: ${PATHFINDER_CRAWL:-}
     # Not published: only Caddy reaches it, over the compose network.
     expose:
       - "3000"

@@ -27,7 +27,7 @@ export const OWNED_MODELS = new Set([
 ]);
 
 /** Tables only system code may touch, through the unscoped client. */
-export const SYSTEM_MODELS = new Set(["User", "LoginThrottle", "ProviderBudget"]);
+export const SYSTEM_MODELS = new Set(["User", "LoginThrottle", "ProviderBudget", "Company", "SharedPosting"]);
 
 export class OwnerScopeError extends Error {
   constructor(message: string) {

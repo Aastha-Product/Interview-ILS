@@ -18,6 +18,8 @@ import { runAsUser } from "@/lib/owner/context";
 import { currentUserId } from "@/lib/owner/current";
 import { prisma, systemPrisma } from "@/lib/prisma";
 
+import { RetryLater } from "./retry-later";
+
 // Long AI tasks run as background jobs (E6-7): the request that starts one
 // returns at once with its id, the work goes on in the background, and the
 // page follows its named steps (/api/jobs/[id]/events). Progress lives in
@@ -66,22 +68,7 @@ export type JobDefinition<I, R> = {
   attempts?: number;
 };
 
-/**
- * Pathfinder: thrown by a job to say "not now, later": a job board's quota is used up until a
- * reset, or a shared rate limit (src/lib/jobs/rate-limit.ts) needs a longer wait than is worth
- * holding a worker for. The job runs again after `afterMs` if it has attempts left.
- */
-export class RetryLater extends Error {
-  override name = "RetryLater";
-
-  constructor(
-    /** For the student while it waits, and as the failure if no attempts are left. */
-    message: string,
-    readonly afterMs?: number,
-  ) {
-    super(message);
-  }
-}
+export { RetryLater };
 
 /** AI failures that tend to pass on their own; the others (a bad key, too long) won't on a rerun. */
 const PASSING_AI_FAILURES = new Set(["unreachable", "rate-limited", "busy", "timeout", "provider", "invalid-output", "cut-off"]);
