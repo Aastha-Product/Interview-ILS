@@ -1,10 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import "./test/data-transfer";
+import { lever } from "./boards";
 import { comboboxChoices } from "./fill";
 import { REASONS, type FormAnswers, type FormField, type LeasedTask, type Reply, type TabRequest } from "./protocol";
 import { apply, WAIT, type Port } from "./run";
+import { ashbyPage, ashbyThanks } from "./test/ashby-page";
 import { confirmationPage, greenhousePage } from "./test/greenhouse-page";
+import { leverPage, leverThanks } from "./test/lever-page";
 
 vi.setConfig({ testTimeout: 20_000 });
 WAIT.form = 300;
@@ -175,5 +178,56 @@ describe("applying in the job's tab (auto-apply step 5b)", () => {
     expect(await run((form) => form.insertAdjacentHTML("beforeend", '<p class="helper-text--error">Resume is required</p>'))).toEqual({ outcome: "needs-student", reason: REASONS.formError("Resume is required") });
     expect(await run((form) => form.insertAdjacentHTML("beforeend", '<p>A security code was sent to your email.</p><input id="security-input-0">'))).toEqual({ outcome: "needs-student", reason: REASONS.emailCode });
     expect(await run(() => undefined)).toEqual({ outcome: "uncertain", reason: REASONS.noAnswer });
+  });
+});
+
+describe("applying on Lever and Ashby (auto-apply step 5c)", () => {
+  /** What the server's rules answer for the questions the page shows (src/lib/apply/answers.ts). */
+  const rules = (known: Record<string, string>) => (fields: FormField[]): FormAnswers => {
+    const answers: FormAnswers["answers"] = {};
+    const missing: string[] = [];
+    for (const field of fields) {
+      const value = known[field.label];
+      if (field.type === "file") continue;
+      if (value === undefined) {
+        if (field.required) missing.push(field.label);
+        continue;
+      }
+      const option = field.options.find((candidate) => candidate.label === value);
+      answers[field.key] = option ? { kind: "option", value: option.value, label: option.label } : { kind: "text", value };
+    }
+    return { answers, missing };
+  };
+
+  it("reads Lever's form, has the server answer it, attaches the resume, and submits with Lever's own button", async () => {
+    lever.afterResumeMs = 100;
+    leverPage(document);
+    let clicked = 0;
+    document.getElementById("btn-submit")!.addEventListener("click", () => {
+      clicked++;
+      setTimeout(() => leverThanks(document), 100);
+    });
+    const { port, requests } = fakePort({
+      more: rules({ "Full name": "Asha Rao", Email: "asha@example.test", Phone: "+91 98765 43210", "Current company": "Fresher", Gender: "Prefer not to disclose", "Total Years of experience": "0", "Are you willing to relocate to Bangalore?": "Yes", "How did you get to know about this role?": "Linkedin" }),
+    });
+    const finish = await apply(port, document, { hostname: "jobs.lever.co", pathname: "/meesho/1/apply", href: "https://jobs.lever.co/meesho/1/apply" }, { task: task({ answers: null, system: "LEVER" }), submitted: false });
+    expect(finish.report).toEqual({ outcome: "applied", evidence: { url: "https://jobs.lever.co/meesho/1/apply", text: expect.stringContaining("Application submitted!") } });
+    expect(clicked).toBe(1);
+    expect(requests.map((request) => request.type)).toEqual(["answers", "document", "report"]);
+  });
+
+  it("on Ashby, which has no <form>, stops for a question nobody can answer for the student", async () => {
+    ashbyPage(document);
+    const { port } = fakePort({ more: rules({ Name: "Asha Rao", Email: "asha@example.test", "Phone Number": "+91 98765 43210", Location: "Pune", "Have you previously worked at Acme?": "No" }) });
+    const finish = await apply(port, document, { hostname: "jobs.ashbyhq.com", pathname: "/Acme/1/application", href: "" }, { task: task({ answers: null, system: "ASHBY" }), submitted: false });
+    expect(finish).toEqual({ report: { outcome: "needs-student", reason: REASONS.unanswered(["What is your notice period?"]) }, keepTab: true });
+  });
+
+  it("submits on Ashby once everything is answered", async () => {
+    ashbyPage(document);
+    document.querySelector(".ashby-application-form-submit-button")!.addEventListener("click", () => setTimeout(() => ashbyThanks(document), 100));
+    const { port } = fakePort({ more: rules({ Name: "Asha Rao", Email: "asha@example.test", "Phone Number": "+91 98765 43210", Location: "Pune", "Have you previously worked at Acme?": "No", "What is your notice period?": "Immediate" }) });
+    const finish = await apply(port, document, { hostname: "jobs.ashbyhq.com", pathname: "/Acme/1/application", href: "https://jobs.ashbyhq.com/Acme/1/application" }, { task: task({ answers: null, system: "ASHBY" }), submitted: false });
+    expect(finish.report).toMatchObject({ outcome: "applied", evidence: { text: expect.stringContaining("successfully submitted") } });
   });
 });

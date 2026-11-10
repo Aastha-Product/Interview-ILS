@@ -11,7 +11,10 @@
     "https://www.pathfinderedtech.com/*",
     "http://localhost:3000/*",
     "https://job-boards.greenhouse.io/*",
-    "https://boards.greenhouse.io/*"
+    "https://boards.greenhouse.io/*",
+    "https://jobs.lever.co/*",
+    "https://jobs.eu.lever.co/*",
+    "https://jobs.ashbyhq.com/*"
   ],
   "content_scripts": [
     {

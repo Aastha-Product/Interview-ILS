@@ -115,6 +115,25 @@ https://claude.ai/artifact/GSHLW1T2jiX99CUiBtAUov): all five P0 tasks.
 
 Newest first. One entry per session: date, account, branch, what changed, what's next.
 
+- **2026-11-10 · account 3 · `feature/extension-boards`**: Merged #20, #21 and #22 into `main` at the
+  owner's request (not deployed). Auto-apply **step 5c: Lever and Ashby** in the extension.
+  - **One form engine.** The Greenhouse-only code is now `extension/src/form.ts`, shared by every
+    board, plus `extension/src/boards.ts`, which describes each board as read from real postings
+    (Greenhouse: Zscaler; Lever: Meesho; Ashby: Tekion).
+  - **Lever:** named controls in `li.application-question`, ✱ for required. The resume goes in
+    first because Lever fills fields from it, then our answers. Submit is `#btn-submit`, and
+    hCaptcha's invisible check is not taken for a puzzle.
+  - **Ashby:** `data-field-path` entries, Yes/No buttons, and a location autocomplete (a written
+    answer picks the suggestion that starts with it). Options without values are told apart by
+    their words. Questions with several inputs (education history) go to the student.
+  - **Answers:** neither board offers its questions in an API, so the extension reads the page and
+    the server's answer rules answer it.
+  - **Also:** fixed a race in `runner.db.test.ts` (backdating a job before its first run) that
+    failed CI on #22.
+  - **Next:** step 6. Load the extension in Chrome with Playwright against mock boards built from
+    `extension/src/test/*-page.ts` with real react-select, a load test, then a dry-run pilot. Do not
+    test on real employers' forms.
+
 - **2026-11-10 · account 3 · `feature/extension`**: Auto-apply **step 5b, the Chrome extension**
   (`extension/`; built on #21, which is built on #20, so merge those first). Build with
   `yarn extension:build`, then load `extension/dist` unpacked; `extension/README.md` explains the

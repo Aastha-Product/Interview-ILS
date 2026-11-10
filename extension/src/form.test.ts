@@ -2,7 +2,8 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import { comboboxChoices } from "./fill";
 import "./test/data-transfer";
-import { challengeShown, emptyRequired, fill, findForm, isGreenhouse, outcome, readFields, submitButton } from "./greenhouse";
+import { boardFor, greenhouse } from "./boards";
+import { challengeShown, emptyRequired, fill, outcome, readFields } from "./form";
 import { confirmationPage, greenhousePage } from "./test/greenhouse-page";
 
 const resume = new File(["%PDF"], "Asha Rao - Resume.pdf", { type: "application/pdf" });
@@ -16,16 +17,15 @@ beforeEach(() => {
 
 describe("Greenhouse's form (auto-apply step 5b)", () => {
   it("finds the form only on Greenhouse's own pages", () => {
-    expect(findForm(document)).toBe(form);
-    expect(isGreenhouse("job-boards.greenhouse.io")).toBe(true);
-    expect(isGreenhouse("boards.greenhouse.io")).toBe(true);
-    expect(isGreenhouse("www.okta.com")).toBe(false);
-    expect(isGreenhouse("greenhouse.io.evil.example")).toBe(false);
+    expect(greenhouse.findForm(document)).toBe(form);
+    expect(boardFor("job-boards.greenhouse.io")).toBe(greenhouse);
+    expect(boardFor("boards.greenhouse.io")).toBe(greenhouse);
+    expect(boardFor("www.okta.com")).toBeNull();
+    expect(boardFor("greenhouse.io.evil.example")).toBeNull();
   });
 
   it("fills the server's answers: text, drop-downs (also ones that only show what's typed), checkboxes and the resume", async () => {
-    const unfilled = await fill(
-      form,
+    const unfilled = await fill(greenhouse, form,
       {
         first_name: { kind: "text", value: "Asha" },
         last_name: { kind: "text", value: "Rao" },
@@ -50,19 +50,20 @@ describe("Greenhouse's form (auto-apply step 5b)", () => {
   });
 
   it("finds multi-selects named with or without []", async () => {
-    expect(await fill(form, { question_2: { kind: "options", values: [], labels: ["Other"] }, question_4: { kind: "options", values: ["77"], labels: [] } }, {})).toEqual([]);
+    expect(await fill(greenhouse, form, { question_2: { kind: "options", values: [], labels: ["Other"] }, question_4: { kind: "options", values: ["77"], labels: [] } }, {})).toEqual([]);
     expect(comboboxChoices(input("question_2[]"))).toEqual(["Other"]);
     expect(input("question_4[]_77").checked).toBe(true);
   });
 
   it("says which answers didn't fit, by the question's wording", async () => {
-    const unfilled = await fill(form, { question_1: { kind: "option", value: "x", label: "Maybe" }, resume: { kind: "file", file: "resume" } }, {});
-    expect(unfilled).toEqual(["Are you legally authorized to work in India?", "Resume/CV"]);
+    const unfilled = await fill(greenhouse, form, { question_1: { kind: "option", value: "x", label: "Maybe" }, resume: { kind: "file", file: "resume" } }, {});
+    // Files go in first.
+    expect(unfilled).toEqual(["Resume/CV", "Are you legally authorized to work in India?"]);
   });
 
   it("lists the required questions still empty, with their options, for the server to answer", async () => {
-    await fill(form, { first_name: { kind: "text", value: "Asha" }, question_1: { kind: "option", value: "1", label: "Yes" } }, {});
-    const empty = await emptyRequired(form);
+    await fill(greenhouse, form, { first_name: { kind: "text", value: "Asha" }, question_1: { kind: "option", value: "1", label: "Yes" } }, {});
+    const empty = await emptyRequired(greenhouse, form);
     expect(empty.map((field) => field.label)).toEqual(["Last Name", "Email", "Resume/CV", "Country", "How did you hear about us?", "Sex", "I agree to the privacy notice"]);
     expect(empty.find((field) => field.key === "4014225007")).toEqual({ key: "4014225007", label: "Sex", required: true, type: "single", options: ["Male", "Female", "Decline To Self Identify"].map((label) => ({ label, value: label })) });
     expect(empty.find((field) => field.key === "question_2[]")?.type).toBe("multi");
@@ -72,7 +73,7 @@ describe("Greenhouse's form (auto-apply step 5b)", () => {
   });
 
   it("reads every question when the server couldn't", async () => {
-    const fields = await readFields(form);
+    const fields = await readFields(greenhouse, form);
     expect(fields.map((field) => [field.key, field.type, field.required])).toEqual([
       ["first_name", "text", true],
       ["last_name", "text", true],
@@ -97,10 +98,10 @@ describe("Greenhouse's form (auto-apply step 5b)", () => {
       extra: `<label for="question_5">Notice period</label><select id="question_5"><option value="">Pick</option><option value="30">30 days</option></select>
         <fieldset><legend>Relocate?</legend><label><input type="radio" name="question_6" value="y">Yes</label><label><input type="radio" name="question_6" value="n">No</label></fieldset>`,
     });
-    expect(await fill(form, { question_5: { kind: "option", value: "30", label: "30 days" }, question_6: { kind: "option", value: "n", label: "No" } }, {})).toEqual([]);
+    expect(await fill(greenhouse, form, { question_5: { kind: "option", value: "30", label: "30 days" }, question_6: { kind: "option", value: "n", label: "No" } }, {})).toEqual([]);
     expect((document.getElementById("question_5") as HTMLSelectElement).value).toBe("30");
     expect((document.querySelector('input[value="n"]') as HTMLInputElement).checked).toBe(true);
-    expect((await readFields(form)).filter((field) => field.key.startsWith("question_")).map((field) => [field.key, field.type, field.options.length])).toEqual([
+    expect((await readFields(greenhouse, form)).filter((field) => field.key.startsWith("question_")).map((field) => [field.key, field.type, field.options.length])).toEqual([
       ["question_3", "textarea", 0],
       ["question_4[]", "multi", 1],
       ["question_5", "single", 1],
@@ -109,34 +110,34 @@ describe("Greenhouse's form (auto-apply step 5b)", () => {
   });
 
   it("finds the Submit button", () => {
-    expect(submitButton(form)?.textContent).toBe("Submit application");
+    expect(greenhouse.submitButton(form)?.textContent).toBe("Submit application");
   });
 });
 
 describe("what the page says after Submit", () => {
   it("nothing yet while the form is still there without errors", () => {
-    expect(outcome(document, at)).toBeNull();
+    expect(outcome(greenhouse, document, at)).toBeNull();
   });
 
   it("a confirmation, with its words as evidence", () => {
     confirmationPage(document);
-    expect(outcome(document, at)).toEqual({ kind: "confirmed", text: expect.stringContaining("Thank you for applying.") });
-    expect(outcome(document, { pathname: "/acme/jobs/1/confirmation", href: "" })?.kind).toBe("confirmed");
+    expect(outcome(greenhouse, document, at)).toEqual({ kind: "confirmed", text: expect.stringContaining("Thank you for applying.") });
+    expect(outcome(greenhouse, document, { pathname: "/acme/jobs/1/confirmation", href: "" })?.kind).toBe("confirmed");
   });
 
   it("never takes thanks on the form's own page for a confirmation", () => {
     form.insertAdjacentHTML("afterbegin", "<p>Thank you for your interest in Acme!</p>");
-    expect(outcome(document, at)).toBeNull();
+    expect(outcome(greenhouse, document, at)).toBeNull();
   });
 
   it("an error the form shows", () => {
     form.insertAdjacentHTML("beforeend", '<p class="helper-text--error" id="email-error">Enter a valid email</p>');
-    expect(outcome(document, at)).toEqual({ kind: "error", text: "Enter a valid email" });
+    expect(outcome(greenhouse, document, at)).toEqual({ kind: "error", text: "Enter a valid email" });
   });
 
   it("an emailed code", () => {
     form.insertAdjacentHTML("beforeend", '<p>Enter the 8-character security code sent to your email.</p><input id="security-input-0">');
-    expect(outcome(document, at)).toEqual({ kind: "email-code" });
+    expect(outcome(greenhouse, document, at)).toEqual({ kind: "email-code" });
   });
 
   it("a puzzle, but not reCAPTCHA's invisible check", () => {
@@ -144,7 +145,7 @@ describe("what the page says after Submit", () => {
     expect(challengeShown(document)).toBe(false);
     form.insertAdjacentHTML("beforeend", '<div><iframe src="https://www.google.com/recaptcha/api2/bframe?k=1"></iframe></div>');
     expect(challengeShown(document)).toBe(true);
-    expect(outcome(document, at)).toEqual({ kind: "challenge" });
+    expect(outcome(greenhouse, document, at)).toEqual({ kind: "challenge" });
   });
 
   it("a visible \"I'm not a robot\" box, or hCaptcha, or Cloudflare's check", () => {

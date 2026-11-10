@@ -56,11 +56,24 @@ export function chooseInSelect(select: HTMLSelectElement, wanted: { values: stri
 export function chooseInputs(inputs: HTMLInputElement[], wanted: { values: string[]; labels: string[] }): boolean {
   const values = new Set(wanted.values);
   const labels = new Set(wanted.labels.map(norm));
-  const want = (input: HTMLInputElement) => values.has(input.value) || labels.has(norm(labelOf(input)));
+  // Ashby's options have no values (each reads "on"): then only their words tell them apart.
+  const distinct = new Set(inputs.map((input) => input.value)).size === inputs.length;
+  const want = (input: HTMLInputElement) => (distinct && values.has(input.value)) || labels.has(norm(choiceLabel(input)));
   if (!inputs.some(want)) return false;
   // click() sends the click React listens to for checkboxes, and toggles like a person would.
   for (const input of inputs) if (input.checked !== want(input)) input.click();
   return inputs.every((input) => input.checked === want(input));
+}
+
+/** A checkbox's or radio button's own words: its <label>, or the text right beside it. */
+export function choiceLabel(input: HTMLInputElement): string {
+  const text = (element: Element) => (element.textContent ?? "").replace(/\s+/g, " ").trim();
+  const doc = input.ownerDocument;
+  const byFor = input.id ? doc.querySelectorAll(`label[for="${CSS.escape(input.id)}"]`) : [];
+  // Ashby gives every option of a question the same id, so a label for it is ambiguous.
+  const own = byFor.length === 1 ? byFor[0] : input.closest("label");
+  const words = own ? text(own) : text(input.nextElementSibling ?? input.parentElement ?? input);
+  return words || input.value;
 }
 
 /** The text of the label for an input: <label for>, a wrapping <label>, or aria-label. */
@@ -74,18 +87,34 @@ export function labelOf(element: Element): string {
 // react-select, which Greenhouse uses for every drop-down: its input has role="combobox", and its
 // options render, once its menu opens, in #react-select-{id}-listbox.
 
-const listboxOf = (input: HTMLInputElement) => input.ownerDocument.getElementById(`react-select-${input.id}-listbox`) ?? input.ownerDocument.getElementById(input.getAttribute("aria-controls") ?? "");
+/** Where a combobox's options show: react-select's own listbox, the one it names, or one beside it (Ashby). */
+function listboxOf(input: HTMLInputElement): Element | null {
+  const doc = input.ownerDocument;
+  return (
+    (input.id ? doc.getElementById(`react-select-${input.id}-listbox`) : null) ??
+    doc.getElementById(input.getAttribute("aria-controls") ?? "") ??
+    input.closest(".ashby-application-form-field-entry, [class*='container']")?.querySelector('[role="listbox"]') ??
+    null
+  );
+}
 const optionsOf = (input: HTMLInputElement) => Array.from(listboxOf(input)?.querySelectorAll<HTMLElement>('[role="option"]') ?? []);
-const controlOf = (input: HTMLInputElement) => input.closest<HTMLElement>('[class*="control"]') ?? input.parentElement;
+const reactSelectOf = (input: HTMLInputElement) => input.closest<HTMLElement>('[class*="select__control"], [class*="-control"]');
+const controlOf = (input: HTMLInputElement) => reactSelectOf(input) ?? input.parentElement;
 
-/** What a react-select shows as chosen. */
+/** What a combobox shows as chosen: react-select's values, or (an autocomplete) the input's text. */
 export function comboboxChoices(input: HTMLInputElement): string[] {
-  const control = controlOf(input);
-  if (!control) return [];
+  const control = reactSelectOf(input);
+  if (!control) return input.value.trim() ? [input.value.trim()] : [];
   const multi = Array.from(control.querySelectorAll('[class*="multi-value__label"], [class*="multiValue"] > div:first-child')).map((node) => node.textContent ?? "");
   if (multi.length > 0) return multi;
   const single = control.querySelector('[class*="single-value"], [class*="singleValue"]')?.textContent;
   return single ? [single] : [];
+}
+
+/** The same option: exactly, or (loose, for a written answer) one that starts with it, else contains it. */
+function matches(text: string | null | undefined, label: string, loose: boolean): boolean {
+  const [have, want] = [norm(text), norm(label)];
+  return have === want || (loose && want !== "" && (have.startsWith(want) || have.includes(want)));
 }
 
 /** Opens a react-select's menu without focus: the drop-down arrow's mousedown opens it whatever the focus. */
@@ -119,17 +148,22 @@ function closeMenu(input: HTMLInputElement) {
   input.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", code: "Escape", keyCode: 27, bubbles: true }));
 }
 
-const pickFrom = (options: HTMLElement[], label: string) => options.find((option) => norm(option.textContent) === norm(label)) ?? null;
+function pickFrom(options: HTMLElement[], label: string, loose: boolean): HTMLElement | null {
+  return options.find((option) => matches(option.textContent, label, false)) ?? (loose ? (options.find((option) => matches(option.textContent, label, true)) ?? null) : null);
+}
 
-/** Chooses `labels` in a react-select: opens its menu (or types the label to filter it) and clicks each option. */
-export async function chooseInCombobox(input: HTMLInputElement, labels: string[]): Promise<boolean> {
+/** Chooses `labels` in a combobox: opens its menu (or types the label to filter it) and clicks each option. */
+export async function chooseInCombobox(input: HTMLInputElement, labels: string[], { loose = false } = {}): Promise<boolean> {
+  const chosen = () => comboboxChoices(input);
+  // An autocomplete shows what's typed as its value: only a react-select's values count before choosing.
+  const already = (label: string) => reactSelectOf(input) !== null && chosen().some((value) => matches(value, label, loose));
   for (const label of labels) {
-    if (comboboxChoices(input).some((chosen) => norm(chosen) === norm(label))) continue;
-    let option = pickFrom(await openMenu(input), label);
+    if (already(label)) continue;
+    let option = reactSelectOf(input) ? pickFrom(await openMenu(input), label, loose) : null;
     if (!option) {
-      // Long lists (countries, schools) may only show what's typed.
+      // Long lists (countries, schools, places) may only show what's typed.
       setValue(input, label);
-      option = await until(() => pickFrom(optionsOf(input), label), { timeout: 3000, every: 150 });
+      option = await until(() => pickFrom(optionsOf(input), label, loose), { timeout: 3000, every: 150 });
     }
     if (!option) {
       // Nothing fits: no stray search text left behind for the student.
@@ -137,13 +171,14 @@ export async function chooseInCombobox(input: HTMLInputElement, labels: string[]
       closeMenu(input);
       return false;
     }
+    const picked = option.textContent ?? label;
     option.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+    option.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true, button: 0 }));
     option.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, button: 0 }));
-    await until(() => comboboxChoices(input).some((chosen) => norm(chosen) === norm(label)), { timeout: 2000, every: 100 });
+    await until(() => chosen().some((value) => matches(value, picked, false)) && optionsOf(input).length === 0, { timeout: 2000, every: 100 });
   }
   closeMenu(input);
-  const chosen = new Set(comboboxChoices(input).map(norm));
-  return labels.every((label) => chosen.has(norm(label)));
+  return labels.every((label) => chosen().some((value) => matches(value, label, loose)));
 }
 
 /** A PDF from Pathfinder, as a File to attach. */

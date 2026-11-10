@@ -18,7 +18,7 @@ yarn extension:build        # writes extension/dist
 | --- | --- | --- |
 | Background worker | `src/background.ts` (entry `src/worker.ts`) | Every minute: if connected and idle, leases the next application (`POST /api/ext/lease`), opens the job in a background tab, and injects the apply script on each page load there. It's the only part that calls Pathfinder: the tab asks it for answers, PDFs and reports. |
 | Apply script | `src/run.ts` (entry `src/apply.ts`) | In the job's tab. It finds the form and fills in the server's answers. It asks the server about required questions its copy lacked, such as demographics or a consent box. Then it stops for anything only the student can do. Otherwise it reports *submitting*, presses Submit once, and reports only what the page shows. |
-| Greenhouse | `src/greenhouse.ts`, `src/fill.ts` | Fills Greenhouse's hosted form (`job-boards.greenhouse.io`): text fields, react-select drop-downs, checkboxes, and PDFs attached through `DataTransfer`. |
+| Job boards | `src/boards.ts`, `src/form.ts`, `src/fill.ts` | `boards.ts` describes where each board's form is and what its questions look like; `form.ts` reads, fills and checks them the same way for all three.<br>**Greenhouse** (`job-boards.greenhouse.io`): ids are the API's field names, drop-downs are react-select.<br>**Lever** (`jobs.lever.co`): named controls, ✱ for required. The resume goes in first because Lever fills fields from it.<br>**Ashby** (`jobs.ashbyhq.com`): `data-field-path` entries, Yes/No buttons and a location autocomplete. PDFs are attached through `DataTransfer`. |
 | Bridge | `src/bridge.ts` | On Pathfinder's page: answers the page's ping and passes the token to the worker. It never sends the token back to the page. |
 
 ## Safety rules (tested)
@@ -31,6 +31,6 @@ yarn extension:build        # writes extension/dist
 
 ## Not yet
 
-- **Lever and Ashby:** step 5c.
-- **Testing in real Chrome:** the form filling is tested against a copy of Greenhouse's markup, read from real postings on 10 November 2026. Step 6 runs it in Chrome against mock job boards, then a dry-run pilot. Greenhouse's react-select may still need adjusting then.
+- **Testing in real Chrome:** the form filling is tested against copies of each board's markup, read from real postings on 10 November 2026 (Greenhouse: Zscaler; Lever: Meesho; Ashby: Tekion). Step 6 runs it in Chrome against mock job boards, then a dry-run pilot. Greenhouse's react-select and Ashby's autocomplete may still need adjusting then.
+- **Questions with several inputs:** for example, Ashby's education history. These go to the student when required.
 - **Chrome Web Store listing:** needs the owner's developer account and a privacy policy for the store.
