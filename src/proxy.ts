@@ -21,6 +21,9 @@ const PUBLIC_PAGES = new Set(["/welcome", "/login", "/signup", "/reset-password"
 /** The Claude connector's endpoint, its sign-in and the metadata that points to them. */
 const CONNECTOR_PATHS = /^\/(?:api\/(?:mcp|oauth)(?:\/|$)|\.well-known\/oauth-(?:authorization-server|protected-resource)(?:\/|$))/;
 
+/** Pathfinder: the extension's API, which checks the extension's own token (src/lib/extension/route.ts). */
+const EXTENSION_PATHS = /^\/api\/ext(?:\/|$)/;
+
 /** Startups' screen (#222); Pathfinder answers 404 for it unless PATHFINDER_STARTUPS=on. */
 const STARTUPS_PATHS = /^\/startups(?:\/|$)/;
 
@@ -37,6 +40,8 @@ export async function proxy(request: NextRequest) {
   // The Claude connector (#221) brings its own credentials, an OAuth token,
   // which its routes check; they answer 404 while it's off.
   if (CONNECTOR_PATHS.test(pathname)) return NextResponse.next();
+  // Pathfinder: so does the extension, with its token; its routes answer 401 without a valid one.
+  if (EXTENSION_PATHS.test(pathname)) return NextResponse.next();
   // Pathfinder: Startups is off unless PATHFINDER_STARTUPS=on. Its layout answers 404 too, but
   // only after the loading screen has started streaming, with a 200; this is a real 404.
   if (STARTUPS_PATHS.test(pathname) && env.PATHFINDER_STARTUPS !== "on") return pass(request, new URL("/_not-found", request.url));

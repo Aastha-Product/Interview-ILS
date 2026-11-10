@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { EMPTY_ANSWERS } from "@/lib/apply/answers";
 import type { AutoApplyScreenView } from "@/lib/apply/view";
 
-import { prepareApplicationAgain, saveJobSearch, skipApplication, switchAutoApply } from "./actions";
+import { markApplied, prepareApplicationAgain, saveJobSearch, skipApplication, switchAutoApply } from "./actions";
 import { AutoApplyScreen } from "./auto-apply-screen";
 import { listFrom, SetupScreen } from "./setup/setup-screen";
 
@@ -19,6 +19,7 @@ vi.mock("./actions", () => ({
   findMatchesNow: vi.fn(async () => ({ ok: true, data: { jobId: "run" } })),
   skipApplication: vi.fn(async () => ({ ok: true, data: null })),
   prepareApplicationAgain: vi.fn(async () => ({ ok: true, data: null })),
+  markApplied: vi.fn(async () => ({ ok: true, data: null })),
 }));
 
 const preferences = { titles: ["Data Analyst"], skills: ["SQL"], countries: ["in"], cities: [], remoteOk: true, level: "entry" as const, employmentTypes: [] };
@@ -64,6 +65,18 @@ describe("the auto-apply dashboard (auto-apply step 4)", () => {
     await userEvent.click(screen.getByRole("button", { name: "Skip" }));
     expect(skipApplication).toHaveBeenCalledWith({ taskId: "t1" });
     expect(router.refresh).toHaveBeenCalled();
+  });
+
+  it("lets the student say they applied themselves, and skip one that's uncertain (step 5)", async () => {
+    const uncertain = { ...view().tasks[1], id: "t3", state: "UNCERTAIN" as const, reason: "Check whether it went through." };
+    render(<AutoApplyScreen view={view({ tasks: [...view().tasks, uncertain] })} />);
+    const rows = screen.getAllByRole("listitem");
+    expect(within(rows[1]).queryByRole("button", { name: "Mark as applied" })).toBeNull();
+    expect(within(rows[2]).getByText("Check this one")).toBeInTheDocument();
+    expect(within(rows[2]).getByRole("button", { name: "Skip" })).toBeInTheDocument();
+    await userEvent.click(within(rows[2]).getByRole("button", { name: "Mark as applied" }));
+    expect(markApplied).toHaveBeenCalledWith({ taskId: "t3" });
+    expect(screen.getByRole("link", { name: "Connect the extension" })).toHaveAttribute("href", "/auto-apply/extension");
   });
 
   it("offers Try again for an application waiting on the student", async () => {

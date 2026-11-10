@@ -5,7 +5,9 @@ import { z } from "zod";
 
 import { ApplyState } from "@/generated/prisma/enums";
 import { ActionError, toolAction } from "@/lib/action";
+import { markAppliedByStudent } from "@/lib/apply/lease";
 import { planApplications, prepareAgain } from "@/lib/apply/prepare";
+import { createExtensionToken, revokeExtensionToken } from "@/lib/extension/tokens";
 import { AutoApplyNotReady, giveConsent, loadAutoApply, saveAutoApply, setAutoApplyEnabled, settingsInputSchema } from "@/lib/apply/settings";
 import { startMatchRun } from "@/lib/match/jobs";
 import { prisma } from "@/lib/prisma";
@@ -13,7 +15,7 @@ import { prisma } from "@/lib/prisma";
 // Pathfinder (auto-apply step 4): the auto-apply screens' actions. Nothing here submits anything:
 // that's the extension's, from the student's own browser (step 5).
 
-const PATHS = ["/auto-apply", "/auto-apply/setup"];
+const PATHS = ["/auto-apply", "/auto-apply/setup", "/auto-apply/extension"];
 const refresh = () => PATHS.forEach((path) => revalidatePath(path));
 
 /** Set up job search: what to look for, the answers forms ask for, and the limits. */
@@ -68,10 +70,39 @@ export const prepareApplicationAgain = toolAction(z.object({ taskId: z.string().
   return null;
 });
 
-/** Skip: the job won't be applied for. Not once the browser may be submitting it. */
+/** Mark as applied: after a dry run the student submitted themselves, or an uncertain one they checked. */
+export const markApplied = toolAction(z.object({ taskId: z.string().min(1) }), async ({ taskId }, { toast }) => {
+  if (!(await markAppliedByStudent(taskId))) throw new ActionError("That application can't be marked applied now.");
+  refresh();
+  toast("Marked as applied.");
+  return null;
+});
+
+/**
+ * Connect the extension: a token for this browser's Pathfinder extension. The page hands it to the
+ * extension and never shows it; it's the only time it exists outside the extension.
+ */
+export const connectExtension = toolAction(z.object({ label: z.string().max(100) }), async ({ label }) => {
+  const { token } = await createExtensionToken(label);
+  refresh();
+  return { token };
+});
+
+/** Disconnect a browser: its extension is refused from now on. */
+export const disconnectExtension = toolAction(z.object({ id: z.string().min(1) }), async ({ id }, { toast }) => {
+  if (!(await revokeExtensionToken(id))) throw new ActionError("That browser is already disconnected.");
+  refresh();
+  toast("Disconnected.");
+  return null;
+});
+
+/**
+ * Skip: the job won't be applied for. Not while a browser holds it or may be submitting it; an
+ * uncertain one the student checked and found not sent can be.
+ */
 export const skipApplication = toolAction(z.object({ taskId: z.string().min(1) }), async ({ taskId }) => {
   const { count } = await prisma.applyTask.updateMany({
-    where: { id: taskId, state: { in: [ApplyState.PREPARING, ApplyState.READY, ApplyState.NEEDS_STUDENT, ApplyState.FAILED] } },
+    where: { id: taskId, state: { in: [ApplyState.PREPARING, ApplyState.READY, ApplyState.NEEDS_STUDENT, ApplyState.FAILED, ApplyState.UNCERTAIN] } },
     data: { state: ApplyState.SKIPPED, reason: "You skipped it." },
   });
   if (count === 0) throw new ActionError("That application can't be skipped now.");
