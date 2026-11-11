@@ -12,6 +12,14 @@ yarn extension:build        # writes extension/dist
 2. In Pathfinder, go to **Auto-apply → Connect the extension** (`/auto-apply/extension`) and press **Connect it to my account**. The bridge only works on `pathfinderedtech.com`, `www.pathfinderedtech.com` and `http://localhost:3000`.
 3. Keep **Dry run** on in Set up job search while trying it. The extension fills the form and stops before Submit. The application shows "Needs you" with the form left open in a tab.
 
+## Publish it
+
+```bash
+yarn extension:package      # writes extension/release/pathfinder-extension-<version>.zip
+```
+
+That zip is what the Chrome Web Store takes. It's minified, and it leaves out the local development address (`localhost:3000`), so no program on a student's computer can hand it a key. `extension/build.test.ts` checks both. What to fill in on the store's dashboard, and what the owner still has to do first, is in [`store/listing.md`](store/listing.md).
+
 ## How it works
 
 | Part | File | Runs |

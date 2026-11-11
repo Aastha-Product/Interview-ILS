@@ -17,7 +17,7 @@ async function found({ version, url }: { version: string; url: string }) {
   ]) {
     await sql(
       `INSERT INTO "Setting" (key, value, "updatedAt") VALUES ($1, $2, now())
-       ON CONFLICT (key) DO UPDATE SET value = $2, "updatedAt" = now()`,
+       ON CONFLICT ("userId", key) DO UPDATE SET value = $2, "updatedAt" = now()`,
       [key, value],
     );
   }
@@ -43,7 +43,9 @@ test("says a newer release is out until Not now, and again for the next one", as
 
   await page.goto("/settings?section=about");
   await expect(page.getByText("Version 99.0.0 is available.")).toBeVisible();
-  await expect(page.getByRole("switch", { name: "Check for updates daily" })).toHaveAttribute("aria-checked", "true");
+  // The daily check is off by default in Pathfinder (the v1 plan); the notice comes from a check
+  // made anyway, here the one found() stored.
+  await expect(page.getByRole("switch", { name: "Check for updates daily" })).toHaveAttribute("aria-checked", "false");
 
   await notice.getByRole("button", { name: "Not now" }).click();
   await expect(notice).toBeHidden();

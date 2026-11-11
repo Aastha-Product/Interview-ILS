@@ -9,6 +9,7 @@ setup("sign in", async ({ page }) => {
   await page.getByLabel("Email").fill(E2E_EMAIL);
   await page.getByLabel("Access code", { exact: true }).fill(PASSWORD);
   await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(page).toHaveURL("/");
+  // Students land on the resume analysis (HOME_PATH, src/lib/auth/next-path.ts).
+  await expect(page).toHaveURL("/analyze");
   await page.context().storageState({ path: STORAGE_STATE });
 });
