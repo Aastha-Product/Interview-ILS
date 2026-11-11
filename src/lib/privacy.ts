@@ -18,7 +18,7 @@ export const PRIVACY_CONTACTS: PrivacyContacts = {
 };
 
 /** When the notice last changed; shown at its top. */
-export const PRIVACY_UPDATED = "6 November 2026";
+export const PRIVACY_UPDATED = "11 November 2026";
 
 /** The placeholder shown for a contact that isn't filled in yet. */
 export const PRIVACY_PLACEHOLDERS: Record<keyof PrivacyContacts, string> = {

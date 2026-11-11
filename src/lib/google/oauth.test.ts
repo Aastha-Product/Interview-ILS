@@ -9,16 +9,24 @@ import { authorizeUrl, emailFromIdToken, hasScopes, redirectUri, resolveGoogleCl
 const secret = "a".repeat(40);
 
 describe("OAuth state", () => {
+  const userId = "student-a";
+
   it("comes back only from this server, within ten minutes", async () => {
-    const state = await signState("/settings?section=google", secret);
-    expect(await verifyState(state, { secret })).toBe("/settings?section=google");
-    expect(await verifyState(state, { secret: "b".repeat(40) })).toBeNull();
-    expect(await verifyState(state, { secret, now: new Date(Date.now() + 11 * 60_000) })).toBeNull();
-    expect(await verifyState(null, { secret })).toBeNull();
+    const state = await signState("/settings?section=google", userId, secret);
+    expect(await verifyState(state, { userId, secret })).toBe("/settings?section=google");
+    expect(await verifyState(state, { userId, secret: "b".repeat(40) })).toBeNull();
+    expect(await verifyState(state, { userId, secret, now: new Date(Date.now() + 11 * 60_000) })).toBeNull();
+    expect(await verifyState(null, { userId, secret })).toBeNull();
+  });
+
+  it("is only good for the student who started connecting (QA M-5)", async () => {
+    const state = await signState("/settings?section=google", userId, secret);
+    expect(await verifyState(state, { userId: "student-b", secret })).toBeNull();
+    expect(await verifyState(state, { userId: "", secret })).toBeNull();
   });
 
   it("never sends the browser to another site", async () => {
-    expect(await verifyState(await signState("//evil.example", secret), { secret })).toBe("/settings?section=google");
+    expect(await verifyState(await signState("//evil.example", userId, secret), { userId, secret })).toBe("/settings?section=google");
   });
 });
 

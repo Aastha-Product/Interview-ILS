@@ -5,8 +5,14 @@ export async function register() {
     const { checkEnvOnStartup } = await import("@/lib/env");
     checkEnvOnStartup();
 
-    // Pathfinder: the shared access code lets anyone who has it in as any email.
-    const { signInMode } = await import("@/lib/auth/google-sign-in");
+    // Pathfinder: the shared access code lets anyone who has it in as any email. In production it
+    // must be chosen on purpose (QA C-3); otherwise the server doesn't start.
+    const { accessCodeProblem, signInMode } = await import("@/lib/auth/google-sign-in");
+    const problem = accessCodeProblem();
+    if (problem) {
+      console.error(`Dossier can't start: ${problem}`);
+      process.exit(1);
+    }
     if (signInMode() === "code" && process.env.NODE_ENV === "production") {
       console.warn(
         "Sign-in: students sign in with the shared access code (DOSSIER_PASSWORD), and anyone with it can sign in as any email. " +

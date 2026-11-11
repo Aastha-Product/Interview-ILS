@@ -20,6 +20,12 @@ export type AiConfig = {
   apiKeyProblem: string | null;
   /** Whether the key is the server's own (DOSSIER_AI_KEY), shared by every student (Pathfinder). */
   sharedKey: boolean;
+  /**
+   * Whether the address is the student's choice (saved in Settings, or its provider's default),
+   * so only a public one is reached (Pathfinder, QA M-2; src/lib/ai/address-guard.ts). The
+   * server's own (DOSSIER_AI_URL) isn't checked, nor any with PATHFINDER_PRIVATE_AI=on.
+   */
+  publicOnly: boolean;
   timeoutMs: number;
 };
 
@@ -51,7 +57,7 @@ type SavedSettings = {
 type AiEnv = Pick<
   Env,
   "DOSSIER_AI_PROVIDER" | "DOSSIER_AI_URL" | "DOSSIER_AI_MODEL" | "DOSSIER_AI_KEY" | "DOSSIER_AI_TIMEOUT_SECONDS"
->;
+> & { PATHFINDER_PRIVATE_AI?: "on" | "off" };
 
 /**
  * Settings win once a provider is saved there; until then the environment
@@ -93,6 +99,7 @@ export function resolveAiConfig(saved: SavedSettings | null, source: AiEnv, secr
     apiKey,
     apiKeyProblem,
     sharedKey,
+    publicOnly: fromSaved && source.PATHFINDER_PRIVATE_AI !== "on",
     timeoutMs: (source.DOSSIER_AI_TIMEOUT_SECONDS ?? defaults.timeoutSeconds) * 1000,
   };
 }

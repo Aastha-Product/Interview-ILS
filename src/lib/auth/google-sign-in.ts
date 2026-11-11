@@ -58,6 +58,21 @@ export function signInMode(source: SignInEnv = env): "firebase" | "google" | "co
   return signInClient(source) ? "google" : "code";
 }
 
+/**
+ * Why a production server mustn't start (Pathfinder, QA C-3): with neither Firebase nor Google
+ * set up, sign-in falls back to the shared access code, which lets anyone who has it in as any
+ * email. That has to be chosen on purpose (PATHFINDER_SIGN_IN=code, for a trial), never reached
+ * by a missing setting. Null when there's nothing wrong.
+ */
+export function accessCodeProblem(source: SignInEnv = env, nodeEnv = process.env.NODE_ENV): string | null {
+  if (nodeEnv !== "production" || signInMode(source) !== "code" || source.PATHFINDER_SIGN_IN === "code") return null;
+  return (
+    "Sign-in isn't set up: without the Firebase project (PATHFINDER_FIREBASE_*) or a Google client (DOSSIER_GOOGLE_CLIENT_ID and " +
+    "DOSSIER_GOOGLE_CLIENT_SECRET), students would sign in with the shared access code, as any email. Set one of them up, or set " +
+    "PATHFINDER_SIGN_IN=code to run a trial on the access code on purpose."
+  );
+}
+
 /** Where Google sends the browser back to: DOSSIER_PUBLIC_URL, else the address in use. */
 export function signInRedirectUri(origin: string): string {
   return `${env.DOSSIER_PUBLIC_URL ?? origin}${SIGN_IN_CALLBACK_PATH}`;
