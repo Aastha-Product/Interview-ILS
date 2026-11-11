@@ -2,6 +2,7 @@ import "server-only";
 
 import { AiProvider } from "@/generated/prisma/enums";
 
+import { withAddressGuard } from "./address-guard";
 import { loadAiConfig, type AiConfig } from "./config";
 import { withDailyLimit } from "./daily-limit";
 import { AiError } from "./errors";
@@ -17,8 +18,16 @@ import { OpenAICompatibleProvider } from "./providers/openai-compatible";
 export { AiError } from "./errors";
 export type { AIProvider, ChatMessage, CompletionRequest, JsonCompletionRequest } from "./provider";
 
-/** A provider for `config`. A saved key that can't be read stops hosted providers with a clear message. */
+/**
+ * A provider for `config`. A saved key that can't be read stops hosted providers with a clear
+ * message. A student's own address is checked before each request (QA M-2).
+ */
 export function createProvider(config: AiConfig): AIProvider {
+  const made = providerFor(config);
+  return config.publicOnly ? withAddressGuard(made, config.baseUrl) : made;
+}
+
+function providerFor(config: AiConfig): AIProvider {
   const { provider, baseUrl, model, apiKey, apiKeyProblem, timeoutMs } = config;
   if (apiKeyProblem && providerOption(provider).apiKey) throw AiError.config(apiKeyProblem);
   switch (provider) {

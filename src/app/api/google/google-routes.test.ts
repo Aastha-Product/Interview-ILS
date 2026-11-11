@@ -43,6 +43,14 @@ describe("GET /api/google/connect", () => {
     expect(url.searchParams.get("state")).toBeTruthy();
   });
 
+  it("makes a state only the student who started can use (QA M-5)", async () => {
+    const state = new URL((await connect(request("/api/google/connect"), undefined)).headers.get("location")!).searchParams.get("state")!;
+    vi.mocked(getSession).mockResolvedValue({ userId: "other-student", persistent: false, version: 0, issuedAt: new Date(), expiresAt: new Date() });
+    expect(new URL((await callback(request(`/api/google/callback?state=${state}&code=abc`))).headers.get("location")!).searchParams.get("google")).toBe("expired");
+    expect(exchangeCode).not.toHaveBeenCalled();
+    expect(saveGoogleAccount).not.toHaveBeenCalled();
+  });
+
   it("goes back to Settings when Google isn't set up", async () => {
     env.DOSSIER_GOOGLE_CLIENT_ID = undefined;
     const response = await connect(request("/api/google/connect"), undefined);
@@ -54,7 +62,7 @@ describe("GET /api/google/callback", () => {
   const back = (response: Response) => new URL(response.headers.get("location")!).searchParams.get("google");
 
   it("saves the account from a valid state and code", async () => {
-    const state = await signState("/settings?section=google");
+    const state = await signState("/settings?section=google", "test-student");
     const response = await callback(request(`/api/google/callback?state=${state}&code=abc`));
     expect(back(response)).toBe("connected");
     expect(exchangeCode).toHaveBeenCalledWith("abc", `${origin}/api/google/callback`);
@@ -63,7 +71,7 @@ describe("GET /api/google/callback", () => {
 
   it("refuses a forged state, a denial, and a visitor who isn't signed in", async () => {
     expect(back(await callback(request("/api/google/callback?state=forged&code=abc")))).toBe("expired");
-    const state = await signState("/settings?section=google");
+    const state = await signState("/settings?section=google", "test-student");
     expect(back(await callback(request(`/api/google/callback?state=${state}&error=access_denied`)))).toBe("denied");
     expect(back(await callback(request(`/api/google/callback?state=${state}`)))).toBe("failed");
     vi.mocked(getSession).mockResolvedValue(null);

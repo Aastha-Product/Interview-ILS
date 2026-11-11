@@ -98,6 +98,16 @@ const schema = z.object({
   DOSSIER_AI_MODEL: optional(z.string()),
   // Never echo the value: it's an API key.
   DOSSIER_AI_KEY: optional(z.string()),
+  // Pathfinder (QA M-2): "on" lets a student's AI provider address in Settings be on this
+  // server's own network (a model on the same machine, as in self-hosted Dossier). Off by default:
+  // with many students, nobody may point the server at its database or other containers.
+  PATHFINDER_PRIVATE_AI: optional(
+    z
+      .string()
+      .trim()
+      .toLowerCase()
+      .pipe(z.enum(["on", "off"], { error: (issue) => `PATHFINDER_PRIVATE_AI must be on or off (got "${String(issue.input)}").` })),
+  ),
   DOSSIER_AI_TIMEOUT_SECONDS: optional(
     z
       .string()
