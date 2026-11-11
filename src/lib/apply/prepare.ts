@@ -20,7 +20,7 @@ import { loadProfile } from "@/lib/profile-data";
 import { loadSettings } from "@/lib/settings-data";
 
 import { extensionCanApply } from "./appliable";
-import { answerForm, type AnswerContext, type FormAnswers } from "./answers";
+import { answerForm, missingFields, type AnswerContext, type FormAnswers, type FormField } from "./answers";
 import { greenhouseForm } from "./greenhouse-form";
 import { loadAutoApply } from "./settings";
 
@@ -184,10 +184,11 @@ async function prepare({ taskId }: { taskId: string }, context: JobContext): Pro
   if (!task || task.state !== ApplyState.PREPARING) return { state: task?.state ?? ApplyState.SKIPPED };
   const posting = await systemPrisma.sharedPosting.findUnique({ where: { id: task.sharedPostingId }, include: { company: { select: { boardToken: true } } } });
 
-  const finish = async (state: ApplyState, data: { reason?: string | null; answers?: FormAnswers["answers"] | null } = {}) => {
+  const finish = async (state: ApplyState, data: { reason?: string | null; answers?: FormAnswers["answers"] | null; questions?: FormField[] } = {}) => {
     await prisma.applyTask.updateMany({
       where: { id: taskId, state: ApplyState.PREPARING },
-      data: { state, reason: data.reason ?? null, ...(data.answers !== undefined ? { answers: data.answers ?? undefined } : {}) },
+      // The questions it waits on, for the student to answer on the Auto-apply page (questions.ts).
+      data: { state, reason: data.reason ?? null, questions: (data.questions ?? []).slice(0, 40), ...(data.answers !== undefined ? { answers: data.answers ?? undefined } : {}) },
     });
     return { state };
   };
@@ -202,7 +203,7 @@ async function prepare({ taskId }: { taskId: string }, context: JobContext): Pro
       await context.step("Reading the application form");
       const fields = await greenhouseForm(posting.company.boardToken, posting.externalId, context.signal);
       const form = answerForm(fields, await answerContext(posting.companyName, posting.location));
-      if (form.missing.length > 0) return finish(ApplyState.NEEDS_STUDENT, { reason: needsAnswers(form.missing), answers: form.answers });
+      if (form.missing.length > 0) return finish(ApplyState.NEEDS_STUDENT, { reason: needsAnswers(form.missing), answers: form.answers, questions: missingFields(fields, form.missing) });
       answers = form.answers;
     }
     if (!task.applicationId) await writeApplication(taskId, posting, task.jobMatch.score ?? 0, context);
@@ -227,7 +228,7 @@ export async function prepareAgain(taskId: string): Promise<boolean> {
   if (!task) return false;
   const { count } = await prisma.applyTask.updateMany({
     where: { id: taskId, state: { in: [ApplyState.NEEDS_STUDENT, ApplyState.FAILED] } },
-    data: { state: ApplyState.PREPARING, reason: null },
+    data: { state: ApplyState.PREPARING, reason: null, questions: [] },
   });
   if (count === 0) return false;
   await startJob(prepareApplicationJob, { taskId }, { key: prepareJobKey(taskId), priority: task.jobMatch.score ?? 0 });

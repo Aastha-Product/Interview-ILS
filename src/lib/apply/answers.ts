@@ -49,6 +49,24 @@ export const savedAnswersSchema = z.object({
   onsiteOk: yesNo,
   /** Why they're looking for a change, in their own words; asked of people who have worked. */
   reasonForChange: z.string().trim().max(1000).default(""),
+  /**
+   * Answers the student gave on the Auto-apply page to questions a form asked that nothing above
+   * covers ("Have you used PyTorch?"), by the question's wording (customKey). A later form asking
+   * the same thing in the same words gets the same answer.
+   */
+  custom: z
+    .record(
+      z.string().max(300),
+      z.object({
+        /** The question as the form worded it. */
+        label: z.string().max(500),
+        /** A written answer. */
+        text: z.string().max(2000).optional(),
+        /** The options chosen, by their words. */
+        options: z.array(z.string().max(500)).max(50).optional(),
+      }),
+    )
+    .default({}),
 });
 export type SavedAnswers = z.output<typeof savedAnswersSchema>;
 
@@ -59,7 +77,7 @@ export const EMPTY_ANSWERS: SavedAnswers = savedAnswersSchema.parse({});
 // starred on the page, and auto-apply stays off until all are given.
 
 /** A required answer: a saved answer, or the cities in what the student is looking for. */
-export type RequiredAnswer = keyof SavedAnswers | "cities";
+export type RequiredAnswer = Exclude<keyof SavedAnswers, "custom"> | "cities";
 
 /** What each is called in "Answer these first: …". */
 export const ANSWER_NAMES: Record<RequiredAnswer, string> = {
@@ -438,6 +456,10 @@ function optOut(field: FormField): Answer | null | "skip" {
 
 // Things a person must do themselves: sign or agree to a legal document, or waive a right. Never
 // answered, even when optional, so a form that asks waits for the student.
+// Questions about who the student is (gender, caste, disability): declined where the form lets
+// them, never asked on the Auto-apply page and never kept, so nothing that sensitive is stored.
+const DEMOGRAPHIC = /\b(gender|sex\b|race|ethnic|veteran|disabilit|sexual orientation|pronoun|transgender|caste)/;
+
 const NEVER = /\b(arbitration|nda|non disclosure agreement|waive|waiver|e ?signature|signature|sign (here|below|this)|(type|typing|enter) your (full |legal )?name)\b/;
 
 // Order matters: the first rule whose wording matches answers the question.
@@ -452,7 +474,7 @@ const RULES: Rule[] = [
     answer: (field, c) => yesNoAnswer(field, /relative|family|spouse|partner|child|parent|sibling/.test(normal(field.label)) ? c.saved.relativeOfGovernmentOfficial : c.saved.governmentOfficial),
   },
   { test: /employment agreement|post employment|restrictive covenant|non compete|non solicit|restrictions? (with|from) (your|a) (current|previous|past|former)/, answer: (field, c) => yesNoAnswer(field, c.saved.employmentRestrictions) },
-  { test: /\b(gender|sex\b|race|ethnic|veteran|disabilit|sexual orientation|pronoun|transgender|caste)/, answer: (field) => choose(field, DECLINE, "") ?? (field.required ? null : "skip") },
+  { test: DEMOGRAPHIC, answer: (field) => choose(field, DECLINE, "") ?? (field.required ? null : "skip") },
   { test: /(authori[sz]ed|eligible|legally|right) to work|work (permit|authori[sz]ation)/, answer: (field, c) => yesNoAnswer(field, c.saved.workAuthorized) },
   { test: /sponsor/, answer: (field, c) => yesNoAnswer(field, c.saved.needsSponsorship) },
   {
@@ -585,6 +607,42 @@ function byWording(field: FormField, context: AnswerContext): Answer | undefined
   return standard({ ...field, key }, context) ?? undefined;
 }
 
+/** The key a question's answer is kept under: its wording, without case, accents or punctuation. */
+export const customKey = (label: string) => normal(label).slice(0, 300);
+
+/**
+ * Whether a question can be answered on the Auto-apply page: one to write or choose. Not a file,
+ * a signature or legal agreement, or a question about who the student is: those are theirs to
+ * do on the job site itself.
+ */
+export function askableHere(field: Pick<FormField, "label" | "type">): boolean {
+  if (field.type !== "text" && field.type !== "textarea" && field.type !== "single" && field.type !== "multi") return false;
+  const label = normal(field.label);
+  return label !== "" && !NEVER.test(label) && !DEMOGRAPHIC.test(label);
+}
+
+/** The student's own answer to this question, given on the Auto-apply page; null without one that fits the form. */
+function custom(field: FormField, context: AnswerContext): Answer | null {
+  if (!askableHere(field)) return null;
+  const given = context.saved.custom?.[customKey(field.label)];
+  if (!given) return null;
+  const chosen = (given.options ?? (given.text ? [given.text] : [])).map(normal);
+  if (field.type === "single") {
+    const option = field.options.find((entry) => chosen[0] !== undefined && normal(entry.label) === chosen[0]);
+    return option ? { kind: "option", value: option.value, label: option.label } : null;
+  }
+  if (field.type === "multi") {
+    const options = field.options.filter((entry) => chosen.includes(normal(entry.label)));
+    return options.length > 0 ? { kind: "options", values: options.map((entry) => entry.value), labels: options.map((entry) => entry.label) } : null;
+  }
+  return text(given.text ?? (given.options ?? []).join(", "));
+}
+
+/** The required fields `missing` names: what the student is asked on the Auto-apply page. */
+export function missingFields(fields: readonly FormField[], missing: readonly string[]): FormField[] {
+  return fields.filter((field) => field.required && field.type !== "hidden" && missing.includes(field.label.trim() || field.key));
+}
+
 /** Answers a form's questions; `missing` lists the required ones it couldn't. */
 export function answerForm(fields: readonly FormField[], context: AnswerContext): FormAnswers {
   const answers: Record<string, Answer> = {};
@@ -600,6 +658,8 @@ export function answerForm(fields: readonly FormField[], context: AnswerContext)
       if (result === "skip") continue;
       answer = result;
     }
+    // What the profile and the saved answers don't cover, the student may have answered themself.
+    answer ??= custom(field, context);
     if (answer) answers[field.key] = answer;
     else if (field.required) missing.push(field.label.trim() || field.key);
   }

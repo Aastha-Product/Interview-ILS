@@ -2,20 +2,25 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 
 import { PageHeader } from "@/components/page-header";
 import { toastResult } from "@/components/toast";
 import { Button, buttonClassName } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { Toggle } from "@/components/ui/toggle";
 import type { ApplyState } from "@/generated/prisma/enums";
 import type { ActionResult } from "@/lib/action";
 import { ANSWER_NAMES } from "@/lib/apply/answers";
+import type { TaskQuestion } from "@/lib/apply/questions";
 import type { ApplyTaskView, AutoApplyScreenView, BrowsersView } from "@/lib/apply/view";
 import { TIER_LABELS } from "@/lib/match/tiers";
 
-import { findMatchesNow, markApplied, prepareApplicationAgain, skipApplication, switchAutoApply } from "./actions";
+import { answerApplicationQuestions, findMatchesNow, markApplied, prepareApplicationAgain, skipApplication, switchAutoApply } from "./actions";
 
 /** Each state as the student reads it, and which group it shows in. */
 export const STATE_LABELS: Record<ApplyState, string> = {
@@ -74,9 +79,86 @@ function BrowserNote({ browsers, enabled, ready }: { browsers: BrowsersView; ena
   );
 }
 
-type RowActions = { onSkip: (id: string) => void; onRetry: (id: string) => void; onMarkApplied: (id: string) => void };
+type Given = Record<string, string | string[]>;
+type RowActions = { onSkip: (id: string) => void; onRetry: (id: string) => void; onMarkApplied: (id: string) => void; onAnswer: (id: string, answers: Given) => void };
 
-function TaskRow({ task, onSkip, onRetry, onMarkApplied, busy }: { task: ApplyTaskView; busy: boolean } & RowActions) {
+/**
+ * The questions an application is waiting on, to answer here rather than in the job site's tab.
+ * The answers are kept for later forms that ask the same thing. The questions are the job site's
+ * own words, shown as plain text.
+ */
+function QuestionsForm({ task, busy, onAnswer }: { task: ApplyTaskView; busy: boolean; onAnswer: RowActions["onAnswer"] }) {
+  const [given, setGiven] = useState<Given>({});
+  const here = task.questions.filter((question) => question.here);
+  const elsewhere = task.questions.filter((question) => !question.here);
+  if (task.questions.length === 0) return null;
+  const set = (key: string, value: string | string[]) => setGiven((current) => ({ ...current, [key]: value }));
+  const answered = here.some((question) => (Array.isArray(given[question.key]) ? given[question.key].length > 0 : Boolean((given[question.key] as string | undefined)?.trim())));
+  const control = (question: TaskQuestion) => {
+    if (question.type === "single") {
+      return (
+        <Select key={question.key} label={question.label} value={(given[question.key] as string | undefined) ?? ""} onChange={(event) => set(question.key, event.target.value)}>
+          <option value="">Choose…</option>
+          {question.options.map((option) => (
+            <option key={option} value={option}>
+              {option}
+            </option>
+          ))}
+        </Select>
+      );
+    }
+    if (question.type === "multi") {
+      const chosen = (given[question.key] as string[] | undefined) ?? [];
+      return (
+        <fieldset key={question.key} className="flex flex-col gap-2">
+          <legend className="mb-1 text-label font-medium text-ink">{question.label}</legend>
+          {question.options.map((option) => (
+            <Checkbox
+              key={option}
+              label={option}
+              checked={chosen.includes(option)}
+              onChange={(event) => set(question.key, event.target.checked ? [...chosen, option] : chosen.filter((entry) => entry !== option))}
+            />
+          ))}
+        </fieldset>
+      );
+    }
+    return question.type === "textarea" ? (
+      <Textarea key={question.key} label={question.label} rows={3} maxLength={2000} value={(given[question.key] as string | undefined) ?? ""} onChange={(event) => set(question.key, event.target.value)} />
+    ) : (
+      <Input key={question.key} label={question.label} maxLength={2000} value={(given[question.key] as string | undefined) ?? ""} onChange={(event) => set(question.key, event.target.value)} />
+    );
+  };
+  return (
+    <form
+      aria-label={`Questions for ${task.title}`}
+      className="mt-2 flex flex-col gap-4 rounded-card border border-line-card bg-surface px-4 py-4"
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (!busy && answered) onAnswer(task.id, given);
+      }}
+    >
+      {here.length > 0 ? (
+        <>
+          <p className="text-meta text-muted">Answer here and Pathfinder fills them in for you. Your answers are kept for other forms that ask the same thing.</p>
+          {here.map(control)}
+          <div>
+            <Button type="submit" size="sm" aria-disabled={busy || !answered || undefined}>
+              Save and try again
+            </Button>
+          </div>
+        </>
+      ) : null}
+      {elsewhere.length > 0 ? (
+        <p className="text-meta text-muted">
+          Only you can do {elsewhere.length === 1 ? "this one" : "these"} on the job site itself: {elsewhere.map((question) => question.label).join("; ")}.
+        </p>
+      ) : null}
+    </form>
+  );
+}
+
+function TaskRow({ task, onSkip, onRetry, onMarkApplied, onAnswer, busy }: { task: ApplyTaskView; busy: boolean } & RowActions) {
   const needsYou = task.state === "NEEDS_STUDENT" || task.state === "UNCERTAIN";
   return (
     <li className="flex flex-col gap-2 border-t border-line py-4 first:border-t-0 sm:flex-row sm:items-start sm:justify-between">
@@ -89,6 +171,7 @@ function TaskRow({ task, onSkip, onRetry, onMarkApplied, busy }: { task: ApplyTa
         {task.confirmation ? (
           <span className="text-meta text-muted">{task.confirmation.by === "board" ? `Confirmed by the job site: “${task.confirmation.text}”` : "You marked it as applied."}</span>
         ) : null}
+        <QuestionsForm task={task} busy={busy} onAnswer={onAnswer} />
       </div>
       <div className="flex shrink-0 flex-wrap items-center gap-2">
         <span className={needsYou ? "rounded-full bg-warning-surface px-2.5 py-0.5 text-meta text-warning" : "rounded-full bg-surface px-2.5 py-0.5 text-meta"}>
@@ -214,6 +297,7 @@ export function AutoApplyScreen({ view }: { view: AutoApplyScreenView }) {
                 onSkip={(taskId) => act(() => skipApplication({ taskId }))}
                 onRetry={(taskId) => act(() => prepareApplicationAgain({ taskId }))}
                 onMarkApplied={(taskId) => act(() => markApplied({ taskId }))}
+                onAnswer={(taskId, answers) => act(() => answerApplicationQuestions({ taskId, answers }))}
               />
             ))}
           </ul>

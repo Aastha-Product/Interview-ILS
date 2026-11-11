@@ -7,6 +7,7 @@ import { ApplyState } from "@/generated/prisma/enums";
 import { ActionError, toolAction } from "@/lib/action";
 import { markAppliedByStudent } from "@/lib/apply/lease";
 import { planApplications, prepareAgain } from "@/lib/apply/prepare";
+import { answerQuestions } from "@/lib/apply/questions";
 import { createExtensionToken, revokeExtensionToken } from "@/lib/extension/tokens";
 import { missingAnswersMessage } from "@/lib/apply/answers";
 import { AutoApplyNotReady, giveConsent, loadAutoApply, missingIn, saveAutoApply, setAutoApplyEnabled, settingsInputSchema } from "@/lib/apply/settings";
@@ -74,6 +75,26 @@ export const prepareApplicationAgain = toolAction(z.object({ taskId: z.string().
   toast("Preparing it again with your latest answers.");
   return null;
 });
+
+/**
+ * Answer and try again: the student's answers to the questions an application is waiting on.
+ * They're kept by each question's wording, for later forms that ask the same, and the application
+ * is prepared again.
+ */
+export const answerApplicationQuestions = toolAction(
+  z.object({
+    taskId: z.string().min(1),
+    answers: z.record(z.string().max(300), z.union([z.string().max(2000), z.array(z.string().max(500)).max(50)])),
+  }),
+  async ({ taskId, answers }, { toast }) => {
+    const outcome = await answerQuestions(taskId, answers);
+    if (outcome === "nothing") throw new ActionError("Answer at least one of the questions first.");
+    if (outcome === "gone") throw new ActionError("That application isn't waiting for answers any more.");
+    refresh();
+    toast("Saved. Preparing it again with your answers.");
+    return null;
+  },
+);
 
 /** Mark as applied: after a dry run the student submitted themselves, or an uncertain one they checked. */
 export const markApplied = toolAction(z.object({ taskId: z.string().min(1) }), async ({ taskId }, { toast }) => {
