@@ -113,6 +113,19 @@ https://claude.ai/artifact/GSHLW1T2jiX99CUiBtAUov): all five P0 tasks.
 
 Newest first. One entry per session: date, account, branch, what changed, what's next.
 
+- **2026-11-11 · account 3 · `chore/live-forms-check`**: the pilot's check of real forms, without
+  filling any (`extension/live-check/`, README "Check today's live forms").
+  - **30 live forms** (Greenhouse, Lever, Ashby), saved read-only by a headless Chromium and read
+    with the extension's board code: every form, Submit button, resume input and wording read, so
+    the boards haven't changed their markup since the 10 November copies.
+  - **Answer rules:** new wordings for salary, location, joining date, years of experience, current
+    employee and "based out of <city>" (with the other names of Indian cities).
+  - **Finding for the owner:** 6 of 30 forms are answered completely. Most applications will wait
+    for the student, for 1–7 questions only they can answer: job-specific experience, essays,
+    commitments. Answering those once on the dashboard, rather than in each tab, would be the
+    biggest gain.
+  - **Next:** pilot stage 1 on the owner's own account (extension/README.md), then stages 2–3.
+
 - **2026-11-11 · account 3 · `fix/security-m2-m5-c3`**: three QA fixes, at the owner's request.
   - **M-2:** an AI provider address a student saved (or its provider's default, such as Local's
     `localhost:11434`) is checked before every request: it must resolve to public addresses only,
