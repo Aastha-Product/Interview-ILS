@@ -1,11 +1,14 @@
 import "server-only";
 
 import type { Prisma } from "@/generated/prisma/client";
+import { seedAgentQuery } from "@/lib/agent/seed-query";
 import { resumeReviewSchema, type ResumeReview } from "@/lib/ai/tasks/review-resume";
 import { currentUserId } from "@/lib/owner/current";
 import { importedProfileSchema, type ImportedProfile } from "@/lib/profile-import";
 import { applyImportedProfileIn } from "@/lib/profile-import-apply";
 import { prisma } from "@/lib/prisma";
+import { settingsFromRows } from "@/lib/settings";
+import { saveSettings } from "@/lib/settings-data";
 
 // Pathfinder: the student's resume analyses. Each holds what was read from the resume and the
 // review, never the resume's text; the owner scope keeps every student's to themselves.
@@ -82,8 +85,22 @@ export async function fillProfileIfEmpty(profile: ImportedProfile): Promise<bool
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${lock}))`;
       if (!(await profileIsEmpty(tx))) return false;
       await applyImportedProfileIn(tx, profile, "merge");
+      await seedAgentQueryFromResume(tx, profile);
       return true;
     },
     { timeout: 30_000, maxWait: 10_000 },
   );
+}
+
+/**
+ * Fills the Job agent search ("What it looks for") from the resume that first fills the profile, so
+ * the student doesn't type it in by hand (Pathfinder). Only fields they haven't set themselves are
+ * touched, and only where the resume gives a value; the rest stays empty for the Job agent section
+ * to ask for. Runs in the fill transaction, so an empty profile and its seeded search land together.
+ */
+async function seedAgentQueryFromResume(tx: Prisma.TransactionClient, profile: ImportedProfile): Promise<void> {
+  const rows = await tx.setting.findMany({ where: { key: "agentQuery" } });
+  const current = settingsFromRows(rows).agentQuery;
+  const patch = seedAgentQuery(current, profile);
+  if (Object.keys(patch).length > 0) await saveSettings({ agentQuery: { ...current, ...patch } }, tx);
 }
