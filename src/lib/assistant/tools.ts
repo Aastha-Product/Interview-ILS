@@ -3,11 +3,14 @@ import "server-only";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
+import { ChatRole, DocumentKind } from "@/generated/prisma/enums";
 import { ActionError } from "@/lib/action";
 import { AGENT_JOB_KEY, agentScanJob } from "@/lib/agent/jobs";
 import { agentQueryReady, agentSetupProblem } from "@/lib/agent/run";
 import { runLimitProblem } from "@/lib/agent/runs";
+import { isAiConfigured } from "@/lib/ai/config";
 import { countryCodeFor, countryName } from "@/lib/job-search/countries";
+import { refineJob, refineJobKey } from "@/lib/jobs/refine";
 import { findUnfinishedJobs, startJob } from "@/lib/jobs/runner";
 import { CURRENT_USER } from "@/lib/owner/scope";
 import { prisma } from "@/lib/prisma";
@@ -168,12 +171,48 @@ const configureJobAgent: AssistantTool<{ enabled?: "on" | "off"; autoDraft?: "on
   },
 };
 
+const DOCUMENTS = { resume: DocumentKind.RESUME, letter: DocumentKind.COVER_LETTER } as const;
+const docWord = (document: "resume" | "letter") => (document === "resume" ? "resume" : "cover letter");
+
+const tailorApplication: AssistantTool<{ applicationId: string; document: "resume" | "letter"; instruction: string }> = {
+  name: "tailor_application",
+  description:
+    "Rewrite one application's resume or cover letter by instruction — the same as the application's own chat. Args: applicationId (an id from the student's applications listed below), document (\"resume\" or \"letter\"), instruction (what to change, in their words). It starts a rewrite the student sees on that application; it never sends or submits.",
+  tool: true,
+  schema: z.object({
+    applicationId: z.string().trim().min(1).max(64),
+    document: z.enum(["resume", "letter"]),
+    instruction: z.string().trim().min(1).max(2000),
+  }),
+  summarize: (args) => `Rewrite the ${docWord(args.document)} on that application: ${quote(args.instruction)}.`,
+  run: async ({ applicationId, document, instruction }) => {
+    // findUnique is owner-scoped, so only the student's own application is ever found.
+    const application = await prisma.application.findUnique({ where: { id: applicationId }, select: { company: true } });
+    if (!application) throw new ActionError("I couldn't find that application — it may have been removed.");
+    if (!(await isAiConfigured())) throw new ActionError("That needs an AI provider. Choose one in Settings → AI provider.");
+    if ((await findUnfinishedJobs(refineJobKey(applicationId))).length > 0) {
+      throw new ActionError("That application is already being rewritten. Give it a moment, then try again.");
+    }
+    // The same path as the application's chat (sendMessage): a chat message, then the refine job.
+    const message = await prisma.chatMessage.create({ data: { applicationId, role: ChatRole.USER, text: instruction }, select: { id: true } });
+    await startJob(
+      refineJob,
+      { applicationId, messageId: message.id, request: instruction, target: null, viewing: DOCUMENTS[document] },
+      { key: refineJobKey(applicationId), applicationId },
+    );
+    revalidatePath(`/applications/${applicationId}`);
+    const forCompany = application.company.trim() ? ` for ${application.company.trim()}` : "";
+    return `Rewriting the ${docWord(document)}${forCompany} — the changes will show on the application shortly.`;
+  },
+};
+
 /** Every assistant tool, by name. */
 const TOOLS = {
   [updateProfile.name]: updateProfile,
   [setJobSearch.name]: setJobSearch,
   [runJobAgent.name]: runJobAgent,
   [configureJobAgent.name]: configureJobAgent,
+  [tailorApplication.name]: tailorApplication,
 } as Record<string, AssistantTool<unknown>>;
 
 /** The tools on offer now: the always-on ones, plus the job tools where this server has them on. */

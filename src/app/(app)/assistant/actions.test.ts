@@ -11,6 +11,7 @@ vi.mock("@/lib/ai", async () => {
 });
 vi.mock("@/lib/auth/session", () => ({ getSession: vi.fn() }));
 vi.mock("@/lib/tools", () => ({ toolsEnabled: () => true, TOOLS_OFF_MESSAGE: "off" }));
+vi.mock("@/lib/applications-data", () => ({ loadApplicationRows: async () => [] }));
 
 const h = vi.hoisted(() => ({ run: null as unknown as ReturnType<typeof vi.fn> }));
 vi.mock("@/lib/assistant/tools", async () => {

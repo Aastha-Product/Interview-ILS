@@ -14,12 +14,14 @@ vi.mock("@/lib/prisma", async () => {
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 const toolsOn = vi.hoisted(() => ({ value: true }));
 vi.mock("@/lib/tools", () => ({ toolsEnabled: () => toolsOn.value, TOOLS_OFF_MESSAGE: "off" }));
+vi.mock("@/lib/ai/config", async (orig) => ({ ...(await orig<object>()), isAiConfigured: async () => true }));
 
 const prisma = () => db.client!;
 const asUser = <T>(fn: () => Promise<T>) => runAsUser(TEST_USER_ID, fn);
 
-// Imported after the mocks so tools.ts picks up the test client.
+// Imported after the mocks so tools.ts and the job key pick up the test client.
 const { assistantTool, availableTools } = await import("./tools");
+const { refineJobKey } = await import("@/lib/jobs/refine");
 
 beforeEach(() => {
   toolsOn.value = true;
@@ -72,5 +74,27 @@ describe("assistant tools (Pathfinder, Phase 2)", () => {
       enabled: true,
       autoDraft: true,
     });
+  });
+
+  it("tailor_application starts a rewrite of the application's document (the same path as its chat)", async () => {
+    const app = await asUser(() => prisma().application.create({ data: { company: "Acme Corp", origin: "AGENT", awaitingReview: false }, select: { id: true } }));
+    const done = await asUser(() =>
+      assistantTool("tailor_application")!.run({ applicationId: app.id, document: "resume", instruction: "Emphasise my React work." }),
+    );
+    expect(done).toContain("Rewriting the resume for Acme Corp");
+    // A chat message and a refine job for that application: exactly what the application's own chat does.
+    expect(await asUser(() => prisma().chatMessage.count({ where: { applicationId: app.id } }))).toBe(1);
+    expect(await asUser(() => prisma().job.count({ where: { key: refineJobKey(app.id) } }))).toBe(1);
+
+    // A second request won't pile on while the first is still unfinished.
+    await expect(
+      asUser(() => assistantTool("tailor_application")!.run({ applicationId: app.id, document: "letter", instruction: "Shorten it." })),
+    ).rejects.toThrow(/already being rewritten/i);
+  });
+
+  it("tailor_application refuses an application that isn't the student's", async () => {
+    await expect(
+      asUser(() => assistantTool("tailor_application")!.run({ applicationId: "no-such-app", document: "letter", instruction: "x" })),
+    ).rejects.toThrow(/couldn.t find/i);
   });
 });

@@ -4,9 +4,18 @@ import { z } from "zod";
 
 import { getAiProvider, AiError } from "@/lib/ai";
 import { ActionError, action } from "@/lib/action";
-import { assistantReplySchema, assistantSystem, availableDestinations } from "@/lib/assistant/assistant";
+import { loadApplicationRows } from "@/lib/applications-data";
+import { DEFAULT_SORT } from "@/lib/applications-list";
+import { assistantReplySchema, assistantSystem, availableDestinations, type AppInfo } from "@/lib/assistant/assistant";
 import { assistantTool, availableTools, toolInfos } from "@/lib/assistant/tools";
 import { toolsEnabled } from "@/lib/tools";
+
+/** The student's applications (newest first, capped) for the prompt, so the assistant can act on one by id. */
+async function applicationsForPrompt(): Promise<AppInfo[]> {
+  if (!toolsEnabled()) return [];
+  const rows = await loadApplicationRows({ archived: false, sort: DEFAULT_SORT }).catch(() => []);
+  return rows.slice(0, 20).map((row) => ({ id: row.id, company: row.company, role: row.role, status: row.status }));
+}
 
 // Pathfinder assistant: the chat action and the one that runs a confirmed action. askAssistant reads
 // and proposes only — it never changes anything. runAssistantTool makes the change, and only after
@@ -54,7 +63,7 @@ export const askAssistant = action(
     let reply;
     try {
       reply = await provider.complete({
-        system: assistantSystem(destinations, toolInfos(), path),
+        system: assistantSystem(destinations, toolInfos(), await applicationsForPrompt(), path),
         messages,
         schema,
         schemaName: "assistant_reply",
