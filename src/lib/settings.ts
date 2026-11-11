@@ -68,6 +68,9 @@ export const pagesInWords = (pages: number) => (pages === 1 ? "one page" : pages
 
 export const DEFAULT_BASE_THEME = "editorial";
 
+/** How far the base resume may be compressed to fit fewer pages (Pathfinder): 50% of the theme's size. */
+export const MIN_RESUME_SCALE = 0.5;
+
 const flag = (fallback: boolean) => z.stringbool().catch(fallback);
 
 /** A value stored as JSON. */
@@ -114,6 +117,14 @@ export const settingsSchema = z.object({
   /** "Show what changed" (SET-5). */
   showDiff: flag(true),
   paper: z.enum(PaperSize).catch(PaperSize.A4),
+  /**
+   * How much the base resume's spacing and text are scaled, to compress a long resume onto fewer
+   * pages (Pathfinder). 1 is the theme's own size; below 1 is tighter. Clamped to the range the
+   * "fit to one page" control uses (MIN_RESUME_SCALE..1).
+   */
+  resumeScale: z.coerce.number().min(MIN_RESUME_SCALE).max(1).catch(1),
+  /** "Fit to one page": the preview keeps resumeScale at the largest size that fits a single page. */
+  resumeFitToPage: flag(false),
   dateFormat: z.enum(DateFormat).catch(DateFormat.DAY_MONTH_YEAR),
   defaultTone: z.enum(Tone).catch(Tone.WARM),
   /** Language for generated documents; null means "the posting's language" (SET-7). */

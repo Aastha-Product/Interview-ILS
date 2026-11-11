@@ -20,6 +20,8 @@ export default async function BaseResumePage() {
       baseThemeId={settings.baseThemeId}
       paper={settings.paper}
       includeReferences={settings.includeRefs}
+      scale={settings.resumeScale}
+      fitToPage={settings.resumeFitToPage}
       language={settings.resumeLanguage}
       maxPages={maxPages(settings.pageLimit)}
     />

@@ -19,7 +19,7 @@ export default async function PrintBaseResumePage() {
   return (
     <>
       <style>{printCss(theme, settings.paper)}</style>
-      <ResumeDocument theme={theme} profile={profile} paper={settings.paper} includeReferences={settings.includeRefs} language={settings.resumeLanguage} />
+      <ResumeDocument theme={theme} profile={profile} paper={settings.paper} scale={settings.resumeScale} includeReferences={settings.includeRefs} language={settings.resumeLanguage} />
     </>
   );
 }

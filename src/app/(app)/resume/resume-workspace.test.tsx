@@ -9,10 +9,10 @@ import { BUILT_IN_THEMES } from "@/lib/themes";
 
 import { themeFile } from "@/lib/theme-file";
 
-import { deleteTheme, duplicateTheme, importTheme, saveTheme, setBaseTheme } from "./actions";
+import { deleteTheme, duplicateTheme, importTheme, saveResumeFit, saveTheme, setBaseTheme } from "./actions";
 import { ResumeWorkspace, type ResumeWorkspaceProps } from "./resume-workspace";
 
-vi.mock("./actions", () => ({ setBaseTheme: vi.fn(), saveTheme: vi.fn(), duplicateTheme: vi.fn(), deleteTheme: vi.fn(), importTheme: vi.fn() }));
+vi.mock("./actions", () => ({ setBaseTheme: vi.fn(), saveTheme: vi.fn(), duplicateTheme: vi.fn(), deleteTheme: vi.fn(), importTheme: vi.fn(), saveResumeFit: vi.fn() }));
 vi.mock("@/components/toast", () => {
   const toast = vi.fn();
   return {
@@ -32,6 +32,8 @@ const props: ResumeWorkspaceProps = {
   baseThemeId: "modern",
   paper: "A4",
   includeReferences: false,
+  scale: 1,
+  fitToPage: false,
   maxPages: 1,
   language: null,
 };
@@ -202,6 +204,28 @@ describe("managing themes (E5-7)", () => {
     await user.upload(input, new File(["{\"hello\":1}"], "other.json", { type: "application/json" }));
     expect(toast).toHaveBeenCalledWith("That file isn't a Dossier theme.");
     expect(importTheme).toHaveBeenCalledTimes(1);
+  });
+
+  it("scales the resume by hand and saves it, with the scale off while fitting (Pathfinder)", async () => {
+    const user = userEvent.setup();
+    vi.mocked(saveResumeFit).mockResolvedValue({ ok: true, data: null });
+    render(<ResumeWorkspace {...props} />);
+
+    const scale = screen.getByLabelText("Scale");
+    expect(scale).toBeEnabled();
+    await user.selectOptions(scale, "80%");
+    expect(saveResumeFit).toHaveBeenCalledWith({ scale: 0.8 });
+
+    // Turning on "Fit to one page" saves the toggle and takes the manual control out of the student's hands.
+    await user.click(screen.getByRole("switch", { name: "Fit to one page" }));
+    expect(saveResumeFit).toHaveBeenCalledWith({ fitToPage: true });
+    expect(screen.getByLabelText("Scale")).toBeDisabled();
+  });
+
+  it("shows the saved scale and fit on load", () => {
+    render(<ResumeWorkspace {...props} scale={0.7} fitToPage />);
+    expect(screen.getByLabelText("Scale")).toHaveValue("70");
+    expect(screen.getByRole("switch", { name: "Fit to one page" })).toHaveAttribute("aria-checked", "true");
   });
 });
 

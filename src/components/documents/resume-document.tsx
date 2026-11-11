@@ -17,6 +17,8 @@ type ResumeDocumentProps = ResumeOptions & {
   theme: ThemeData;
   profile: ProfileData;
   paper: PaperSize;
+  /** Compresses the resume's spacing and text to fit fewer pages (Pathfinder); 1 (default) is full size. */
+  scale?: number;
   /** Overrides the theme's layout, e.g. a tailored resume in a single column. */
   layout?: ThemeLayout;
   /** The language it's written in (SET-7), for its headings too; without one, it's read from the text and the headings are English. */
@@ -43,7 +45,7 @@ const sampleText = (content: ResumeContent) =>
  * Sections without content are left out. Each tailored part is drawn by
  * `renderUnit` with its unit id, for editing it in place (E8-3).
  */
-export function ResumeDocument({ theme, profile, paper, layout, language, renderUnit = plainUnit, ...options }: ResumeDocumentProps) {
+export function ResumeDocument({ theme, profile, paper, scale, layout, language, renderUnit = plainUnit, ...options }: ResumeDocumentProps) {
   const resolved = resolveTheme(theme, layout);
   const labels = documentLabels(language);
   const content = resumeContent(profile, options, labels);
@@ -233,7 +235,7 @@ export function ResumeDocument({ theme, profile, paper, layout, language, render
   const beside = content.photo && (position === PhotoPosition.HEADER_START || position === PhotoPosition.HEADER_END);
 
   return (
-    <DocumentPage theme={resolved} paper={paper} lang={lang} dir={dir} label="Resume">
+    <DocumentPage theme={resolved} paper={paper} scale={scale} lang={lang} dir={dir} label="Resume">
       <header className={cn(styles.header, beside && styles.headerWithPhoto)}>
         {position === PhotoPosition.ABOVE_NAME && photo("header", styles.photoAbove)}
         {position === PhotoPosition.HEADER_START && photo("header")}
