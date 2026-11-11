@@ -15,6 +15,8 @@ import { checkForUpdatesDaily, updateNotice } from "@/lib/update-check";
 import { askForUsagePing, notePageLoad, USAGE_PING_HOST } from "@/lib/usage-ping";
 import { appVersion } from "@/lib/version";
 
+import { AssistantPanel } from "@/components/assistant/assistant-panel";
+
 import { Sidebar } from "./sidebar";
 import { UsagePingDialog } from "./usage-ping-dialog";
 
@@ -72,6 +74,8 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
       </div>
       {/* Asked once, until answered (#172); nothing is sent before a yes. */}
       {askForUsagePing(settings) && <UsagePingDialog host={USAGE_PING_HOST} />}
+      {/* Pathfinder: the site-wide assistant (Phase 1), on every signed-in screen. */}
+      <AssistantPanel />
     </div>
   );
 }
