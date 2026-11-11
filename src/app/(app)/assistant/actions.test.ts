@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getAiProvider, AiError } from "@/lib/ai";
 import { getSession } from "@/lib/auth/session";
 
-import { askAssistant } from "./actions";
+import { askAssistant, runAssistantTool } from "./actions";
 
 vi.mock("@/lib/ai", async () => {
   const { AiError } = await import("@/lib/ai/errors");
@@ -12,34 +12,64 @@ vi.mock("@/lib/ai", async () => {
 vi.mock("@/lib/auth/session", () => ({ getSession: vi.fn() }));
 vi.mock("@/lib/tools", () => ({ toolsEnabled: () => true, TOOLS_OFF_MESSAGE: "off" }));
 
-const provider = (reply: unknown) => ({ complete: vi.fn(async (_request: unknown) => reply) });
+const h = vi.hoisted(() => ({ run: null as unknown as ReturnType<typeof vi.fn> }));
+vi.mock("@/lib/assistant/tools", async () => {
+  const { z } = await import("zod");
+  const run = vi.fn(async () => "Updated your title.");
+  h.run = run;
+  const tool = {
+    name: "update_profile",
+    description: "Update the profile basics.",
+    tool: false,
+    schema: z
+      .object({ headline: z.string().min(1) })
+      .partial()
+      .refine((fields) => Object.keys(fields).length > 0, "Nothing to change."),
+    summarize: (args: { headline?: string }) => `Update your title to “${args.headline}”.`,
+    run,
+  };
+  return {
+    availableTools: () => [tool],
+    assistantTool: (name: string) => (name === "update_profile" ? tool : undefined),
+    toolInfos: () => [{ name: tool.name, description: tool.description }],
+  };
+});
+
+const provider = (reply: unknown) => ({ complete: vi.fn(async () => reply) });
+const ask = (content: string) => askAssistant({ messages: [{ role: "user" as const, content }], path: "/" });
 
 beforeEach(() => {
   vi.mocked(getSession).mockResolvedValue({ userId: "student-1" } as never);
   vi.mocked(getAiProvider).mockReset();
+  h.run.mockClear();
 });
 
 describe("askAssistant (Pathfinder)", () => {
-  it("returns the model's answer and screen", async () => {
-    vi.mocked(getAiProvider).mockResolvedValue(provider({ text: "Go to your base resume.", navigate: "/resume" }) as never);
-    const result = await askAssistant({ messages: [{ role: "user", content: "how do I fit my resume to one page?" }], path: "/" });
-    expect(result).toEqual({ ok: true, data: { text: "Go to your base resume.", navigate: "/resume" } });
+  it("returns the answer, the screen and no action for a plain reply", async () => {
+    vi.mocked(getAiProvider).mockResolvedValue(provider({ text: "Go to your base resume.", navigate: "/resume", proposal: null }) as never);
+    const result = await ask("how do I fit my resume to one page?");
+    expect(result).toEqual({ ok: true, data: { text: "Go to your base resume.", navigate: "/resume", proposal: null } });
   });
 
-  it("asks the configured provider with the conversation and the current screen", async () => {
-    const p = provider({ text: "ok", navigate: null });
-    vi.mocked(getAiProvider).mockResolvedValue(p as never);
-    await askAssistant({ messages: [{ role: "user", content: "where are my applications?" }], path: "/resume" });
-    const call = p.complete.mock.calls[0][0] as { system: string; messages: unknown; schemaName: string };
-    expect(call.system).toContain("on /resume (Base resume) right now");
-    expect(call.messages).toEqual([{ role: "user", content: "where are my applications?" }]);
-    expect(call.schemaName).toBe("assistant_reply");
+  it("passes a valid proposal through with a confirmation summary", async () => {
+    vi.mocked(getAiProvider).mockResolvedValue(
+      provider({ text: "I'll set your title.", navigate: null, proposal: { tool: "update_profile", args: { headline: "Product Manager" } } }) as never,
+    );
+    const result = await ask("change my title to Product Manager");
+    expect(result).toMatchObject({
+      ok: true,
+      data: { proposal: { tool: "update_profile", args: { headline: "Product Manager" }, summary: "Update your title to “Product Manager”." } },
+    });
+  });
+
+  it("drops a proposal whose args the tool won't accept", async () => {
+    vi.mocked(getAiProvider).mockResolvedValue(provider({ text: "Hmm.", navigate: null, proposal: { tool: "update_profile", args: {} } }) as never);
+    expect(await ask("do something")).toMatchObject({ ok: true, data: { proposal: null } });
   });
 
   it("explains, kindly, when no AI provider is set up", async () => {
     vi.mocked(getAiProvider).mockRejectedValue(new Error("no provider"));
-    const result = await askAssistant({ messages: [{ role: "user", content: "hi" }], path: "/" });
-    expect(result).toMatchObject({ ok: false, error: expect.stringContaining("isn't set up") });
+    expect(await ask("hi")).toMatchObject({ ok: false, error: expect.stringContaining("isn't set up") });
   });
 
   it("turns an AI failure into words for the student", async () => {
@@ -48,13 +78,24 @@ describe("askAssistant (Pathfinder)", () => {
         throw new AiError("busy", "The AI is busy. Try again in a moment.");
       }),
     } as never);
-    const result = await askAssistant({ messages: [{ role: "user", content: "hi" }], path: "/" });
-    expect(result).toMatchObject({ ok: false, error: "The AI is busy. Try again in a moment." });
+    expect(await ask("hi")).toMatchObject({ ok: false, error: "The AI is busy. Try again in a moment." });
+  });
+});
+
+describe("runAssistantTool (Pathfinder)", () => {
+  it("re-checks the args and runs the confirmed action", async () => {
+    const result = await runAssistantTool({ tool: "update_profile", args: { headline: "Product Manager" } });
+    expect(result).toEqual({ ok: true, data: { done: "Updated your title." } });
+    expect(h.run).toHaveBeenCalledWith({ headline: "Product Manager" });
   });
 
-  it("needs the last message to be the student's", async () => {
-    vi.mocked(getAiProvider).mockResolvedValue(provider({ text: "x", navigate: null }) as never);
-    const result = await askAssistant({ messages: [{ role: "assistant", content: "hello" }], path: "/" });
-    expect(result).toMatchObject({ ok: false, error: expect.stringContaining("Ask a question") });
+  it("refuses an unknown action", async () => {
+    expect(await runAssistantTool({ tool: "delete_everything", args: {} })).toMatchObject({ ok: false, error: expect.stringContaining("isn't available") });
+    expect(h.run).not.toHaveBeenCalled();
+  });
+
+  it("refuses args the tool won't accept, without running it", async () => {
+    expect(await runAssistantTool({ tool: "update_profile", args: {} })).toMatchObject({ ok: false });
+    expect(h.run).not.toHaveBeenCalled();
   });
 });

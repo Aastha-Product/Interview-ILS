@@ -5,8 +5,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState, useTransition, type FormEvent, type KeyboardEvent } from "react";
 
-import { askAssistant } from "@/app/(app)/assistant/actions";
-import { buttonClassName } from "@/components/ui/button";
+import { askAssistant, runAssistantTool, type AssistantProposal } from "@/app/(app)/assistant/actions";
+import { Button, buttonClassName } from "@/components/ui/button";
 import { destinationLabel } from "@/lib/assistant/assistant";
 import { cn } from "@/lib/cn";
 
@@ -14,7 +14,18 @@ import { cn } from "@/lib/cn";
 // right; the student asks about Pathfinder and gets an answer, sometimes with a link to the right
 // screen. It changes nothing yet (see assistant.ts); later phases add actions behind a confirmation.
 
-type Message = { role: "user" | "assistant"; content: string; navigate?: string | null; error?: boolean; intro?: boolean };
+type Message = {
+  role: "user" | "assistant";
+  content: string;
+  navigate?: string | null;
+  error?: boolean;
+  intro?: boolean;
+  /** An action the assistant offered; the student confirms it before it runs (Phase 2). */
+  proposal?: AssistantProposal | null;
+  proposalState?: "pending" | "done" | "cancelled";
+  /** The "done" sentence once a confirmed action has run. */
+  doneText?: string;
+};
 
 const GREETING: Message = {
   role: "assistant",
@@ -28,6 +39,7 @@ export function AssistantPanel() {
   const [messages, setMessages] = useState<Message[]>([GREETING]);
   const [input, setInput] = useState("");
   const [pending, startTransition] = useTransition();
+  const [running, startRun] = useTransition();
   const threadEnd = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -52,9 +64,30 @@ export function AssistantPanel() {
       const result = await askAssistant({ messages: forServer, path: pathname });
       setMessages((current) =>
         result.ok
-          ? [...current, { role: "assistant", content: result.data.text, navigate: result.data.navigate }]
+          ? [
+              ...current,
+              {
+                role: "assistant",
+                content: result.data.text,
+                navigate: result.data.navigate,
+                proposal: result.data.proposal,
+                proposalState: result.data.proposal ? "pending" : undefined,
+              },
+            ]
           : [...current, { role: "assistant", content: result.error, error: true }],
       );
+    });
+  };
+
+  const setMessage = (index: number, patch: Partial<Message>) =>
+    setMessages((current) => current.map((message, at) => (at === index ? { ...message, ...patch } : message)));
+
+  const confirm = (index: number, proposal: AssistantProposal) => {
+    if (running) return;
+    startRun(async () => {
+      const result = await runAssistantTool({ tool: proposal.tool, args: proposal.args });
+      if (result.ok) setMessage(index, { proposalState: "done", doneText: result.data.done });
+      else setMessages((current) => [...current, { role: "assistant", content: result.error, error: true }]);
     });
   };
 
@@ -115,6 +148,25 @@ export function AssistantPanel() {
                     <ArrowRight className="size-4" aria-hidden />
                   </Link>
                 )}
+                {message.proposal && message.proposalState === "pending" && (
+                  <div className="w-full max-w-[85%] rounded-card border border-line bg-paper px-3.5 py-3">
+                    <p className="text-sm text-pretty text-ink">{message.proposal.summary}</p>
+                    <div className="mt-2.5 flex gap-2">
+                      <Button size="sm" onClick={() => message.proposal && confirm(index, message.proposal)} disabled={running}>
+                        {running ? "Doing it…" : "Confirm"}
+                      </Button>
+                      <Button size="sm" variant="secondary" onClick={() => setMessage(index, { proposalState: "cancelled" })} disabled={running}>
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                )}
+                {message.proposalState === "done" && message.doneText && (
+                  <p className="text-meta text-muted" role="status">
+                    ✓ {message.doneText}
+                  </p>
+                )}
+                {message.proposalState === "cancelled" && <p className="text-meta text-muted">Okay, I didn’t change anything.</p>}
               </div>
             ))}
             {pending && (

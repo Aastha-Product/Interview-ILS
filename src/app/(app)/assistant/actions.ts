@@ -4,13 +4,14 @@ import { z } from "zod";
 
 import { getAiProvider, AiError } from "@/lib/ai";
 import { ActionError, action } from "@/lib/action";
-import { assistantReplySchema, assistantSystem, availableDestinations, type AssistantReply } from "@/lib/assistant/assistant";
+import { assistantReplySchema, assistantSystem, availableDestinations } from "@/lib/assistant/assistant";
+import { assistantTool, availableTools, toolInfos } from "@/lib/assistant/tools";
 import { toolsEnabled } from "@/lib/tools";
 
-// Pathfinder: the assistant's one server action (Phase 1). It takes the conversation so far and the
-// screen the student is on, asks the AI provider for a reply in the fixed shape, and hands it back.
-// It changes nothing — reading and pointing to screens only. AI calls count against the student's
-// daily limit, like any other (getAiProvider).
+// Pathfinder assistant: the chat action and the one that runs a confirmed action. askAssistant reads
+// and proposes only — it never changes anything. runAssistantTool makes the change, and only after
+// the student confirmed it in the panel; it re-checks the args, so a tampered request can't slip
+// past. Both run as the signed-in student, and AI calls count against the daily limit.
 
 const MAX_TURNS = 24;
 const MAX_CHARS = 4000;
@@ -20,21 +21,28 @@ const messageSchema = z.object({
   content: z.string().trim().min(1).max(MAX_CHARS),
 });
 
+/** A change the assistant offers to make; the panel shows `summary` and runs it only on confirm. */
+export type AssistantProposal = { tool: string; args: Record<string, string>; summary: string };
+
+/** What the panel shows for one reply: the answer, a screen to link to, and an action to confirm. */
+export type AssistantAnswer = { text: string; navigate: string | null; proposal: AssistantProposal | null };
+
 /**
  * Answers the student in the assistant panel. The newest message is theirs; earlier ones give the
- * assistant the thread. `path` is the screen they're on, so the answer can speak to it. Returns the
- * reply and at most one screen to offer a link to.
+ * thread. `path` is the screen they're on. Returns the reply, at most one screen to link to, and at
+ * most one action to confirm — the action is validated here but not run.
  */
 export const askAssistant = action(
   z.object({
     messages: z.array(messageSchema).min(1).max(MAX_TURNS),
     path: z.string().max(200).default("/"),
   }),
-  async ({ messages, path }): Promise<AssistantReply> => {
+  async ({ messages, path }): Promise<AssistantAnswer> => {
     if (messages.at(-1)?.role !== "user") throw new ActionError("Ask a question first.");
 
     const destinations = availableDestinations(toolsEnabled());
-    const schema = assistantReplySchema(destinations.map((destination) => destination.path));
+    const tools = availableTools();
+    const schema = assistantReplySchema(destinations.map((destination) => destination.path), tools.map((tool) => tool.name));
 
     let provider;
     try {
@@ -43,9 +51,10 @@ export const askAssistant = action(
       throw new ActionError("The assistant isn't set up on this server yet. Add an AI provider in Settings → AI.");
     }
 
+    let reply;
     try {
-      return await provider.complete({
-        system: assistantSystem(destinations, path),
+      reply = await provider.complete({
+        system: assistantSystem(destinations, toolInfos(), path),
         messages,
         schema,
         schemaName: "assistant_reply",
@@ -54,5 +63,32 @@ export const askAssistant = action(
       if (error instanceof AiError) throw new ActionError(error.message);
       throw error;
     }
+
+    return { text: reply.text, navigate: reply.navigate, proposal: validateProposal(reply.proposal) };
+  },
+);
+
+/** The model's proposal, kept only when it names a real tool and its args pass that tool's checks. */
+function validateProposal(proposal: { tool: string; args: Record<string, string> } | null): AssistantProposal | null {
+  if (!proposal) return null;
+  const tool = assistantTool(proposal.tool);
+  if (!tool) return null;
+  const parsed = tool.schema.safeParse(proposal.args);
+  if (!parsed.success) return null;
+  return { tool: tool.name, args: proposal.args, summary: tool.summarize(parsed.data) };
+}
+
+/**
+ * Makes a change the student confirmed in the panel (Phase 2). The args are checked again against
+ * the tool, so nothing runs on a request the tool wouldn't accept. Returns a short "done" sentence.
+ */
+export const runAssistantTool = action(
+  z.object({ tool: z.string().min(1).max(100), args: z.record(z.string(), z.string()) }),
+  async ({ tool: name, args }): Promise<{ done: string }> => {
+    const tool = assistantTool(name);
+    if (!tool) throw new ActionError("That action isn't available.");
+    const parsed = tool.schema.safeParse(args);
+    if (!parsed.success) throw new ActionError("Something about that change didn't look right. Try asking again.");
+    return { done: await tool.run(parsed.data) };
   },
 );
