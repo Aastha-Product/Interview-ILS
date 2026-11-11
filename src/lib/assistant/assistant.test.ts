@@ -2,6 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import { assistantReplySchema, assistantSystem, availableDestinations, destinationLabel, DESTINATIONS } from "./assistant";
 
+const TOOLS = [
+  { name: "update_profile", description: "Update the profile basics." },
+  { name: "set_job_search", description: "Set the job agent search." },
+];
+
 describe("assistant destinations (Pathfinder)", () => {
   it("offers the job tools only where they're on", () => {
     const off = availableDestinations(false).map((destination) => destination.path);
@@ -17,31 +22,36 @@ describe("assistant destinations (Pathfinder)", () => {
 });
 
 describe("the reply shape the model must return", () => {
-  const schema = assistantReplySchema(["/", "/resume"]);
+  const schema = assistantReplySchema(["/", "/resume"], ["update_profile"]);
 
-  it("takes an answer and an allowed screen", () => {
-    expect(schema.parse({ text: "Here you go.", navigate: "/resume" })).toEqual({ text: "Here you go.", navigate: "/resume" });
+  it("takes an answer, an allowed screen and an action to propose", () => {
+    const reply = schema.parse({ text: "I'll set your title.", navigate: "/resume", proposal: { tool: "update_profile", args: { headline: "PM" } } });
+    expect(reply).toEqual({ text: "I'll set your title.", navigate: "/resume", proposal: { tool: "update_profile", args: { headline: "PM" } } });
   });
 
-  it("drops a screen that isn't on offer, rather than failing", () => {
-    expect(schema.parse({ text: "Answer.", navigate: "/evil" }).navigate).toBeNull();
-    expect(schema.parse({ text: "Answer." }).navigate).toBeNull();
+  it("drops a screen or an action that isn't on offer, rather than failing", () => {
+    expect(schema.parse({ text: "x", navigate: "/evil" }).navigate).toBeNull();
+    expect(schema.parse({ text: "x", proposal: { tool: "delete_everything", args: {} } }).proposal).toBeNull();
+    expect(schema.parse({ text: "x" }).proposal).toBeNull();
   });
 
   it("needs some answer text", () => {
-    expect(schema.safeParse({ text: "", navigate: null }).success).toBe(false);
+    expect(schema.safeParse({ text: "", navigate: null, proposal: null }).success).toBe(false);
   });
 });
 
 describe("the system prompt", () => {
-  it("lists the screens and says it can't change anything, with where the student is", () => {
-    const system = assistantSystem(availableDestinations(true), "/resume");
+  it("lists the actions and the screens, and says actions need confirming", () => {
+    const system = assistantSystem(availableDestinations(true), TOOLS, "/resume");
+    expect(system).toContain("- update_profile: Update the profile basics.");
     expect(system).toContain("/applications (Applications)");
-    expect(system).toMatch(/can't (change|edit)|cannot change/i);
+    expect(system).toMatch(/confirm/i);
     expect(system).toContain("on /resume (Base resume) right now");
   });
 
-  it("says the student is somewhere in Pathfinder when the screen isn't one it knows", () => {
-    expect(assistantSystem([...DESTINATIONS], "/print/base")).toContain("somewhere in Pathfinder");
+  it("says there are no actions when none are available, and locates an unknown screen loosely", () => {
+    const system = assistantSystem([...DESTINATIONS], [], "/print/base");
+    expect(system).toContain("(no actions available)");
+    expect(system).toContain("somewhere in Pathfinder");
   });
 });

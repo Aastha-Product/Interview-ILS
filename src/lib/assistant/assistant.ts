@@ -25,14 +25,27 @@ export function availableDestinations(toolsOn: boolean): Destination[] {
   return DESTINATIONS.filter((destination) => toolsOn || !destination.tool);
 }
 
-/** The reply the model must return: an answer, and at most one screen to offer a link to. */
-export function assistantReplySchema(paths: readonly string[]) {
+/** For the system prompt and the proposal enum: a tool the assistant may propose, named and described. */
+export type ToolInfo = { name: string; description: string };
+
+/**
+ * The reply the model must return: an answer, at most one screen to link to, and at most one action
+ * to propose. A proposal never runs on its own — the student confirms it first (Phase 2). Its args
+ * are strings keyed by field; the server validates them against the specific tool before anything.
+ */
+export function assistantReplySchema(paths: readonly string[], toolNames: readonly string[]) {
   const path = paths.length > 0 ? z.enum(paths as [string, ...string[]]) : z.string();
+  const tool = toolNames.length > 0 ? z.enum(toolNames as [string, ...string[]]) : z.string();
   return z.object({
     /** The answer to show the student, in plain language. */
     text: z.string().min(1).max(4000),
     /** A screen to offer a link to, or null for none. One of the available paths. */
     navigate: path.nullable().catch(null),
+    /** An action to propose (the student confirms it), or null for none. */
+    proposal: z
+      .object({ tool, args: z.record(z.string(), z.string()) })
+      .nullable()
+      .catch(null),
   });
 }
 
@@ -45,16 +58,19 @@ export function destinationLabel(path: string): string {
 
 const INSTRUCTIONS = `You are the Pathfinder assistant. Pathfinder helps students improve their resume, find jobs and apply.
 
-Help the student with what they ask: explain how Pathfinder works, explain what's on the screen they're on, and help them find the right screen. Be brief, warm and concrete — a sentence or two, not an essay. Use the student's own words back to them.
+Help the student with what they ask: explain how Pathfinder works, explain what's on the screen they're on, help them find the right screen, and — for the actions listed below — make the change for them.
 
-You cannot change anything yet: you can't edit the profile, change settings, search, or apply. If the student asks you to do something like that, say you can't do it for them yet and point them to the screen where they can do it themselves.
+Be brief, warm and concrete — a sentence or two, not an essay. Use the student's own words back to them.
 
-When a screen would help, set "navigate" to its path (exactly as listed) and refer to it by name; the student gets a button to open it. Use only a path from the list. If no screen fits, set "navigate" to null. Never invent features Pathfinder doesn't have.`;
+Making a change: when the student clearly asks for one of the actions below, set "proposal" to { "tool": the action's name, "args": its arguments as named }. Don't run it in your head — the student sees a short summary and confirms before anything happens, so your "text" should say what you're about to do, not that it's done. Only propose an action the student actually asked for, propose at most one at a time, and put only the fields they want to change in "args". For anything not in the list — sending an email, applying to a job, deleting things — say you can't do that one and point them to the screen where they can.
 
-/** The system prompt: what the assistant is, the screens it can point to, and where the student is now. */
-export function assistantSystem(destinations: readonly Destination[], currentPath: string): string {
+When a screen would help, set "navigate" to its path (exactly as listed) and refer to it by name; the student gets a button to open it. Use only a path from the list, or null. Never invent features, screens or actions Pathfinder doesn't have.`;
+
+/** The system prompt: what the assistant is, the actions and screens it has, and where the student is now. */
+export function assistantSystem(destinations: readonly Destination[], tools: readonly ToolInfo[], currentPath: string): string {
   const screens = destinations.map((destination) => `- ${destination.path} (${destination.label}): ${destination.hint}`).join("\n");
+  const actions = tools.length > 0 ? tools.map((tool) => `- ${tool.name}: ${tool.description}`).join("\n") : "- (no actions available)";
   const here = destinations.find((destination) => destination.path === currentPath);
   const where = here ? `The student is on ${here.path} (${here.label}) right now.` : "The student is somewhere in Pathfinder.";
-  return `${INSTRUCTIONS}\n\nScreens you can point to:\n${screens}\n\n${where}`;
+  return `${INSTRUCTIONS}\n\nActions you can propose (each needs the student's confirmation):\n${actions}\n\nScreens you can point to:\n${screens}\n\n${where}`;
 }
