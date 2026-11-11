@@ -50,6 +50,19 @@ describe("Settings → Job agent (E16-7)", () => {
     expect(screen.getByRole("switch", { name: "Run the job agent" })).toHaveAttribute("aria-checked", "false");
   });
 
+  it("asks for what the resume couldn't fill, and drops the note once it's complete", () => {
+    const both = open({ initial: { ...initial, query: { ...initial.query, keywords: "", country: "" } } });
+    expect(screen.getByRole("note")).toHaveTextContent("Your resume didn't give what to look for or a country, so add them here");
+    both.unmount();
+
+    const onlyCountry = open({ initial: { ...initial, query: { ...initial.query, keywords: "Data scientist", country: "" } } });
+    expect(screen.getByRole("note")).toHaveTextContent("Your resume didn't give a country, so add it here");
+    onlyCountry.unmount();
+
+    open();
+    expect(screen.queryByRole("note")).toBeNull();
+  });
+
   it("saves the search once typing pauses, and the other choices at once", async () => {
     const user = userEvent.setup();
     open();

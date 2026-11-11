@@ -87,6 +87,13 @@ export function AgentSection({
     change({ enabled: false });
   };
 
+  // What the resume couldn't fill, so the student can add it (Pathfinder). Only the two fields the
+  // agent needs to run: a place is optional, so its absence isn't worth asking about.
+  const missingFromResume = [
+    settings.query.keywords.trim() ? null : "what to look for",
+    settings.query.country ? null : "a country",
+  ].filter((field): field is string => field !== null);
+
   return (
     <>
       <SettingsSectionIntro title="Job agent">
@@ -134,6 +141,12 @@ export function AgentSection({
             , through the source in Settings → Job search. Postings you saved, dismissed or applied for there are left out.
           </p>
         </div>
+        {missingFromResume.length > 0 && (
+          <p role="note" className="rounded-card bg-warning-surface px-4 py-3 text-meta text-warning">
+            We fill this in from the resume you upload. Your resume didn&apos;t give {missingFromResume.join(" or ")}, so add{" "}
+            {missingFromResume.length > 1 ? "them" : "it"} here before turning the agent on.
+          </p>
+        )}
         <div className="grid grid-cols-1 items-start gap-x-4 gap-y-4 sm:grid-cols-2" onBlur={flush}>
           <SearchFields value={settings.query} onChange={setQuery} source={source} countries={countries} errors={errors} />
           <div className="sm:col-span-2">
