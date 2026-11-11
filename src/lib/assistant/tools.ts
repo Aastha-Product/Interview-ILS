@@ -3,7 +3,12 @@ import "server-only";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
+import { ActionError } from "@/lib/action";
+import { AGENT_JOB_KEY, agentScanJob } from "@/lib/agent/jobs";
+import { agentQueryReady, agentSetupProblem } from "@/lib/agent/run";
+import { runLimitProblem } from "@/lib/agent/runs";
 import { countryCodeFor, countryName } from "@/lib/job-search/countries";
+import { findUnfinishedJobs, startJob } from "@/lib/jobs/runner";
 import { CURRENT_USER } from "@/lib/owner/scope";
 import { prisma } from "@/lib/prisma";
 import { loadSettings, saveSettings } from "@/lib/settings-data";
@@ -107,8 +112,69 @@ const setJobSearch: AssistantTool<{ keywords?: string; place?: string; country?:
   },
 };
 
+const onOff = z.enum(["on", "off"]);
+
+const runJobAgent: AssistantTool<Record<string, never>> = {
+  name: "run_job_agent",
+  description: "Run the job agent now — it searches and scores new postings against the profile. No args.",
+  tool: true,
+  schema: z.object({}).strict(),
+  summarize: () => "Run the job agent now — it searches and scores new postings.",
+  run: async () => {
+    const settings = await loadSettings();
+    if (!settings.agentEnabled) throw new ActionError("The job agent is off. Ask me to turn it on first, then I can run it.");
+    const setup = await agentSetupProblem(settings.agentQuery);
+    if (setup) throw new ActionError(setup);
+    const [unfinished] = await findUnfinishedJobs(AGENT_JOB_KEY);
+    if (unfinished) return "A run is already going — new matches will show on the Job agent screen.";
+    const limit = runLimitProblem(settings.agentRuns, new Date(), { manual: true });
+    if (limit) throw new ActionError(limit);
+    await startJob(agentScanJob, { manual: true }, { key: AGENT_JOB_KEY });
+    revalidatePath("/agent");
+    return "Started a run — new matches will show on the Job agent screen shortly.";
+  },
+};
+
+const configureJobAgent: AssistantTool<{ enabled?: "on" | "off"; autoDraft?: "on" | "off" }> = {
+  name: "configure_job_agent",
+  description:
+    "Turn the job agent on or off, and turn its “prepare drafts on its own” on or off. Args: enabled (\"on\"/\"off\"), autoDraft (\"on\"/\"off\") — include only what to change.",
+  tool: true,
+  schema: z
+    .object({ enabled: onOff.optional(), autoDraft: onOff.optional() })
+    .refine((fields) => Object.keys(fields).length > 0, "Nothing to change."),
+  summarize: (args) => {
+    const parts = [
+      args.enabled && `turn the job agent ${args.enabled}`,
+      args.autoDraft && `${args.autoDraft === "on" ? "have it prepare drafts on its own" : "stop it preparing drafts on its own"}`,
+    ].filter(Boolean);
+    return `${parts.join(", and ")}.`.replace(/^./, (c) => c.toUpperCase());
+  },
+  run: async (args) => {
+    const settings = await loadSettings();
+    if (args.enabled === "on" && !agentQueryReady(settings.agentQuery)) {
+      throw new ActionError(
+        settings.agentQuery.keywords.trim()
+          ? "The job agent needs a country for its search before it can run. Ask me to set the search, or add one in Settings → Job agent."
+          : "The job agent needs to know what to look for first. Ask me to set the search, or add one in Settings → Job agent.",
+      );
+    }
+    await saveSettings({
+      agentEnabled: args.enabled ? args.enabled === "on" : undefined,
+      agentAutoDraft: args.autoDraft ? args.autoDraft === "on" : undefined,
+    });
+    revalidatePath("/agent");
+    return "Updated the job agent.";
+  },
+};
+
 /** Every assistant tool, by name. */
-const TOOLS = { [updateProfile.name]: updateProfile, [setJobSearch.name]: setJobSearch } as Record<string, AssistantTool<unknown>>;
+const TOOLS = {
+  [updateProfile.name]: updateProfile,
+  [setJobSearch.name]: setJobSearch,
+  [runJobAgent.name]: runJobAgent,
+  [configureJobAgent.name]: configureJobAgent,
+} as Record<string, AssistantTool<unknown>>;
 
 /** The tools on offer now: the always-on ones, plus the job tools where this server has them on. */
 export function availableTools(): AssistantTool<unknown>[] {
