@@ -113,6 +113,24 @@ https://claude.ai/artifact/GSHLW1T2jiX99CUiBtAUov): all five P0 tasks.
 
 Newest first. One entry per session: date, account, branch, what changed, what's next.
 
+- **2026-11-11 · account 3 · `feature/required-answers`** (built on #28): the owner's rule after
+  pilot stage 1, where applications kept stopping at questions nearly every form asks.
+  - **Set up job search stars its answers, and all are required** (`missingAnswers` in
+    `src/lib/apply/answers.ts`): the cities, every yes/no question, notice period, current salary
+    (or "I don't have a salary now"), expected salary, graduation year, and for experienced
+    students their reason for change. Save refuses while one is missing, on the page and on the
+    server.
+  - **Auto-apply is off while one is missing**, whatever the switch says (`view()` in
+    `settings.ts`): nothing is planned, leased or submitted, and the dashboard says which are
+    missing. **Students who switched it on before are paused until they complete the page.**
+  - **New answers:** working from the office (answered yes only for a city the student chose),
+    reason for change, no current salary (forms get 0), and "Which location are you applying
+    for?" from the student's cities in their order.
+  - **Measured on the 30 live forms of 11 November:** 9 answered completely (6 before). What's
+    left is job-specific: experience with a named tool, essays, Aadhaar name, nationality.
+  - **Next:** owner merges #26 to #29 and this, deploys, completes Set up job search, then the
+    pilot continues.
+
 - **2026-11-11 · account 3 · `chore/live-forms-check`**: the pilot's check of real forms, without
   filling any (`extension/live-check/`, README "Check today's live forms").
   - **30 live forms** (Greenhouse, Lever, Ashby), saved read-only by a headless Chromium and read

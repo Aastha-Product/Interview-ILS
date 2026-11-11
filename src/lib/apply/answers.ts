@@ -43,10 +43,87 @@ export const savedAnswersSchema = z.object({
   relativeOfGovernmentOfficial: yesNo,
   /** Referred to the job by someone who works there; auto-apply's applications usually aren't. */
   referredByEmployee: yesNo,
+  /** No salary now (a fresher, or between jobs): forms asking the current one get "0". */
+  noCurrentSalary: z.boolean().default(false),
+  /** Willing to work from the office every working day, in a city they chose. */
+  onsiteOk: yesNo,
+  /** Why they're looking for a change, in their own words; asked of people who have worked. */
+  reasonForChange: z.string().trim().max(1000).default(""),
 });
 export type SavedAnswers = z.output<typeof savedAnswersSchema>;
 
 export const EMPTY_ANSWERS: SavedAnswers = savedAnswersSchema.parse({});
+
+// What Set up job search requires before auto-apply starts (the owner's decision, 11 November
+// 2026, after the pilot: applications kept stopping at questions nearly every form asks). Each is
+// starred on the page, and auto-apply stays off until all are given.
+
+/** A required answer: a saved answer, or the cities in what the student is looking for. */
+export type RequiredAnswer = keyof SavedAnswers | "cities";
+
+/** What each is called in "Answer these first: …". */
+export const ANSWER_NAMES: Record<RequiredAnswer, string> = {
+  cities: "Cities",
+  workAuthorized: "Allowed to work",
+  needsSponsorship: "Visa sponsorship",
+  relativesAtCompany: "Relatives at the company",
+  backgroundCheckConsent: "Background verification",
+  acceptPrivacyNotices: "Employers' privacy notices",
+  outsideActivities: "Outside roles",
+  willingToRelocate: "Willing to relocate",
+  onsiteOk: "Working from the office",
+  adult: "18 or older",
+  employmentRestrictions: "Non-compete",
+  governmentOfficial: "Government official",
+  relativeOfGovernmentOfficial: "Relative of a government official",
+  referredByEmployee: "Referred by an employee",
+  noticePeriod: "Notice period",
+  currentSalary: "Current salary",
+  noCurrentSalary: "Current salary",
+  expectedSalary: "Expected salary",
+  graduationYear: "Graduation year",
+  reasonForChange: "Reason for change",
+};
+
+const REQUIRED_YES_NO = [
+  "workAuthorized",
+  "needsSponsorship",
+  "relativesAtCompany",
+  "backgroundCheckConsent",
+  "acceptPrivacyNotices",
+  "outsideActivities",
+  "willingToRelocate",
+  "onsiteOk",
+  "adult",
+  "employmentRestrictions",
+  "governmentOfficial",
+  "relativeOfGovernmentOfficial",
+  "referredByEmployee",
+] as const satisfies readonly (keyof SavedAnswers)[];
+
+/**
+ * The required answers still missing, in the page's order. The current salary isn't needed from
+ * someone who has none, nor a reason for change from someone looking for their first job
+ * (intern or entry level).
+ */
+export function missingAnswers(saved: SavedAnswers, search: { cities: readonly string[]; level: string }): RequiredAnswer[] {
+  const missing: RequiredAnswer[] = [];
+  if (search.cities.every((city) => !city.trim())) missing.push("cities");
+  for (const key of REQUIRED_YES_NO) if (saved[key] === null) missing.push(key);
+  if (saved.noticePeriod === null) missing.push("noticePeriod");
+  if (!saved.noCurrentSalary && !saved.currentSalary.trim()) missing.push("currentSalary");
+  if (!saved.expectedSalary.trim()) missing.push("expectedSalary");
+  if (!/^(19|20)\d{2}$/.test(saved.graduationYear)) missing.push("graduationYear");
+  if (search.level === "experienced" && !saved.reasonForChange.trim()) missing.push("reasonForChange");
+  return missing;
+}
+
+/** "Answer these in Set up job search first: Cities, Expected salary and 2 more." */
+export function missingAnswersMessage(missing: readonly RequiredAnswer[]): string {
+  const names = [...new Set(missing.map((key) => ANSWER_NAMES[key]))];
+  const shown = names.slice(0, 4).join(", ");
+  return `Answer ${names.length === 1 ? "this" : "these"} in Set up job search first: ${shown}${names.length > 4 ? ` and ${names.length - 4} more` : ""}.`;
+}
 
 export type FieldType = "text" | "textarea" | "file" | "single" | "multi" | "hidden";
 export type FieldOption = { label: string; value: string };
@@ -88,6 +165,10 @@ export type AnswerContext = {
   graduationYear: string;
   /** The company the form is for. */
   company: string;
+  /** Where the job is, as its posting says: "Noida, Uttar Pradesh". */
+  jobLocation?: string;
+  /** The cities the student is looking in, most preferred first (Set up job search). */
+  cities?: readonly string[];
   saved: SavedAnswers;
 };
 
@@ -243,6 +324,52 @@ function basedIn(field: FormField, context: AnswerContext): Answer | null {
   return yesNoAnswer(field, asked.some((names) => own.includes(names)));
 }
 
+/** Whether `text` (normalised) names `city`, by any of the names this knows for it. */
+function namesCity(text: string, city: string): boolean {
+  const wanted = normal(city);
+  if (!wanted) return false;
+  const groups = cityGroups(wanted);
+  if (groups.length > 0) return groups.some((names) => names.some((name) => new RegExp(`\\b${name}\\b`).test(text)));
+  return new RegExp(`\\b${wanted.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`).test(text);
+}
+
+/**
+ * "Which location are you applying for?" (Paytm, found in the pilot): of the places the form
+ * offers, the first that's among the student's cities, in their order. Written, the city of
+ * theirs the job is in. Nothing when none of theirs fits: the student chooses.
+ */
+function applyingLocation(field: FormField, context: AnswerContext): Answer | null {
+  const cities = (context.cities ?? []).filter((city) => city.trim());
+  if (field.type === "single" || field.type === "multi") {
+    for (const city of cities) {
+      const option = field.options.find((entry) => namesCity(normal(entry.label), city));
+      if (option) return field.type === "single" ? { kind: "option", value: option.value, label: option.label } : { kind: "options", values: [option.value], labels: [option.label] };
+    }
+    return null;
+  }
+  const here = cities.find((city) => namesCity(normal(context.jobLocation ?? ""), city));
+  return here ? text(here) : null;
+}
+
+/**
+ * "Are you comfortable working 5 days from our Bangalore office?": the student's answer to
+ * working from the office. A yes only where the question names no city, or one of theirs; a city
+ * they didn't choose is left to them.
+ */
+function onsite(field: FormField, context: AnswerContext): Answer | null {
+  const willing = context.saved.onsiteOk;
+  // "Experience working in Microsoft Office?" is about the software.
+  if (/\b(ms|microsoft|google|open|libre) ?office\b|\boffice (suite|365|tools|software|applications)\b/.test(normal(field.label))) return null;
+  if (willing === null) return null;
+  if (!willing) return yesNoAnswer(field, false);
+  const label = normal(field.label);
+  const mine = [...(context.cities ?? []), context.basics.city].filter((city) => city.trim());
+  const asksNcr = /\bncr\b/.test(label);
+  if (cityGroups(label).length === 0 && !asksNcr) return yesNoAnswer(field, true);
+  const fits = mine.some((city) => namesCity(label, city) || (asksNcr && NCR.has(normal(city))));
+  return fits ? yesNoAnswer(field, true) : null;
+}
+
 /** Whether a question is about the company itself: it names it, or says "us", "our" or "subsidiaries". */
 function aboutThisCompany(label: string, company: string): boolean {
   const text = normal(label);
@@ -364,7 +491,7 @@ const RULES: Rule[] = [
   { test: /relocat/, answer: (field, c) => yesNoAnswer(field, c.saved.willingToRelocate) },
   // "present CTC", "current fixed CTC", "range of salary you seeking", "compensation expectations"
   // (found on live forms on 11 November 2026).
-  { test: /(current|present) (fixed |annual |total |gross )?(ctc|salary|compensation|pay|package)/, answer: (_field, c) => text(c.saved.currentSalary) },
+  { test: /(current|present) (fixed |annual |total |gross )?(ctc|salary|compensation|pay|package)/, answer: (_field, c) => text(c.saved.noCurrentSalary ? "0" : c.saved.currentSalary) },
   {
     test: /expected (fixed |annual |total |gross )?(ctc|salary|compensation|pay|package)|(salary|compensation|ctc) expectations?|range of (salary|compensation|ctc)|(salary|compensation|ctc) (range )?you (are )?(seeking|looking for)/,
     answer: (_field, c) => text(c.saved.expectedSalary),
@@ -385,7 +512,21 @@ const RULES: Rule[] = [
   // Also the question worded just "Country" (Greenhouse's own field): where the student is. Not
   // citizenship or nationality, which are asked in those words and left to the student.
   { test: /countr(y|ies) .*(resid|live|based)|(resid|live|based) .*countr(y|ies)|country of residence|^(current |your )?country( region| or region)?$/, answer: (field, c) => countryAnswer(field, c.basics.country) },
-  // Before where they are: a yes or no about one city.
+  // "Please mention your reason for change." (Paytm), in the student's own words.
+  {
+    test: /reason (for|of) (the |a |your |job )?(change|leaving|switch|looking|moving)|why (are|do) you (looking|want|wish|planning|seeking) (for |to )?(a |an )?(job )?(change|switch|leave|move|new)|why .*leav(e|ing) your (current|present|last)/,
+    answer: (_field, c) => text(c.saved.reasonForChange),
+  },
+  // Before where they are: the place they're applying for, working from the office, a yes or no about one city.
+  {
+    test: /which (location|city|office)\b.*\b(apply|applying|applied|prefer|interested|like)|(preferred|desired) (job |work |office )?location|location preference|location (you are|are you) applying/,
+    answer: (field, c) => applyingLocation(field, c),
+  },
+  {
+    // "working 5 days from Bangalore office", "work Onsite in Mumbai", "in-office role", "from one of our offices".
+    test: /\bwork(ing)?\b[^?]{0,50}?\b(from|out of|in|at)\b[^?]{0,50}?\boffices?\b|\bon ?site\b|\bin office\b|\bwfo\b/,
+    answer: (field, c) => onsite(field, c),
+  },
   { test: /^(are|do) you (currently |presently )?(based|located|living|residing|reside|live|stay|staying) (out of|in|at|near)\b/, answer: (field, c) => basedIn(field, c) },
   {
     test: /^(current |present )?(location|city)\b|where are you (currently )?(based|located)|(current|present) (city|location)|currently (located|based)|(city|state) .*(resid|live)|primary residence|(from )?where do you (intend|plan) to work|preferred (work )?location/,

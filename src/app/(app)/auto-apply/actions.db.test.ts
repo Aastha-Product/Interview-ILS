@@ -1,11 +1,11 @@
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { EMPTY_ANSWERS } from "@/lib/apply/answers";
 import { loadAutoApplyScreen } from "@/lib/apply/view";
 import { createExtensionToken } from "@/lib/extension/tokens";
 import { startJob } from "@/lib/jobs/runner";
 import { runAsUser } from "@/lib/owner/context";
 import { rawClientOf } from "@/lib/owner/scope";
+import { COMPLETE_ANSWERS } from "@/test/answers";
 import { createTestClient, resetDatabase } from "@/test/db";
 
 import { agreeToAutoApply, findMatchesNow, prepareApplicationAgain, saveJobSearch, skipApplication, switchAutoApply } from "./actions";
@@ -40,7 +40,8 @@ const jobSearch = {
   dailyLimit: 5,
   perCompanyLimit: 2,
   dryRun: true,
-  answers: { ...EMPTY_ANSWERS, workAuthorized: true },
+  // Every starred answer: Save refuses anything less.
+  answers: COMPLETE_ANSWERS,
 };
 
 async function taskIn(state: "READY" | "NEEDS_STUDENT" | "SUBMITTING" | "APPLIED") {
@@ -65,6 +66,12 @@ beforeEach(async () => {
 afterAll(() => prisma().$disconnect());
 
 describe("the auto-apply screens' actions (auto-apply step 4)", () => {
+  it("refuses to save while a required answer is missing, and says which (the owner's rule)", async () => {
+    const result = await saveJobSearch({ ...jobSearch, preferences: { ...jobSearch.preferences, cities: [] }, answers: { ...COMPLETE_ANSWERS, expectedSalary: "", noticePeriod: null } });
+    expect(result).toEqual({ ok: false, error: "Answer these in Set up job search first: Cities, Notice period, Expected salary." });
+    expect(await raw().autoApplySettings.count()).toBe(0);
+  });
+
   it("saves the job search and keeps auto-apply off until switched on", async () => {
     expect(await saveJobSearch(jobSearch)).toMatchObject({ ok: true, toast: "Job search saved." });
     const view = await loadAutoApplyScreen();

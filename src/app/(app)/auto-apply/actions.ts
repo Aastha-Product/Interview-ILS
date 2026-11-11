@@ -8,7 +8,8 @@ import { ActionError, toolAction } from "@/lib/action";
 import { markAppliedByStudent } from "@/lib/apply/lease";
 import { planApplications, prepareAgain } from "@/lib/apply/prepare";
 import { createExtensionToken, revokeExtensionToken } from "@/lib/extension/tokens";
-import { AutoApplyNotReady, giveConsent, loadAutoApply, saveAutoApply, setAutoApplyEnabled, settingsInputSchema } from "@/lib/apply/settings";
+import { missingAnswersMessage } from "@/lib/apply/answers";
+import { AutoApplyNotReady, giveConsent, loadAutoApply, missingIn, saveAutoApply, setAutoApplyEnabled, settingsInputSchema } from "@/lib/apply/settings";
 import { startMatchRun } from "@/lib/match/jobs";
 import { prisma } from "@/lib/prisma";
 
@@ -20,6 +21,10 @@ const refresh = () => PATHS.forEach((path) => revalidatePath(path));
 
 /** Set up job search: what to look for, the answers forms ask for, and the limits. */
 export const saveJobSearch = toolAction(settingsInputSchema, async (input, { toast }) => {
+  // Every starred answer is required (the page checks too): without them applications stop at
+  // questions nearly every form asks.
+  const missing = missingIn(input);
+  if (missing.length > 0) throw new ActionError(missingAnswersMessage(missing));
   await saveAutoApply(input);
   refresh();
   toast("Job search saved.");

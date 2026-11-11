@@ -8,7 +8,7 @@ import { EMPLOYMENT_TYPES, LEVELS, type MatchPreferences } from "@/lib/match/pre
 import { CURRENT_USER } from "@/lib/owner/scope";
 import { prisma } from "@/lib/prisma";
 
-import { savedAnswersSchema, type SavedAnswers } from "./answers";
+import { missingAnswers, missingAnswersMessage, savedAnswersSchema, type RequiredAnswer, type SavedAnswers } from "./answers";
 
 // Pathfinder (auto-apply step 4): what a student allowed auto-apply to do. Nothing is submitted
 // until they've agreed to the consent below and switched it on; it starts as a dry run that fills
@@ -53,6 +53,12 @@ export type AutoApplyView = {
   perCompanyLimit: number;
   dryRun: boolean;
   answers: SavedAnswers;
+  /**
+   * The required answers still to give (Set up job search stars them). While any is missing,
+   * auto-apply is off whatever the switch says: nothing is prepared, handed to a browser or
+   * submitted.
+   */
+  missing: RequiredAnswer[];
 };
 
 const DEFAULTS = { minTier: MatchTier.GOOD, dailyLimit: 10, perCompanyLimit: 2, dryRun: true } as const;
@@ -60,8 +66,10 @@ const DEFAULTS = { minTier: MatchTier.GOOD, dailyLimit: 10, perCompanyLimit: 2, 
 function view(row: AutoApplySettings | null): AutoApplyView {
   const preferences = row?.preferences ? preferencesSchema.safeParse(row.preferences) : null;
   const consented = Boolean(row?.consentAt) && row?.consentVersion === CONSENT_VERSION;
+  const answers = savedAnswersSchema.parse(row?.answers ?? {});
+  const missing = missingAnswers(answers, { cities: preferences?.success ? preferences.data.cities : [], level: preferences?.success ? preferences.data.level : "entry" });
   return {
-    enabled: Boolean(row?.enabled) && consented,
+    enabled: Boolean(row?.enabled) && consented && missing.length === 0,
     consented,
     consentOutdated: Boolean(row?.consentAt) && row?.consentVersion !== CONSENT_VERSION,
     preferences: preferences?.success ? preferences.data : null,
@@ -69,8 +77,15 @@ function view(row: AutoApplySettings | null): AutoApplyView {
     dailyLimit: row?.dailyLimit ?? DEFAULTS.dailyLimit,
     perCompanyLimit: row?.perCompanyLimit ?? DEFAULTS.perCompanyLimit,
     dryRun: row?.dryRun ?? DEFAULTS.dryRun,
-    answers: savedAnswersSchema.parse(row?.answers ?? {}),
+    answers,
+    missing,
   };
+}
+
+/** The required answers `input` leaves out, checked before it's saved from Set up job search. */
+export function missingIn(input: AutoApplyInput): RequiredAnswer[] {
+  const data = settingsInputSchema.parse(input);
+  return missingAnswers(data.answers, data.preferences);
 }
 
 const own = { userId: CURRENT_USER };
@@ -107,6 +122,7 @@ export async function setAutoApplyEnabled(enabled: boolean): Promise<AutoApplyVi
     const current = await loadAutoApply();
     if (!current.consented) throw new AutoApplyNotReady("Read and agree to how auto-apply works first.");
     if (!current.preferences) throw new AutoApplyNotReady("Set up your job search first: the roles and places you're looking for.");
+    if (current.missing.length > 0) throw new AutoApplyNotReady(missingAnswersMessage(current.missing));
   }
   return view(await prisma.autoApplySettings.upsert({ where: own, create: { enabled }, update: { enabled } }));
 }

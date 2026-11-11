@@ -2,8 +2,8 @@ import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { runAsUser } from "@/lib/owner/context";
 import { createTestClient, resetDatabase } from "@/test/db";
+import { COMPLETE_ANSWERS } from "@/test/answers";
 
-import { EMPTY_ANSWERS } from "./answers";
 
 const db = vi.hoisted(() => ({ client: undefined as ReturnType<typeof createTestClient> | undefined }));
 vi.mock("@/lib/prisma", async () => {
@@ -21,10 +21,10 @@ const { createExtensionToken, listExtensionTokens, revokeExtensionToken, verifyE
 
 const prisma = () => db.client!;
 const raw = () => rawClientOf(prisma());
-const preferences = { titles: ["Data Analyst"], skills: [], countries: ["in"], cities: [], remoteOk: true, level: "entry" as const, employmentTypes: [] };
+const preferences = { titles: ["Data Analyst"], skills: [], countries: ["in"], cities: ["Pune"], remoteOk: true, level: "entry" as const, employmentTypes: [] };
 
 async function switchedOn(dryRun = false) {
-  await saveAutoApply({ preferences, minTier: "GOOD", dailyLimit: 10, perCompanyLimit: 2, dryRun, answers: EMPTY_ANSWERS });
+  await saveAutoApply({ preferences, minTier: "GOOD", dailyLimit: 10, perCompanyLimit: 2, dryRun, answers: COMPLETE_ANSWERS });
   await giveConsent();
   await setAutoApplyEnabled(true);
 }

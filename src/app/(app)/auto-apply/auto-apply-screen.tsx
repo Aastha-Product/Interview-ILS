@@ -11,6 +11,7 @@ import { Card } from "@/components/ui/card";
 import { Toggle } from "@/components/ui/toggle";
 import type { ApplyState } from "@/generated/prisma/enums";
 import type { ActionResult } from "@/lib/action";
+import { ANSWER_NAMES } from "@/lib/apply/answers";
 import type { ApplyTaskView, AutoApplyScreenView, BrowsersView } from "@/lib/apply/view";
 import { TIER_LABELS } from "@/lib/match/tiers";
 
@@ -128,7 +129,9 @@ export function AutoApplyScreen({ view }: { view: AutoApplyScreenView }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const { settings, summary, tasks } = view;
-  const ready = settings.consented && settings.preferences !== null;
+  const set = settings.consented && settings.preferences !== null;
+  // Every starred answer in Set up job search is required before anything is applied for.
+  const ready = set && settings.missing.length === 0;
 
   const act = (work: () => Promise<ActionResult<unknown>>) =>
     startTransition(async () => {
@@ -173,8 +176,12 @@ export function AutoApplyScreen({ view }: { view: AutoApplyScreenView }) {
             onCheckedChange={(enabled) => !pending && act(() => switchAutoApply({ enabled }))}
           />
         ) : (
-          <p className="text-meta">
-            {settings.consentOutdated ? "How auto-apply works has changed: read it and agree again in " : "To start, set up your job search and agree to how auto-apply works in "}
+          <p className="text-meta" role={set ? "alert" : undefined}>
+            {set
+              ? `Auto-apply is waiting for ${settings.missing.length === 1 ? "one required answer" : `${settings.missing.length} required answers`} (${[...new Set(settings.missing.map((key) => ANSWER_NAMES[key]))].join(", ")}). Nothing is prepared or submitted until you give ${settings.missing.length === 1 ? "it" : "them"} in `
+              : settings.consentOutdated
+                ? "How auto-apply works has changed: read it and agree again in "
+                : "To start, set up your job search and agree to how auto-apply works in "}
             <Link href="/auto-apply/setup" className="font-medium underline underline-offset-2">
               Set up job search
             </Link>

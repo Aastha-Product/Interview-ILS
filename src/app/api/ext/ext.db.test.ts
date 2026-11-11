@@ -1,8 +1,8 @@
 import { NextRequest } from "next/server";
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { EMPTY_ANSWERS } from "@/lib/apply/answers";
 import { createTestClient, resetDatabase } from "@/test/db";
+import { COMPLETE_ANSWERS } from "@/test/answers";
 
 // The extension's routes, called as the extension calls them: with its token, no session cookie.
 
@@ -48,7 +48,7 @@ let taskId = "";
 beforeEach(async () => {
   await resetDatabase(prisma());
   for (const table of ["applyTask", "autoApplySettings", "jobMatch", "sharedPosting", "company", "extensionToken"] as const) await (raw()[table] as { deleteMany: () => Promise<unknown> }).deleteMany();
-  await saveAutoApply({ preferences: { titles: ["Data Analyst"], skills: [], countries: ["in"], cities: [], remoteOk: true, level: "entry", employmentTypes: [] }, minTier: "GOOD", dailyLimit: 10, perCompanyLimit: 2, dryRun: false, answers: { ...EMPTY_ANSWERS, workAuthorized: true } });
+  await saveAutoApply({ preferences: { titles: ["Data Analyst"], skills: [], countries: ["in"], cities: ["Pune"], remoteOk: true, level: "entry", employmentTypes: [] }, minTier: "GOOD", dailyLimit: 10, perCompanyLimit: 2, dryRun: false, answers: COMPLETE_ANSWERS });
   await giveConsent();
   await setAutoApplyEnabled(true);
   const company = await raw().company.create({ data: { name: "Acme", system: "LEVER", boardToken: "acme" } });

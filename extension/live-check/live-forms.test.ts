@@ -19,10 +19,11 @@ const DIR = process.env.PATHFINDER_LIVE_FORMS;
 /** The Chrome tests' student, with the salaries Set up job search asks for filled in, as a student would. */
 const asha = (company: string) => {
   const context = student(company);
-  return { ...context, saved: { ...context.saved, currentSalary: "3 LPA", expectedSalary: "6 LPA" } };
+  // Everything Set up job search requires: the cities they'd work in, working from the office, the salaries.
+  return { ...context, cities: ["Pune", "Bengaluru", "Noida"], saved: { ...context.saved, onsiteOk: true, currentSalary: "3 LPA", expectedSalary: "6 LPA", graduationYear: "2026" } };
 };
 
-type Saved = { board: string; company: string; title: string; url: string; file: string; finalUrl: string; formFound: boolean };
+type Saved = { board: string; company: string; title: string; url: string; file: string; finalUrl: string; formFound: boolean; location?: string };
 type Finding = {
   page: string;
   url: string;
@@ -76,7 +77,7 @@ describe.skipIf(!DIR)("today's live application forms", () => {
       } else if (form && board) {
         fields = await readFields(board, form);
       }
-      const { missing } = answerForm(fields, asha(page.company));
+      const { missing } = answerForm(fields, { ...asha(page.company), jobLocation: page.location ?? "" });
       const required = fields.filter((field) => field.required && field.type !== "hidden");
       const toStudent = missing;
       for (const question of questions) if (question.control.kind === "other" && question.required) problems.push(`"${question.label}" has several inputs: goes to the student`);
