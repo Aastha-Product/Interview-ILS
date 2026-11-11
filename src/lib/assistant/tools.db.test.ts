@@ -1,7 +1,8 @@
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { EMPTY_QUERY } from "@/lib/job-search/search";
 import { runAsUser } from "@/lib/owner/context";
-import { loadSettings } from "@/lib/settings-data";
+import { loadSettings, saveSettings } from "@/lib/settings-data";
 import { createTestClient, resetDatabase, TEST_USER_ID } from "@/test/db";
 
 const db = vi.hoisted(() => ({ client: undefined as ReturnType<typeof createTestClient> | undefined }));
@@ -47,10 +48,29 @@ describe("assistant tools (Pathfinder, Phase 2)", () => {
     expect(await asUser(async () => (await loadSettings()).agentQuery)).toMatchObject({ keywords: "Designer", country: "" });
   });
 
-  it("offers set_job_search only where the job tools are on", () => {
-    expect(availableTools().map((tool) => tool.name)).toContain("set_job_search");
+  it("offers the job-agent tools only where the job tools are on", () => {
+    expect(availableTools().map((tool) => tool.name)).toEqual(expect.arrayContaining(["set_job_search", "run_job_agent", "configure_job_agent"]));
     toolsOn.value = false;
     expect(availableTools().map((tool) => tool.name)).toEqual(["update_profile"]);
-    expect(assistantTool("set_job_search")).toBeUndefined();
+    expect(assistantTool("run_job_agent")).toBeUndefined();
+  });
+
+  it("run_job_agent won't run while the agent is off", async () => {
+    await expect(asUser(() => assistantTool("run_job_agent")!.run({}))).rejects.toThrow(/off/i);
+  });
+
+  it("configure_job_agent turns the agent on only once its search is ready", async () => {
+    // No search yet: enabling is refused with a helpful message, and nothing is turned on.
+    await expect(asUser(() => assistantTool("configure_job_agent")!.run({ enabled: "on" }))).rejects.toThrow(/what to look for/i);
+    expect(await asUser(async () => (await loadSettings()).agentEnabled)).toBe(false);
+
+    // With a ready search, it turns on, and sets "prepare drafts on its own".
+    await asUser(() => saveSettings({ agentQuery: { ...EMPTY_QUERY, keywords: "Frontend", country: "de" } }));
+    const done = await asUser(() => assistantTool("configure_job_agent")!.run({ enabled: "on", autoDraft: "on" }));
+    expect(done).toContain("Updated the job agent");
+    expect(await asUser(async () => ({ enabled: (await loadSettings()).agentEnabled, autoDraft: (await loadSettings()).agentAutoDraft }))).toEqual({
+      enabled: true,
+      autoDraft: true,
+    });
   });
 });
