@@ -12,7 +12,7 @@ const GROUPS: readonly ScopeGroup[] = ["send", "read", "calendar"];
  * features, added to what was granted before. Sends the browser to Google's
  * consent page, which comes back to /api/google/callback.
  */
-export const GET = route(async (request) => {
+export const GET = route(async (request, _context, session) => {
   const client = await googleClient();
   const settings = new URL("/settings?section=google", publicOrigin(request));
   if (!client) {
@@ -24,6 +24,6 @@ export const GET = route(async (request) => {
     .filter((group): group is ScopeGroup => (GROUPS as readonly string[]).includes(group));
   const account = await loadGoogleAccount();
   const scopes = [...SCOPES.identity, ...(account?.scopes.split(/\s+/) ?? []), ...asked.flatMap((group) => SCOPES[group])].filter(Boolean);
-  const state = await signState("/settings?section=google");
+  const state = await signState("/settings?section=google", session.userId);
   return NextResponse.redirect(authorizeUrl({ clientId: client.id, redirect: redirectUri(publicOrigin(request)), state, scopes }));
 });

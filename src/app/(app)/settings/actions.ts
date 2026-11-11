@@ -314,6 +314,12 @@ export const deleteEverything = action(z.object({ confirm: z.literal("DELETE") }
     await tx.emailMessage.deleteMany();
     // Resume analyses (Pathfinder).
     await tx.resumeAnalysis.deleteMany();
+    // Auto-apply (Pathfinder): its applications with their answers and evidence, the jobs it
+    // matched, the settings and consent, and the connected browsers, which can't apply from now on.
+    await tx.applyTask.deleteMany();
+    await tx.jobMatch.deleteMany();
+    await tx.autoApplySettings.deleteMany();
+    await tx.extensionToken.deleteMany();
     // Applications take their history, documents, chat and notes along.
     await tx.application.deleteMany();
     await tx.experience.deleteMany();

@@ -75,8 +75,9 @@
   --color-toggle-off: light-dark(#6b7280, rgb(255 255 255 / 0.4)); /* 3:1, like text fields */
 
   /* Feedback. error and danger are for text; danger-fill is behind white text. */
-  --color-danger: light-dark(#9a4a3a, #f87171); /* remove / destructive text */
-  --color-error: light-dark(#9a3a2c, #f87171);
+  /* Dark: #fb8b8b; the earlier #f87171 was 4.43:1 on cards and 4.23:1 on danger-surface (axe, e2e). */
+  --color-danger: light-dark(#9a4a3a, #fb8b8b); /* remove / destructive text */
+  --color-error: light-dark(#9a3a2c, #fb8b8b);
   --color-error-strong: light-dark(#7a2e22, #fca5a5);
   --color-danger-fill: light-dark(#9a3a2c, #c4320a);
   --color-danger-fill-hover: light-dark(#7a2e22, #9a3a2c);

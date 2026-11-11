@@ -96,24 +96,33 @@ export function redirectUri(origin: string): string {
 
 const STATE_AUDIENCE = "dossier-google-oauth";
 
-/** A state that only this server can make, for ten minutes, carrying where to go back to. */
-export async function signState(returnTo: string, secret?: string): Promise<string> {
+/**
+ * A state that only this server can make, for ten minutes, carrying where to go back to and
+ * which student started connecting (Pathfinder, QA M-5): a link to Google's consent page made
+ * by one student can't connect a mailbox to another who opens it.
+ */
+export async function signState(returnTo: string, userId: string, secret?: string): Promise<string> {
   return new SignJWT({ returnTo })
     .setProtectedHeader({ alg: "HS256" })
     .setAudience(STATE_AUDIENCE)
+    .setSubject(userId)
     .setIssuedAt()
     .setExpirationTime("10m")
     .sign(deriveKey("oauth-state", secret));
 }
 
-/** The page to go back to from a valid state; null for a forged or expired one. */
-export async function verifyState(state: string | null, { secret, now }: { secret?: string; now?: Date } = {}): Promise<string | null> {
-  if (!state) return null;
+/** The page to go back to from a valid state for `userId`; null for a forged or expired one, or another student's. */
+export async function verifyState(
+  state: string | null,
+  { userId, secret, now }: { userId: string; secret?: string; now?: Date },
+): Promise<string | null> {
+  if (!state || !userId) return null;
   try {
     const { payload } = await jwtVerify(state, deriveKey("oauth-state", secret), {
       audience: STATE_AUDIENCE,
       algorithms: ["HS256"],
       currentDate: now,
+      subject: userId,
     });
     return typeof payload.returnTo === "string" && payload.returnTo.startsWith("/") && !payload.returnTo.startsWith("//")
       ? payload.returnTo

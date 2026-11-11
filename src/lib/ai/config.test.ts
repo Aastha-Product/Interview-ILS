@@ -22,6 +22,7 @@ describe("resolveAiConfig", () => {
       apiKey: null,
       apiKeyProblem: null,
       sharedKey: false,
+      publicOnly: false,
       timeoutMs: 300_000,
     });
   });
@@ -94,6 +95,18 @@ describe("resolveAiConfig", () => {
     expect(resolveAiConfig(saved, env)).toMatchObject({ apiKey: "sk-mine", sharedKey: false, baseUrl: "https://mine.example/v1", model: "my-model" });
   });
 
+  it("reaches only public addresses a student chose, never the server's own (QA M-2)", () => {
+    const env = { DOSSIER_AI_PROVIDER: "local" as const, DOSSIER_AI_URL: "http://ollama:11434", DOSSIER_AI_KEY: "sk-env" };
+    // The server's own address, from DOSSIER_AI_URL: its operators chose it.
+    expect(resolveAiConfig(nothingSaved, env).publicOnly).toBe(false);
+    // A student's saved address, with their own key, and a saved provider's default.
+    const own = { provider: "OPENAI" as const, baseUrl: "http://db:5432", model: null, apiKeyEnc: encryptApiKey("sk-mine") };
+    expect(resolveAiConfig(own, env)).toMatchObject({ baseUrl: "http://db:5432", publicOnly: true });
+    expect(resolveAiConfig({ provider: "LOCAL", baseUrl: null, model: null, apiKeyEnc: null }, noEnv)).toMatchObject({ baseUrl: "http://localhost:11434", publicOnly: true });
+    // A server run by one person for themself can allow its own network.
+    expect(resolveAiConfig(own, { ...env, PATHFINDER_PRIVATE_AI: "on" }).publicOnly).toBe(false);
+  });
+
   it("reports a saved key it can't read instead of failing", () => {
     const saved = { provider: "ANTHROPIC" as const, baseUrl: null, model: null, apiKeyEnc: encryptApiKey("sk", "b".repeat(32)) };
     const config = resolveAiConfig(saved, noEnv);
@@ -104,12 +117,19 @@ describe("resolveAiConfig", () => {
 
 describe("createProvider", () => {
   it("picks the implementation for the provider", () => {
-    const base = { baseUrl: "http://x", model: "m", apiKey: "k", apiKeyProblem: null, sharedKey: false, timeoutMs: 1000 };
+    const base = { baseUrl: "http://x", model: "m", apiKey: "k", apiKeyProblem: null, sharedKey: false, publicOnly: false, timeoutMs: 1000 };
     expect(createProvider({ ...base, provider: "LOCAL" }).kind).toBe("LOCAL");
     expect(createProvider({ ...base, provider: "OPENAI" }).kind).toBe("OPENAI");
     expect(createProvider({ ...base, provider: "ANTHROPIC" }).kind).toBe("ANTHROPIC");
     expect(createProvider({ ...base, provider: "MISTRAL" }).kind).toBe("MISTRAL");
     expect(createProvider({ ...base, provider: "LMSTUDIO" }).kind).toBe("LMSTUDIO");
+  });
+
+  it("checks a student's own address before it sends anything there (QA M-2)", async () => {
+    const base = { model: "m", apiKey: "k", apiKeyProblem: null, sharedKey: false, timeoutMs: 1000 };
+    const provider = createProvider({ ...base, provider: "OPENAI", baseUrl: "http://169.254.169.254/v1", publicOnly: true });
+    expect(provider.kind).toBe("OPENAI");
+    await expect(provider.listModels()).rejects.toThrow("addresses on its own network");
   });
 });
 

@@ -36,7 +36,20 @@ async function rpc(response: APIResponse): Promise<{ result: { tools?: { name: s
   return JSON.parse(body.trimStart().startsWith("{") ? body : body.split("\n").find((line) => line.startsWith("data: "))!.slice(6));
 }
 
-test("connects Claude through Settings and the consent page, serves its tools, and signs it out", async ({ page, baseURL, playwright }) => {
+// Pathfinder: the connector is off on a server with many students until its tokens name the
+// student they belong to (docs/pathfinder-v1-plan.md, task 6). Until then it answers 404 and
+// Settings doesn't offer it; the whole flow below comes back with that task.
+test("is off: its addresses answer 404 and Settings doesn't offer it", async ({ page, playwright, baseURL }) => {
+  const claude = await playwright.request.newContext({ baseURL });
+  expect((await claude.post("/api/mcp", { data: {} })).status()).toBe(404);
+  expect((await claude.get("/.well-known/oauth-authorization-server")).status()).toBe(404);
+  expect((await claude.post("/api/oauth/register", { data: { redirect_uris: [CALLBACK] } })).status()).toBe(404);
+  await page.goto("/settings?section=claude");
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "MCP connector" })).toHaveCount(0);
+});
+
+test.fixme("connects Claude through Settings and the consent page, serves its tools, and signs it out", async ({ page, baseURL, playwright }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   const claude = await playwright.request.newContext({ baseURL });
   const address = `${baseURL}/api/mcp`;

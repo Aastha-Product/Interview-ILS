@@ -97,8 +97,9 @@ export default function PrivacyPage() {
           <p>
             Pathfinder helps students and recent graduates apply for jobs. You build one profile, keep track of the jobs
             you apply for, and Pathfinder drafts resumes, cover letters and emails for each one from the facts in your
-            profile. <strong>You always apply yourself.</strong> Pathfinder never signs in to job sites, never asks for
-            their passwords, and never applies on your behalf.
+            profile. If you switch on <strong>Auto-apply</strong> and connect the Pathfinder extension to Chrome, it
+            applies for you to the jobs that match, from your own browser and within the limits you set (section 7);
+            otherwise you apply yourself. Pathfinder never signs in to job sites and never asks for their passwords.
           </p>
           <p>
             This notice explains what personal data Pathfinder keeps, why, where, who else receives it, how long it&apos;s
@@ -155,6 +156,18 @@ export default function PrivacyPage() {
                 "To match replies to your applications, read them and draft answers",
               ],
               [
+                "Auto-apply, only if you set it up: what you're looking for, your limits, your answers to questions forms often ask (such as notice period or expected salary), and when you agreed to it",
+                "To apply for you only where and how you allowed",
+              ],
+              [
+                "For each application auto-apply works on: the job, how well it matched, the answers it gave the form, and what the job site showed afterwards (the confirmation's words and the page's address) or why it stopped",
+                "So you can see exactly what was sent, and so an application is never sent twice or reported as sent when it wasn't",
+              ],
+              [
+                "Browsers connected to auto-apply: a name such as “Chrome on Windows”, and when each was connected and last used",
+                "So you can see and disconnect them. The extension's key is kept only as a fingerprint (a hash), never as the key itself.",
+              ],
+              [
                 "Your settings, including any API keys you enter (stored encrypted)",
                 "So the app works the way you set it up",
               ],
@@ -163,7 +176,7 @@ export default function PrivacyPage() {
                 "To fix problems and improve Pathfinder",
               ],
               [
-                "Background tasks: what an AI task was given and wrote, for a short time (section 7)",
+                "Background tasks: what an AI task was given and wrote, for a short time (section 8)",
                 "So a task's result is there when you come back to it",
               ],
             ]}
@@ -178,8 +191,12 @@ export default function PrivacyPage() {
         <Section title="4. Consent">
           <p>
             We process your personal data with your consent, which you give by signing in after reading this notice. You
-            can withdraw it at any time (section 8). Withdrawing stops the processing from then on; it doesn&apos;t
+            can withdraw it at any time (section 9). Withdrawing stops the processing from then on; it doesn&apos;t
             undo what happened before.
+          </p>
+          <p>
+            Auto-apply asks for its own consent, on the Auto-apply page, before it submits anything for you. It starts in
+            dry run, which fills in forms but stops before Submit, until you switch that off.
           </p>
         </Section>
 
@@ -221,6 +238,10 @@ export default function PrivacyPage() {
                 "If you pick Jev in Settings → Scoring, parts of your profile and the job post are sent to TypeSafe to score how well they match.",
               ],
               [
+                "Employers, through their job sites, only with auto-apply",
+                "When auto-apply applies for you, the employer's form (on Greenhouse, Lever or Ashby) receives what any application gives it: your answers, your resume and your cover letter. The employer and the job site then handle it under their own privacy notices.",
+              ],
+              [
                 "Gmail and Google Calendar, only if you connect them",
                 <>
                   In <strong>Settings → Google</strong> you can let Pathfinder send the emails you approve, read your
@@ -240,11 +261,58 @@ export default function PrivacyPage() {
           </p>
         </Section>
 
-        <Section title="7. How long we keep it">
+        <Section title="7. The Pathfinder extension for Chrome">
+          <p>
+            Auto-apply submits applications through Pathfinder&apos;s extension, which you add to Chrome and connect to
+            your account on <em>Auto-apply → Connect the extension</em>. Its use of data follows the Chrome Web Store
+            User Data Policy, including its Limited Use requirements.
+          </p>
+          <ul className="flex list-disc flex-col gap-2 pl-5">
+            <li>
+              <strong>What it does:</strong> about once a minute it asks Pathfinder for the next application that&apos;s
+              ready, opens the job&apos;s form in a background tab, fills it in with the answers Pathfinder prepared and
+              your resume and cover letter, and submits it. It stops and leaves the form open for you instead when dry
+              run is on, or when the form needs something only you can give: a check that you&apos;re a person, a code
+              sent to your email, a sign-in, or an answer Pathfinder doesn&apos;t have. It never gets round those checks
+              and never makes up an answer. To questions about gender, race, caste, disability or similar, it picks the
+              option that declines to answer, or leaves the question to you.
+            </li>
+            <li>
+              <strong>Where it works:</strong> only on Pathfinder&apos;s own site and on the application pages of
+              Greenhouse (job-boards.greenhouse.io, boards.greenhouse.io), Lever (jobs.lever.co, jobs.eu.lever.co) and
+              Ashby (jobs.ashbyhq.com), and only in the tab it opened for the application. It can&apos;t read other
+              sites, your other tabs, your browsing history, cookies or saved passwords.
+            </li>
+            <li>
+              <strong>What it keeps in your browser:</strong> the key that connects it to your account, your name (to
+              show whose account it applies for), whether you paused it, and the application it&apos;s working on until
+              it&apos;s done. Removing the extension, or disconnecting the browser in Pathfinder, ends this.
+            </li>
+            <li>
+              <strong>What it sends to Pathfinder:</strong> the questions on a form that Pathfinder&apos;s copy of it
+              lacked (their wording and choices), and what happened: that it&apos;s about to press Submit, that the job
+              site confirmed the application (with the confirmation&apos;s first 500 characters and the page&apos;s
+              address), or why it stopped. It sends nothing about other pages.
+            </li>
+            <li>
+              <strong>You stay in charge:</strong> <em>Pause in this browser</em>, behind the extension&apos;s icon, stops
+              it starting new applications; the <em>Apply for me</em> switch on the Auto-apply page stops auto-apply
+              everywhere; <em>Disconnect</em> on Auto-apply → Connect the extension cuts a browser off for good. A
+              browser&apos;s key also stops working after 90 days.
+            </li>
+          </ul>
+          <p>
+            We don&apos;t sell what the extension handles, use it for advertising or credit decisions, or let anyone read
+            it except as this notice says.
+          </p>
+        </Section>
+
+        <Section title="8. How long we keep it">
           <Rows
             head={["Data", "Kept for"]}
             rows={[
-              ["Your profile, documents, applications, searches and settings", "Until you delete them, or delete everything (section 8)"],
+              ["Your profile, documents, applications, searches and settings", "Until you delete them, or delete everything (section 9)"],
+              ["Auto-apply's settings, matches and record of each application, and the browsers connected to it", "Until you delete everything or your account (section 9)"],
               [
                 "What a background AI task was given and wrote",
                 "24 hours, or what you choose in Settings → Your data → Keep task data for (1 hour to 30 days)",
@@ -259,7 +327,7 @@ export default function PrivacyPage() {
               ],
               [
                 "Your account (name, email, Google ID), feedback you sent and a record of your AI use",
-                "Until you delete your account (section 8)",
+                "Until you delete your account (section 9)",
               ],
               ["Failed attempts to sign in with an access code, by IP address (trial servers only)", "1 day"],
             ]}
@@ -267,7 +335,7 @@ export default function PrivacyPage() {
           <p>The server&apos;s logs record errors, but never the text of your profile, resumes, documents or AI requests.</p>
         </Section>
 
-        <Section title="8. Your rights">
+        <Section title="9. Your rights">
           <ul className="flex list-disc flex-col gap-2 pl-5">
             <li>
               <strong>See your data:</strong> <em>Settings → Your data → Export everything</em> downloads everything
@@ -279,14 +347,15 @@ export default function PrivacyPage() {
             <li>
               <strong>Erase it:</strong> <em>Settings → Privacy and data → Delete my account</em> deletes your
               account and everything in it straight away: your profile, analyses, applications, documents, searches,
-              mail, settings, feedback, the record of your AI use and your files. It disconnects Google and signs you out
+              mail, auto-apply and its connected browsers, settings, feedback, the record of your AI use and your files. It disconnects Google and signs you out
               on every device. To start over but keep your account, use <em>Delete everything</em> instead, which keeps
               only your account and any feedback you sent. Either way, what you delete is gone from the server&apos;s
-              nightly copies within {SERVER_BACKUP_DAYS} days (section 7).
+              nightly copies within {SERVER_BACKUP_DAYS} days (section 8).
             </li>
             <li>
               <strong>Withdraw consent:</strong> delete your account. To stop only the Gmail and Calendar connection,
-              disconnect it in Settings → Google.
+              disconnect it in Settings → Google. To stop only auto-apply, switch off <em>Apply for me</em> on the
+              Auto-apply page and disconnect its browsers.
             </li>
             <li>
               <strong>Nominate someone</strong> to exercise these rights for you if you die or can no longer act: write
@@ -300,7 +369,7 @@ export default function PrivacyPage() {
           </ul>
         </Section>
 
-        <Section title="9. How we protect it">
+        <Section title="10. How we protect it">
           <ul className="flex list-disc flex-col gap-2 pl-5">
             <li>You sign in with Google; Pathfinder stores no passwords.</li>
             <li>
@@ -308,13 +377,21 @@ export default function PrivacyPage() {
               skip that check, and both are tested automatically.
             </li>
             <li>API keys and the Gmail connection are stored encrypted.</li>
+            <li>
+              The extension&apos;s key is kept only as a fingerprint, so the database can&apos;t give it away, and the
+              extension accepts a key only from Pathfinder&apos;s own pages.
+            </li>
+            <li>
+              Auto-apply presses Submit at most once for each application, and marks it applied only when the job site
+              confirms it.
+            </li>
             <li>Job descriptions and resumes are treated as untrusted text, so instructions hidden in them can&apos;t direct the AI.</li>
             <li>The AI drafts only from facts in your profile, and you review every draft before using it.</li>
           </ul>
           <p>If a breach affects your personal data, we will tell you and the Data Protection Board as the law requires.</p>
         </Section>
 
-        <Section title="10. Changes to this notice">
+        <Section title="11. Changes to this notice">
           <p>
             If we change how we use your data, we will update this page and tell you in the app before the change takes
             effect, and ask for your consent again where the law requires.

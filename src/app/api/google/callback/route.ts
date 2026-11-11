@@ -22,9 +22,11 @@ export async function GET(request: NextRequest): Promise<Response> {
     return response;
   };
 
-  if (!(await getSession())) return NextResponse.redirect(new URL("/login", origin));
+  const session = await getSession();
+  if (!session) return NextResponse.redirect(new URL("/login", origin));
   const params = request.nextUrl.searchParams;
-  if (!(await verifyState(params.get("state")))) return back("expired");
+  // Only for the student who started connecting (QA M-5).
+  if (!(await verifyState(params.get("state"), { userId: session.userId }))) return back("expired");
   if (params.get("error")) return back(params.get("error") === "access_denied" ? "denied" : "failed");
   const code = params.get("code");
   if (!code) return back("failed");
