@@ -5,7 +5,7 @@ import { rawClientOf } from "@/lib/owner/scope";
 import { createTestClient, resetDatabase, TEST_USER_ID } from "@/test/db";
 
 import { resolveAiConfig } from "./config";
-import { analysesLeftToday, analysesPerDay, chargeSharedAi, limitDay, sharedAiUsedToday, studentDailyLimit, withDailyLimit } from "./daily-limit";
+import { analysesLeftToday, analysesPerDay, chargeSharedAi, limitDay, outsideDailyLimit, sharedAiUsedToday, studentDailyLimit, withDailyLimit } from "./daily-limit";
 import { AiError } from "./errors";
 import type { AIProvider } from "./provider";
 
@@ -55,6 +55,32 @@ describe("the daily AI limit (Pathfinder)", () => {
     expect(complete).toHaveBeenCalledTimes(2);
   });
 
+  it("doesn't count requests it refuses, so retrying after the limit doesn't use up more (found in the pilot)", async () => {
+    const { provider } = fakeProvider();
+    const limited = withDailyLimit(provider, true, 2);
+    await limited.complete({ system: "", messages: [] });
+    await limited.complete({ system: "", messages: [] });
+    for (let retry = 0; retry < 3; retry++) await expect(limited.complete({ system: "", messages: [] })).rejects.toMatchObject({ kind: "daily-limit" });
+    expect(await sharedAiUsedToday()).toBe(2);
+    // A higher allowance from an admin then counts from 2, not 5.
+    expect(await analysesLeftToday(true, 10)).toBe(4);
+  });
+
+  it("leaves auto-apply's own work out of the count, and still counts the student's own requests (owner's decision)", async () => {
+    const { provider, complete } = fakeProvider();
+    const limited = withDailyLimit(provider, true, 2);
+    await outsideDailyLimit(async () => {
+      for (let request = 0; request < 5; request++) await limited.complete({ system: "", messages: [] });
+    });
+    expect(complete).toHaveBeenCalledTimes(5);
+    expect(await sharedAiUsedToday()).toBe(0);
+    // Outside it, as before: the student's free analyses are untouched by auto-apply.
+    await limited.complete({ system: "", messages: [] });
+    await limited.complete({ system: "", messages: [] });
+    await expect(limited.complete({ system: "", messages: [] })).rejects.toMatchObject({ kind: "daily-limit" });
+    expect(await sharedAiUsedToday()).toBe(2);
+  });
+
   it("tells the student how many analyses (two requests each) the limit allows, and how many are left today", async () => {
     expect(analysesPerDay(10)).toBe(5);
     expect(analysesPerDay(1)).toBe(1);
@@ -81,7 +107,8 @@ describe("the daily AI limit (Pathfinder)", () => {
     const rows = await rawClientOf(prisma()).aiUsage.findMany({ select: { userId: true, count: true }, orderBy: { userId: "asc" } });
     expect(rows).toEqual([
       { userId: OTHER, count: 1 },
-      { userId: TEST_USER_ID, count: 3 },
+      // The refused third request isn't kept.
+      { userId: TEST_USER_ID, count: 2 },
     ]);
   });
 

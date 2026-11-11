@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { MANAGED_UNAVAILABLE, managedMode, studentMessage, withoutStudentConfig } from "./managed";
+import { MANAGED_DAILY_LIMIT, MANAGED_UNAVAILABLE, managedMode, studentMessage, withoutStudentConfig } from "./managed";
 
 afterEach(() => vi.unstubAllEnvs());
 
@@ -52,6 +52,9 @@ describe("managed mode (PATHFINDER_MANAGED)", () => {
     expect(studentMessage("Jev isn't set up. Add its key in Settings → Scoring.")).toBe(MANAGED_UNAVAILABLE.scoring);
     expect(studentMessage("Connect Gmail in Settings → Google first.")).toBe(MANAGED_UNAVAILABLE.google);
     expect(studentMessage("That file is over 5 MB.")).toBe("That file is over 5 MB.");
+    // The daily limit is said as itself, not as "busy" (found in the pilot), without the key a managed student can't add.
+    expect(studentMessage("You've used today's AI limit; it resets at midnight IST, or add your own key in Settings → AI provider.")).toBe(MANAGED_DAILY_LIMIT);
+    expect(MANAGED_DAILY_LIMIT).not.toMatch(/Settings|key/);
     vi.stubEnv("PATHFINDER_MANAGED", "off");
     expect(studentMessage("Choose one in Settings → AI provider.")).toBe("Choose one in Settings → AI provider.");
   });

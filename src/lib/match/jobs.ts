@@ -4,7 +4,8 @@ import { z } from "zod";
 
 import { MatchStatus } from "@/generated/prisma/enums";
 import { AiError } from "@/lib/ai/errors";
-import { defineJob, findUnfinishedJobs, JOB_MESSAGES, passing, startJob } from "@/lib/jobs/runner";
+import { outsideDailyLimit } from "@/lib/ai/daily-limit";
+import { defineJob, findUnfinishedJobs, JOB_MESSAGES, passing, startJob, type JobContext } from "@/lib/jobs/runner";
 import { planApplications } from "@/lib/apply/prepare";
 import { logServerError } from "@/lib/log";
 import { studentMessage } from "@/lib/managed";
@@ -80,47 +81,50 @@ export const scoreMatchJob = defineJob({
   result: z.object({ score: z.number().int().nullable() }),
   queue: "ai",
   attempts: 3,
-  async run({ matchId }, { step, signal, finalAttempt }) {
-    const match = await prisma.jobMatch.findUnique({ where: { id: matchId } });
-    // Gone (the student deleted it), or already scored by an earlier run of this job.
-    if (!match || match.status === MatchStatus.SCORED) return { score: match?.score ?? null };
-    const posting = await systemPrisma.sharedPosting.findUnique({ where: { id: match.sharedPostingId } });
-    if (!posting) return { score: null };
-
-    await step("Scoring it against your profile");
-    try {
-      const [score, profile] = await Promise.all([loadPostingScorer(), loadProfile()]);
-      const { data, scoredWith } = await score(
-        {
-          title: posting.title,
-          company: posting.companyName,
-          place: posting.location,
-          remote: posting.remote,
-          salary: posting.salary,
-          description: posting.description,
-        },
-        profile,
-        signal,
-      );
-      const tier = tierFor(data.score);
-      await prisma.jobMatch.update({
-        where: { id: matchId },
-        data: { status: MatchStatus.SCORED, score: data.score, tier, reasons: data.reasons, redFlags: data.redFlags, scoredWith, error: null },
-      });
-      // Pathfinder (step 4): a good match may be applied for straight away, if auto-apply is on.
-      // Planning failing doesn't undo the score; the schedule plans again later.
-      if (tier === "STRONG" || tier === "GOOD") await planApplications().catch((cause: unknown) => logServerError("auto-apply plan", cause));
-      return { score: data.score };
-    } catch (error) {
-      // A failure that's final (or that waiting won't fix) is kept with the match, so it doesn't look pending forever.
-      if (!signal.aborted && (finalAttempt || !passing(error))) {
-        const message = error instanceof AiError ? studentMessage(error.message) : JOB_MESSAGES.failed;
-        await prisma.jobMatch.update({ where: { id: matchId }, data: { status: MatchStatus.FAILED, error: message } }).catch(() => {});
-      }
-      throw error;
-    }
-  },
+  // Auto-apply's AI isn't counted towards the daily limit (src/lib/ai/daily-limit.ts).
+  run: (input, context) => outsideDailyLimit(() => scoreMatch(input, context)),
 });
+
+async function scoreMatch({ matchId }: { matchId: string }, { step, signal, finalAttempt }: JobContext): Promise<{ score: number | null }> {
+  const match = await prisma.jobMatch.findUnique({ where: { id: matchId } });
+  // Gone (the student deleted it), or already scored by an earlier run of this job.
+  if (!match || match.status === MatchStatus.SCORED) return { score: match?.score ?? null };
+  const posting = await systemPrisma.sharedPosting.findUnique({ where: { id: match.sharedPostingId } });
+  if (!posting) return { score: null };
+
+  await step("Scoring it against your profile");
+  try {
+    const [score, profile] = await Promise.all([loadPostingScorer(), loadProfile()]);
+    const { data, scoredWith } = await score(
+      {
+        title: posting.title,
+        company: posting.companyName,
+        place: posting.location,
+        remote: posting.remote,
+        salary: posting.salary,
+        description: posting.description,
+      },
+      profile,
+      signal,
+    );
+    const tier = tierFor(data.score);
+    await prisma.jobMatch.update({
+      where: { id: matchId },
+      data: { status: MatchStatus.SCORED, score: data.score, tier, reasons: data.reasons, redFlags: data.redFlags, scoredWith, error: null },
+    });
+    // Pathfinder (step 4): a good match may be applied for straight away, if auto-apply is on.
+    // Planning failing doesn't undo the score; the schedule plans again later.
+    if (tier === "STRONG" || tier === "GOOD") await planApplications().catch((cause: unknown) => logServerError("auto-apply plan", cause));
+    return { score: data.score };
+  } catch (error) {
+    // A failure that's final (or that waiting won't fix) is kept with the match, so it doesn't look pending forever.
+    if (!signal.aborted && (finalAttempt || !passing(error))) {
+      const message = error instanceof AiError ? studentMessage(error.message) : JOB_MESSAGES.failed;
+      await prisma.jobMatch.update({ where: { id: matchId }, data: { status: MatchStatus.FAILED, error: message } }).catch(() => {});
+    }
+    throw error;
+  }
+}
 
 /**
  * Starts a match run for the current student, unless one is already under way; returns its job
