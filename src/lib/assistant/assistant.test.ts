@@ -6,6 +6,7 @@ const TOOLS = [
   { name: "update_profile", description: "Update the profile basics." },
   { name: "set_job_search", description: "Set the job agent search." },
 ];
+const APPS = [{ id: "app-1", company: "Acme", role: "Frontend Engineer", status: "DRAFTING" }];
 
 describe("assistant destinations (Pathfinder)", () => {
   it("offers the job tools only where they're on", () => {
@@ -41,17 +42,19 @@ describe("the reply shape the model must return", () => {
 });
 
 describe("the system prompt", () => {
-  it("lists the actions and the screens, and says actions need confirming", () => {
-    const system = assistantSystem(availableDestinations(true), TOOLS, "/resume");
+  it("lists the actions, screens and the student's applications, and says actions need confirming", () => {
+    const system = assistantSystem(availableDestinations(true), TOOLS, APPS, "/resume");
     expect(system).toContain("- update_profile: Update the profile basics.");
     expect(system).toContain("/applications (Applications)");
+    expect(system).toContain("- app-1: Frontend Engineer at Acme (drafting)");
     expect(system).toMatch(/confirm/i);
     expect(system).toContain("on /resume (Base resume) right now");
   });
 
-  it("says there are no actions when none are available, and locates an unknown screen loosely", () => {
-    const system = assistantSystem([...DESTINATIONS], [], "/print/base");
+  it("says there are no actions or applications when there are none, and locates an unknown screen loosely", () => {
+    const system = assistantSystem([...DESTINATIONS], [], [], "/print/base");
     expect(system).toContain("(no actions available)");
+    expect(system).toContain("(no applications yet)");
     expect(system).toContain("somewhere in Pathfinder");
   });
 });

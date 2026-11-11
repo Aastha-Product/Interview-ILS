@@ -28,6 +28,9 @@ export function availableDestinations(toolsOn: boolean): Destination[] {
 /** For the system prompt and the proposal enum: a tool the assistant may propose, named and described. */
 export type ToolInfo = { name: string; description: string };
 
+/** One of the student's applications, for the prompt so the assistant can act on the right one by id. */
+export type AppInfo = { id: string; company: string; role: string; status: string };
+
 /**
  * The reply the model must return: an answer, at most one screen to link to, and at most one action
  * to propose. A proposal never runs on its own — the student confirms it first (Phase 2). Its args
@@ -66,11 +69,20 @@ Making a change: when the student clearly asks for one of the actions below, set
 
 When a screen would help, set "navigate" to its path (exactly as listed) and refer to it by name; the student gets a button to open it. Use only a path from the list, or null. Never invent features, screens or actions Pathfinder doesn't have.`;
 
-/** The system prompt: what the assistant is, the actions and screens it has, and where the student is now. */
-export function assistantSystem(destinations: readonly Destination[], tools: readonly ToolInfo[], currentPath: string): string {
+/** The system prompt: what the assistant is, the actions, screens and applications it has, and where the student is. */
+export function assistantSystem(
+  destinations: readonly Destination[],
+  tools: readonly ToolInfo[],
+  applications: readonly AppInfo[],
+  currentPath: string,
+): string {
   const screens = destinations.map((destination) => `- ${destination.path} (${destination.label}): ${destination.hint}`).join("\n");
   const actions = tools.length > 0 ? tools.map((tool) => `- ${tool.name}: ${tool.description}`).join("\n") : "- (no actions available)";
+  const apps =
+    applications.length > 0
+      ? applications.map((app) => `- ${app.id}: ${app.role || "a role"} at ${app.company || "a company"} (${app.status.toLowerCase()})`).join("\n")
+      : "- (no applications yet)";
   const here = destinations.find((destination) => destination.path === currentPath);
   const where = here ? `The student is on ${here.path} (${here.label}) right now.` : "The student is somewhere in Pathfinder.";
-  return `${INSTRUCTIONS}\n\nActions you can propose (each needs the student's confirmation):\n${actions}\n\nScreens you can point to:\n${screens}\n\n${where}`;
+  return `${INSTRUCTIONS}\n\nActions you can propose (each needs the student's confirmation):\n${actions}\n\nScreens you can point to:\n${screens}\n\nThe student's applications (use the id for tailor_application):\n${apps}\n\n${where}`;
 }
