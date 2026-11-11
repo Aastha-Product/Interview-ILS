@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 
-import { resetData } from "./support";
+import { resetData, sql } from "./support";
 
 // Reordering experience (E4-9): by keyboard and by dragging, kept after a
 // reload, followed by the resume, and back to date order.
@@ -34,6 +34,10 @@ test("moves roles by keyboard and by dragging, and the resume follows", async ({
   await page.mouse.move(from.x + from.width / 2, top.y + 5, { steps: 15 });
   await page.mouse.up();
   await expect.poll(() => roles(page)).toEqual(["Product Designer", "UX Designer", "Senior Product Designer"]);
+  // Reloaded once the new order is saved: before, the reload could cut the save off.
+  await expect
+    .poll(async () => (await sql<{ role: string }>(`SELECT role FROM "Experience" ORDER BY sort`)).map((row) => row.role))
+    .toEqual(["Product Designer", "UX Designer", "Senior Product Designer"]);
 
   await page.reload();
   expect(await roles(page)).toEqual(["Product Designer", "UX Designer", "Senior Product Designer"]);

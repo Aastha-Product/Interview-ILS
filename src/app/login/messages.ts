@@ -2,6 +2,8 @@
 export const loginMessages = {
   email: "Enter your email address.",
   useGoogle: "This server signs students in with Google.",
+  /** QA C-3: the access code never opens an account that signs in another way. */
+  linkedAccount: "This account signs in with Google or its own password, not the access code. Sign in that way.",
   empty: "Enter the access code.",
   wrong: "That's not the access code set on the server. Try again.",
   notFirebase: "This server doesn't sign students in this way.",

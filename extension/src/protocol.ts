@@ -13,8 +13,12 @@ export const BRIDGE = {
 declare const __PATHFINDER_TEST_ORIGIN__: string | undefined;
 const TEST_ORIGIN = typeof __PATHFINDER_TEST_ORIGIN__ === "string" ? [__PATHFINDER_TEST_ORIGIN__] : [];
 
+/** True only in the Web Store's build (build.mjs --store): no local development address. */
+declare const __PATHFINDER_STORE__: boolean | undefined;
+const DEV_ORIGIN = typeof __PATHFINDER_STORE__ === "boolean" && __PATHFINDER_STORE__ ? [] : ["http://localhost:3000"];
+
 /** Pathfinder's own sites, where the bridge runs and where the token may be sent. */
-export const PATHFINDER_ORIGINS: readonly string[] = ["https://pathfinderedtech.com", "https://www.pathfinderedtech.com", "http://localhost:3000", ...TEST_ORIGIN];
+export const PATHFINDER_ORIGINS: readonly string[] = ["https://pathfinderedtech.com", "https://www.pathfinderedtech.com", ...DEV_ORIGIN, ...TEST_ORIGIN];
 
 export const isPathfinderOrigin = (origin: string): boolean => PATHFINDER_ORIGINS.includes(origin);
 

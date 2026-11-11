@@ -27,6 +27,7 @@ import {
   VersionCause,
 } from "@/generated/prisma/enums";
 import { decryptApiKey } from "@/lib/ai/api-key";
+import { rawClientOf } from "@/lib/owner/scope";
 import { decryptSecret, JOB_SOURCE_KEY } from "@/lib/secrets";
 import { appVersion } from "@/lib/version";
 
@@ -35,15 +36,19 @@ import { appVersion } from "@/lib/version";
 // documents, chat and notes, the postings kept from Find jobs (E14-9) and
 // the job agent's candidates (E16), so its dedupe survives a restore, and
 // Startups with what the user did with them (#222).
+// Pathfinder's auto-apply (version 8) is exported too: its settings and consent, the jobs it
+// matched, the applications it worked on with the answers it gave and what showed they were
+// submitted, and the browsers connected to it (never their tokens). That's for the student to
+// read; an import doesn't restore it, since it points at this server's shared job list.
 // IDs are kept, so an import restores every link. Jobs, sign-in throttling,
 // built-in themes, the Google account and the mail fetched from Gmail stay
 // behind: they belong to the server or the mailbox, not the user's data.
 
 export const EXPORT_FORMAT = "dossier-export";
-/** Bump when the file's shape changes; imports refuse versions they don't know. 2 added Find jobs' postings and keys (E14-9), 3 projects (PRO-13) and the job agent (E16), 4 facts (PRO-14, APP-15), 5 publications (#218), the profile photo's theme and application options (#224) and Startups (#222), 6 the line about a role's company (#257), 7 skill groups (#280). */
-export const EXPORT_SCHEMA_VERSION = 7;
+/** Bump when the file's shape changes; imports refuse versions they don't know. 2 added Find jobs' postings and keys (E14-9), 3 projects (PRO-13) and the job agent (E16), 4 facts (PRO-14, APP-15), 5 publications (#218), the profile photo's theme and application options (#224) and Startups (#222), 6 the line about a role's company (#257), 7 skill groups (#280), 8 auto-apply (Pathfinder). */
+export const EXPORT_SCHEMA_VERSION = 8;
 /** The versions imports can read. */
-export const EXPORT_SCHEMA_VERSIONS: readonly number[] = [1, 2, 3, 4, 5, 6, 7];
+export const EXPORT_SCHEMA_VERSIONS: readonly number[] = [1, 2, 3, 4, 5, 6, 7, 8];
 
 /** The setting that holds the encrypted API key, which only this server can read. */
 const API_KEY_SETTING = "apiKeyEnc";
@@ -322,7 +327,7 @@ const postingSearch = z.object({
 /** An export file as read back (E10-6). */
 export const exportSchema = z.object({
   format: z.literal(EXPORT_FORMAT),
-  schemaVersion: z.literal([1, 2, 3, 4, 5, 6, 7]),
+  schemaVersion: z.literal([1, 2, 3, 4, 5, 6, 7, 8]),
   appVersion: text,
   exportedAt: date,
   profile: z.object({
@@ -355,6 +360,8 @@ export const exportSchema = z.object({
   /** Startups (#222), and hashes of the ones removed for good; absent in older files. */
   startups: z.array(startup).default([]),
   startupBlocks: z.array(z.object({ hash: text, createdAt: date })).default([]),
+  /** Auto-apply's record (version 8), for reading: imports don't restore it. */
+  autoApply: z.unknown().optional(),
 });
 export type DossierExport = z.infer<typeof exportSchema>;
 
@@ -375,7 +382,7 @@ export async function buildExport(
   db: PrismaClient,
   { includeApiKey = false, now = new Date() }: { includeApiKey?: boolean; now?: Date } = {},
 ): Promise<DossierExport> {
-  return db.$transaction(async (tx) => {
+  const data = await db.$transaction(async (tx) => {
     const [fields, skills, languages, experience, projects, education, publications, references, facts, themes, settings, applications, postings, searches, agentCandidates, startups, startupBlocks] = await Promise.all([
       tx.profileField.findMany({ select: { key: true, value: true }, orderBy: { key: "asc" } }),
       tx.skill.findMany({ select: { id: true, name: true, sort: true, group: true, createdAt: true }, orderBy: { createdAt: "asc" } }),
@@ -410,6 +417,13 @@ export async function buildExport(
       tx.startup.findMany({ orderBy: { createdAt: "asc" } }),
       tx.startupBlock.findMany({ orderBy: { createdAt: "asc" } }),
     ]);
+    const autoApply = await Promise.all([
+      tx.autoApplySettings.findFirst({ omit: { userId: true } }),
+      tx.jobMatch.findMany({ omit: { userId: true }, orderBy: { createdAt: "asc" } }),
+      tx.applyTask.findMany({ omit: { userId: true, leaseId: true, leaseUntil: true }, orderBy: { createdAt: "asc" } }),
+      // Which browsers, never their tokens' hashes.
+      tx.extensionToken.findMany({ select: { id: true, label: true, createdAt: true, lastUsedAt: true, expiresAt: true, revokedAt: true }, orderBy: { createdAt: "asc" } }),
+    ]);
 
     // Keys only when asked for, decrypted; one that's unreadable here too (DOSSIER_SECRET changed) has nothing to export.
     const stored = (key: string) => (includeApiKey ? settings.find((setting) => setting.key === key)?.value : undefined);
@@ -428,7 +442,7 @@ export async function buildExport(
       }).filter(([, value]) => value),
     );
 
-    return {
+    const exported: DossierExport = {
       format: EXPORT_FORMAT,
       schemaVersion: EXPORT_SCHEMA_VERSION,
       appVersion,
@@ -455,5 +469,29 @@ export async function buildExport(
       startups,
       startupBlocks,
     };
+    return { exported, autoApply };
   });
+
+  // The jobs are shared rows, not the student's: only the ones their matches point at, named.
+  const [settings, matches, tasks, browsers] = data.autoApply;
+  const ids = [...new Set(matches.map((match) => match.sharedPostingId))];
+  const jobs = new Map(
+    ids.length === 0
+      ? []
+      : (
+          await rawClientOf(db).sharedPosting.findMany({
+            where: { id: { in: ids } },
+            select: { id: true, title: true, companyName: true, location: true, url: true, applyUrl: true },
+          })
+        ).map(({ id, ...job }) => [id, job]),
+    );
+  return {
+    ...data.exported,
+    autoApply: {
+      settings,
+      matches: matches.map((match) => ({ ...match, job: jobs.get(match.sharedPostingId) ?? null })),
+      applications: tasks.map((task) => ({ ...task, job: jobs.get(task.sharedPostingId) ?? null })),
+      browsers,
+    },
+  };
 }

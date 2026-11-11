@@ -1,6 +1,8 @@
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { encryptApiKey } from "@/lib/ai/api-key";
+import { runAsUser } from "@/lib/owner/context";
+import { rawClientOf } from "@/lib/owner/scope";
 import { encryptSecret, JOB_SOURCE_KEY } from "@/lib/secrets";
 import { createTestClient, resetDatabase } from "@/test/db";
 
@@ -96,6 +98,32 @@ describe("buildExport (E10-4)", () => {
 
     const withKeys = await buildExport(prisma(), { now, includeApiKey: true });
     expect(withKeys.jobSourceKeys).toEqual({ jsearch: "ak-test" });
+  });
+
+  it("has auto-apply's record, named, without the browsers' tokens or other students' (Pathfinder)", async () => {
+    const raw = rawClientOf(prisma());
+    const company = await raw.company.create({ data: { name: "Acme", system: "GREENHOUSE", boardToken: "acme" } });
+    const job = await raw.sharedPosting.create({
+      data: { companyId: company.id, system: "GREENHOUSE", externalId: "1", title: "Analyst", companyName: "Acme", description: "A long description", url: "https://job-boards.greenhouse.io/acme/jobs/1", applyUrl: "https://job-boards.greenhouse.io/acme/jobs/1", dedupeKey: "acme-1", contentHash: "v1" },
+    });
+    await prisma().autoApplySettings.create({ data: { enabled: true, consentAt: now, consentVersion: "2026-11-10", answers: { workAuthorized: true } } });
+    const match = await prisma().jobMatch.create({ data: { sharedPostingId: job.id, rank: 1, status: "SCORED", score: 85, tier: "STRONG" } });
+    await prisma().applyTask.create({ data: { jobMatchId: match.id, sharedPostingId: job.id, state: "APPLIED", leaseId: "lease-1", answers: { first_name: { kind: "text", value: "Asha" } }, evidence: { text: "Thank you" }, appliedAt: now } });
+    await prisma().extensionToken.create({ data: { tokenHash: "f".repeat(64), label: "Chrome on Windows", expiresAt: now } });
+    await raw.user.create({ data: { id: "other-student", email: "other@example.test" } });
+    await runAsUser("other-student", () => prisma().extensionToken.create({ data: { tokenHash: "e".repeat(64), label: "Theirs", expiresAt: now } }));
+
+    const data = await buildExport(prisma(), { now });
+    expect(data.autoApply).toMatchObject({
+      settings: { enabled: true, consentVersion: "2026-11-10", answers: { workAuthorized: true } },
+      matches: [{ tier: "STRONG", score: 85, job: { title: "Analyst", companyName: "Acme" } }],
+      applications: [{ state: "APPLIED", answers: { first_name: { value: "Asha" } }, evidence: { text: "Thank you" }, job: { applyUrl: job.applyUrl } }],
+      browsers: [{ label: "Chrome on Windows" }],
+    });
+    const text = JSON.stringify(data);
+    for (const left of ["f".repeat(64), "Theirs", "lease-1", "A long description"]) expect(text).not.toContain(left);
+    // Still a file the import reads.
+    expect(exportSchema.safeParse(JSON.parse(text)).success).toBe(true);
   });
 
   it("names the file after the day", () => {

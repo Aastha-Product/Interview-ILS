@@ -93,13 +93,11 @@ https://claude.ai/artifact/GSHLW1T2jiX99CUiBtAUov): all five P0 tasks.
    `e2e/support.ts` write rows without an owner, and the 142 specs were written for single-user
    Dossier, before the student mode and the redesign. They don't run on Windows (use CI or a Linux
    container).
-4. **C-3 in code:** refuse to start in production on the access code unless
-   `PATHFINDER_SIGN_IN=code` is set; never let the code open an account linked to Google or
-   Firebase. Started and stopped on 7 November at the owner's request: ask before resuming.
+4. **C-3 in code:** done on `fix/security-m2-m5-c3` (11 November, at the owner's request).
 5. **Scale audit P1 and later:** Sentry and off-site database backups need the owner's approval
    (paid or cloud resources); then the managed AWS setup in the report (ECS, RDS, S3) for thousands
    of students at once.
-6. **M-2:** address guard for AI provider URLs; **M-5:** bind the Gmail OAuth state to the student.
+6. **M-2** and **M-5:** done on `fix/security-m2-m5-c3`.
 7. Low items L-1 to L-8 in the QA report.
 8. Before a public launch: legal review of the privacy notice (DPDP Act).
 
@@ -145,6 +143,22 @@ Newest first. One entry per session: date, account, branch, what changed, what's
     commitments. Answering those once on the dashboard, rather than in each tab, would be the
     biggest gain.
   - **Next:** pilot stage 1 on the owner's own account (extension/README.md), then stages 2–3.
+
+- **2026-11-11 · account 3 · `fix/security-m2-m5-c3`**: three QA fixes, at the owner's request.
+  - **M-2:** an AI provider address a student saved (or its provider's default, such as Local's
+    `localhost:11434`) is checked before every request: it must resolve to public addresses only,
+    never this server's network, other containers or the cloud's metadata address
+    (`src/lib/ai/address-guard.ts`). The server's own `DOSSIER_AI_URL` isn't checked.
+    `PATHFINDER_PRIVATE_AI=on` allows a private address, for a server one person runs for
+    themself. It only matters with `PATHFINDER_MANAGED=off`: managed mode already ignores what
+    students save.
+  - **M-5:** the Gmail connection's OAuth state names the student who started it, and the
+    callback accepts it only for that student.
+  - **C-3:** a production server whose sign-in falls back to the access code (no Firebase and
+    no Google client) refuses to start, unless `PATHFINDER_SIGN_IN=code` is set on purpose. The
+    access code never signs in to an account linked to Google or Firebase. The live server uses
+    Firebase, so it isn't affected.
+  - **Next:** owner merges, then deploys with #26.
 
 - **2026-11-10 · account 3 · `feature/auto-apply-gaps`** (built on #24): the three gaps the
   assessment found before a pilot.

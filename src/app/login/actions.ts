@@ -47,6 +47,11 @@ export const signIn = publicAction(
     }
     await recordLoginSuccess(systemPrisma, ip);
 
+    // The code never opens an account linked to Google or Firebase (QA C-3): whoever has the code
+    // could otherwise sign in as any student who signed up properly.
+    const linked = await systemPrisma.user.findUnique({ where: { email: email.toLowerCase() }, select: { googleSub: true, firebaseUid: true } });
+    if (linked?.googleSub || linked?.firebaseUid) throw new ActionError(loginMessages.linkedAccount);
+
     const user = await systemPrisma.user.upsert({
       where: { email: email.toLowerCase() },
       create: { email: email.toLowerCase() },

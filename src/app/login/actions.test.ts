@@ -32,7 +32,12 @@ vi.mock("@/lib/auth/login-throttle", () => ({
   recordLoginSuccess: vi.fn(),
 }));
 vi.mock("@/lib/prisma", () => ({
-  systemPrisma: { user: { upsert: vi.fn(async ({ create }: { create: { email: string } }) => ({ id: "student-1", email: create.email })) } },
+  systemPrisma: {
+    user: {
+      findUnique: vi.fn(async () => null),
+      upsert: vi.fn(async ({ create }: { create: { email: string } }) => ({ id: "student-1", email: create.email })),
+    },
+  },
 }));
 vi.mock("@/lib/profile-data", () => ({ loadProfileName: vi.fn() }));
 vi.mock("@/lib/auth/firebase", async (original) => ({
@@ -100,6 +105,19 @@ describe("signIn", () => {
       error: loginMessages.useGoogle,
     });
     expect(passwordMatches).not.toHaveBeenCalled();
+    expect(startSession).not.toHaveBeenCalled();
+  });
+
+  it("never opens an account that signs in with Google or Firebase (QA C-3)", async () => {
+    for (const linked of [{ googleSub: "g-1", firebaseUid: null }, { googleSub: null, firebaseUid: "f-1" }]) {
+      vi.mocked(systemPrisma.user.findUnique).mockResolvedValueOnce(linked as never);
+      await expect(signIn({ email: "Asha@Example.com", password: "correct horse", remember: false })).resolves.toEqual({
+        ok: false,
+        error: loginMessages.linkedAccount,
+      });
+    }
+    expect(systemPrisma.user.findUnique).toHaveBeenCalledWith({ where: { email: "asha@example.com" }, select: { googleSub: true, firebaseUid: true } });
+    expect(systemPrisma.user.upsert).not.toHaveBeenCalled();
     expect(startSession).not.toHaveBeenCalled();
   });
 
