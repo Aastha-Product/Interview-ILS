@@ -26,6 +26,6 @@ export const POST = extensionRoute<RouteContext<"/api/ext/tasks/[id]/answers">>(
   if (!body.success) return extensionError(400, "That form couldn't be read.");
   const task = await heldTask((await params).id, body.data.leaseId);
   if (!task) return extensionError(409, "This application isn't held by this browser any more.");
-  const posting = await systemPrisma.sharedPosting.findUnique({ where: { id: task.sharedPostingId }, select: { companyName: true } });
-  return NextResponse.json(answerForm(body.data.fields, await answerContext(posting?.companyName ?? "")));
+  const posting = await systemPrisma.sharedPosting.findUnique({ where: { id: task.sharedPostingId }, select: { companyName: true, location: true } });
+  return NextResponse.json(answerForm(body.data.fields, await answerContext(posting?.companyName ?? "", posting?.location ?? "")));
 });

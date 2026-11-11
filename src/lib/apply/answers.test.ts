@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { adultBy, answerForm, EMPTY_ANSWERS, splitName, type AnswerContext, type FieldOption, type FormField, type SavedAnswers } from "./answers";
+import { adultBy, answerForm, EMPTY_ANSWERS, missingAnswers, missingAnswersMessage, splitName, type AnswerContext, type FieldOption, type FormField, type SavedAnswers } from "./answers";
 
 const yesNo: FieldOption[] = [
   { label: "Yes", value: "1" },
@@ -379,6 +379,100 @@ describe("answering a form (auto-apply step 4)", () => {
     const form = [field("q", "Are you currently a Tekion employee?", "single", true, yesNo)];
     expect(answerForm(form, context({ company: "Tekion", currentCompany: "Tekion Corp" })).answers.q).toMatchObject({ label: "Yes" });
     expect(answerForm(form, context({ company: "Tekion", currentCompany: undefined })).answers.q).toMatchObject({ label: "No" });
+  });
+
+  it("picks the place they're applying for from their cities, in their order (Paytm, found in the pilot)", () => {
+    const places: FieldOption[] = [
+      { label: "Noida, Uttar Pradesh", value: "noida" },
+      { label: "Bangalore, Karnataka", value: "blr" },
+    ];
+    const ask = (cities: string[], type: FormField["type"] = "single", jobLocation = "Noida, Uttar Pradesh") =>
+      answerForm([field("loc", "Which location are you applying for?", type, true, type === "text" ? [] : places)], context({ cities, jobLocation }));
+    expect(ask(["Delhi", "Gurugram", "Noida", "Bengaluru"]).answers.loc).toEqual({ kind: "option", value: "noida", label: "Noida, Uttar Pradesh" });
+    // Their order decides, and Bengaluru is Bangalore.
+    expect(ask(["Bengaluru", "Noida"]).answers.loc).toMatchObject({ label: "Bangalore, Karnataka" });
+    expect(ask(["Bengaluru"], "multi").answers.loc).toEqual({ kind: "options", values: ["blr"], labels: ["Bangalore, Karnataka"] });
+    // None of theirs is offered, or they gave none: the student chooses.
+    expect(ask(["Pune"]).missing).toEqual(["Which location are you applying for?"]);
+    expect(ask([]).missing).toEqual(["Which location are you applying for?"]);
+    // Written: the city of theirs the job is in.
+    expect(ask(["Delhi", "Noida"], "text").answers.loc).toEqual({ kind: "text", value: "Noida" });
+    expect(ask(["Pune"], "text").missing).toHaveLength(1);
+  });
+
+  it("answers working from the office from the student's own answer, only for a city they chose", () => {
+    const saved = (onsiteOk: boolean | null) => ({ ...answered, onsiteOk });
+    const form = [
+      field("five", "Are you comfortable working 5 days from Bangalore office?", "single", true, yesNo),
+      field("onsite", "Are you ok to work Onsite in Mumbai/Bengaluru?", "single", true, yesNo),
+      field("role", "This is a full-time, in-office role in Bangalore, five days a week. No hybrid, no remote option. Are you able to commit to this?", "single", true, yesNo),
+      field("anchor", "Are you able to commit to working from one of our offices on Anchor Days each week?", "single", true, yesNo),
+    ];
+    const yes = answerForm(form, context({ cities: ["Pune", "Bengaluru"], saved: saved(true) }));
+    expect(yes.missing).toEqual([]);
+    expect(Object.values(yes.answers).map((answer) => (answer as { label: string }).label)).toEqual(["Yes", "Yes", "Yes", "Yes"]);
+    // A city they didn't choose is theirs to answer; a question naming none is answered.
+    const elsewhere = answerForm(form, context({ cities: ["Pune"], saved: saved(true) }));
+    expect(elsewhere.missing).toHaveLength(3);
+    expect(elsewhere.answers.anchor).toMatchObject({ label: "Yes" });
+    // A no is a no everywhere; no answer given leaves them all.
+    expect(Object.values(answerForm(form, context({ cities: ["Bengaluru"], saved: saved(false) })).answers).map((answer) => (answer as { label: string }).label)).toEqual(["No", "No", "No", "No"]);
+    expect(answerForm(form, context({ cities: ["Bengaluru"], saved: saved(null) })).missing).toHaveLength(4);
+    // Not about the office: hours, or an interview in person.
+    const others = [
+      field("hours", "This role requires working NAMER hours, 7:00pm to 4:00am IST. Are you able to commit to these hours on an ongoing basis?", "single", true, yesNo),
+      field("interview", "Are you available to attend an in-person interview if requested as part of the hiring process?", "single", true, yesNo),
+      field("software", "Do you have experience working in Microsoft Office?", "single", true, yesNo),
+    ];
+    expect(answerForm(others, context({ cities: ["Bengaluru"], saved: saved(true) })).missing).toHaveLength(3);
+  });
+
+  it("gives the reason for change in the student's words, and 0 for the current salary of someone who has none", () => {
+    const form = [
+      field("why", "Please mention your reason for change.", "textarea"),
+      field("why2", "Why are you looking for a change?", "text"),
+      field("ctc", "What is your current CTC?", "text"),
+    ];
+    const { answers, missing } = answerForm(form, context({ saved: { ...answered, reasonForChange: "A larger product scope.", noCurrentSalary: true, currentSalary: "" } }));
+    expect(answers).toMatchObject({ why: { value: "A larger product scope." }, why2: { value: "A larger product scope." }, ctc: { value: "0" } });
+    expect(missing).toEqual([]);
+    // Nothing given: nothing made up.
+    expect(answerForm(form, context()).missing).toHaveLength(3);
+  });
+
+  it("lists the required answers still missing, in the page's order", () => {
+    const search = { cities: ["Pune"], level: "entry" };
+    expect(missingAnswers(EMPTY_ANSWERS, { cities: [], level: "entry" })).toEqual([
+      "cities",
+      "workAuthorized",
+      "needsSponsorship",
+      "relativesAtCompany",
+      "backgroundCheckConsent",
+      "acceptPrivacyNotices",
+      "outsideActivities",
+      "willingToRelocate",
+      "onsiteOk",
+      "adult",
+      "employmentRestrictions",
+      "governmentOfficial",
+      "relativeOfGovernmentOfficial",
+      "referredByEmployee",
+      "noticePeriod",
+      "currentSalary",
+      "expectedSalary",
+      "graduationYear",
+    ]);
+    const complete = { ...EMPTY_ANSWERS, workAuthorized: true, needsSponsorship: false, relativesAtCompany: false, backgroundCheckConsent: true, acceptPrivacyNotices: true, outsideActivities: false, willingToRelocate: true, onsiteOk: true, adult: true, employmentRestrictions: false, governmentOfficial: false, relativeOfGovernmentOfficial: false, referredByEmployee: false, noticePeriod: "30" as const, currentSalary: "4 LPA", expectedSalary: "6 LPA", graduationYear: "2024" };
+    expect(missingAnswers(complete, search)).toEqual([]);
+    // No salary now stands in for the current one; a year must be a year; experienced people give a reason for change.
+    expect(missingAnswers({ ...complete, currentSalary: "", noCurrentSalary: true }, search)).toEqual([]);
+    expect(missingAnswers({ ...complete, currentSalary: " " }, search)).toEqual(["currentSalary"]);
+    expect(missingAnswers({ ...complete, graduationYear: "24" }, search)).toEqual(["graduationYear"]);
+    expect(missingAnswers(complete, { cities: ["Pune"], level: "experienced" })).toEqual(["reasonForChange"]);
+    expect(missingAnswers({ ...complete, reasonForChange: "Growth." }, { cities: ["Pune"], level: "experienced" })).toEqual([]);
+    expect(missingAnswersMessage(["cities", "currentSalary", "noCurrentSalary"])).toBe("Answer these in Set up job search first: Cities, Current salary.");
+    expect(missingAnswersMessage(["expectedSalary"])).toBe("Answer this in Set up job search first: Expected salary.");
+    expect(missingAnswersMessage(missingAnswers(EMPTY_ANSWERS, { cities: [], level: "entry" }))).toBe("Answer these in Set up job search first: Cities, Allowed to work, Visa sponsorship, Relatives at the company and 14 more.");
   });
 
   it("never signs, waives or agrees to a legal document for the student", () => {

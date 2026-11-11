@@ -9,6 +9,8 @@ import { createTestClient, resetDatabase } from "@/test/db";
 import { seedBuiltIns } from "../../../prisma/seed/built-ins";
 import { MockProvider } from "../ai/providers/mock";
 
+import { COMPLETE_ANSWERS } from "@/test/answers";
+
 import { EMPTY_ANSWERS, type FormField } from "./answers";
 
 const db = vi.hoisted(() => ({ client: undefined as ReturnType<typeof createTestClient> | undefined }));
@@ -75,8 +77,9 @@ const prisma = () => db.client!;
 const raw = () => rawClientOf(prisma());
 const context = (): JobContext => ({ id: "prepare-job", step: async () => {}, signal: new AbortController().signal, finalAttempt: true });
 
-const preferences = { titles: ["Data Analyst"], skills: ["SQL"], countries: ["in"], cities: [], remoteOk: true, level: "entry" as const, employmentTypes: [] };
-const answers = { ...EMPTY_ANSWERS, workAuthorized: true, needsSponsorship: false, relativesAtCompany: false, backgroundCheckConsent: true, acceptPrivacyNotices: true };
+const preferences = { titles: ["Data Analyst"], skills: ["SQL"], countries: ["in"], cities: ["Pune"], remoteOk: true, level: "entry" as const, employmentTypes: [] };
+// Every required answer, as auto-apply needs before it starts.
+const answers = COMPLETE_ANSWERS;
 
 async function switchedOn(overrides: Partial<{ minTier: "STRONG" | "GOOD"; dailyLimit: number; perCompanyLimit: number }> = {}) {
   await saveAutoApply({ preferences, minTier: "GOOD", dailyLimit: 10, perCompanyLimit: 2, dryRun: true, answers, ...overrides });
@@ -143,7 +146,27 @@ describe("auto-apply settings (auto-apply step 4)", () => {
       perCompanyLimit: 2,
       dryRun: true,
       answers: EMPTY_ANSWERS,
+      // Everything Set up job search stars is still to give.
+      missing: expect.arrayContaining(["cities", "workAuthorized", "onsiteOk", "noticePeriod", "currentSalary", "expectedSalary", "graduationYear"]),
     });
+  });
+
+  it("stays off until every required answer is given, and goes off again when one is taken away (the owner's rule)", async () => {
+    await giveConsent();
+    // The salaries, the notice period and a city are missing.
+    await saveAutoApply({ preferences: { ...preferences, cities: [] }, minTier: "GOOD", dailyLimit: 10, perCompanyLimit: 2, dryRun: true, answers: { ...answers, expectedSalary: "", noticePeriod: null } });
+    expect((await loadAutoApply()).missing).toEqual(["cities", "noticePeriod", "expectedSalary"]);
+    await expect(setAutoApplyEnabled(true)).rejects.toThrow("Answer these in Set up job search first: Cities, Notice period, Expected salary.");
+
+    await saveAutoApply({ preferences, minTier: "GOOD", dailyLimit: 10, perCompanyLimit: 2, dryRun: true, answers });
+    expect(await setAutoApplyEnabled(true)).toMatchObject({ enabled: true, missing: [] });
+    // An experienced student is also asked why they're looking for a change.
+    await saveAutoApply({ preferences: { ...preferences, level: "experienced" }, minTier: "GOOD", dailyLimit: 10, perCompanyLimit: 2, dryRun: true, answers });
+    expect(await loadAutoApply()).toMatchObject({ enabled: false, missing: ["reasonForChange"] });
+    // Off for planning too: nothing new is prepared while an answer is missing.
+    expect(await planApplications()).toBe(0);
+    await saveAutoApply({ preferences: { ...preferences, level: "experienced" }, minTier: "GOOD", dailyLimit: 10, perCompanyLimit: 2, dryRun: true, answers: { ...answers, reasonForChange: "Looking for a larger scope." } });
+    expect(await loadAutoApply()).toMatchObject({ enabled: true, missing: [] });
   });
 
   it("switches on only after consent and a job search set up, and off at any time", async () => {
@@ -297,18 +320,18 @@ describe("preparing an application (auto-apply step 4)", () => {
   });
 
   it("prepares it again on Try again, once the form can be answered", async () => {
-    form.fields = [...groww, { key: "question_2", label: "Are you a current government official?", required: true, type: "single", options: [{ label: "Yes", value: "1" }, { label: "No", value: "0" }] }];
+    form.fields = [...groww, { key: "question_2", label: "Please mention your reason for change.", required: true, type: "textarea", options: [] }];
     const task = await plannedTask();
     await prepareApplicationJob.run({ taskId: task.id }, context());
     expect((await prisma().applyTask.findUniqueOrThrow({ where: { id: task.id } })).state).toBe("NEEDS_STUDENT");
     // The student answers it in Set up job search, then tries again.
-    await saveAutoApply({ preferences, minTier: "GOOD", dailyLimit: 10, perCompanyLimit: 2, dryRun: true, answers: { ...answers, governmentOfficial: false } });
+    await saveAutoApply({ preferences, minTier: "GOOD", dailyLimit: 10, perCompanyLimit: 2, dryRun: true, answers: { ...answers, reasonForChange: "Looking for my first full-time role." } });
     expect(await prepareAgain(task.id)).toBe(true);
     expect(await prisma().job.count({ where: { type: "prepare-application", key: `apply:${task.id}` } })).toBeGreaterThan(0);
     expect(await prepareApplicationJob.run({ taskId: task.id }, context())).toEqual({ state: "READY" });
     const ready = await prisma().applyTask.findUniqueOrThrow({ where: { id: task.id } });
     expect(ready.applicationId).not.toBeNull();
-    expect(ready.answers).toMatchObject({ question_2: { label: "No" } });
+    expect(ready.answers).toMatchObject({ question_2: { value: "Looking for my first full-time role." } });
     // Only from a state that can be tried again.
     expect(await prepareAgain(task.id)).toBe(false);
   });

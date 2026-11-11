@@ -114,7 +114,7 @@ function detailsFrom(extracted: Extracted, fallback: { title: string; company: s
 }
 
 /** What the answers can draw on, from the profile and the saved answers; also for forms the extension reads. */
-export async function answerContext(company: string): Promise<AnswerContext> {
+export async function answerContext(company: string, jobLocation = ""): Promise<AnswerContext> {
   const [profile, settings] = await Promise.all([loadProfile(), loadAutoApply()]);
   const years = profile.education.map((entry) => (entry.current ? null : entry.endYear)).filter((year): year is number => year !== null);
   // The current role, else the first in the profile's order (newest first).
@@ -139,6 +139,8 @@ export async function answerContext(company: string): Promise<AnswerContext> {
     experienceMonthsWithoutInternships: experienceMonths(profile.experience.filter((entry) => !/\bintern(ship)?\b|\btrainee\b/i.test(entry.role))),
     graduationYear: years.length > 0 ? String(Math.max(...years)) : "",
     company,
+    jobLocation,
+    cities: settings.preferences?.cities ?? [],
     saved: settings.answers,
   };
 }
@@ -194,7 +196,7 @@ export const prepareApplicationJob = defineJob({
       if (posting.system === "GREENHOUSE") {
         await context.step("Reading the application form");
         const fields = await greenhouseForm(posting.company.boardToken, posting.externalId, context.signal);
-        const form = answerForm(fields, await answerContext(posting.companyName));
+        const form = answerForm(fields, await answerContext(posting.companyName, posting.location));
         if (form.missing.length > 0) return finish(ApplyState.NEEDS_STUDENT, { reason: needsAnswers(form.missing), answers: form.answers });
         answers = form.answers;
       }

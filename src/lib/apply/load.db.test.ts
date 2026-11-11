@@ -11,8 +11,8 @@
 import { NextRequest } from "next/server";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
-import { EMPTY_ANSWERS } from "@/lib/apply/answers";
 import { createTestClient, resetDatabase } from "@/test/db";
+import { COMPLETE_ANSWERS } from "@/test/answers";
 
 const RUN = process.env.PATHFINDER_LOAD_TEST === "1";
 const STUDENTS = Number(process.env.PATHFINDER_LOAD_STUDENTS ?? 100);
@@ -96,7 +96,7 @@ describe.skipIf(!RUN)(`auto-apply under load: ${STUDENTS} students, ${TASKS} app
       const student = `load-${String(index).padStart(4, "0")}`;
       await raw().user.create({ data: { id: student, email: `${student}@example.test` } });
       await runAsUser(student, async () => {
-        await saveAutoApply({ preferences: { titles: ["Analyst"], skills: [], countries: ["in"], cities: [], remoteOk: true, level: "entry", employmentTypes: [] }, minTier: "GOOD", dailyLimit: 10, perCompanyLimit: 5, dryRun: false, answers: EMPTY_ANSWERS });
+        await saveAutoApply({ preferences: { titles: ["Analyst"], skills: [], countries: ["in"], cities: ["Pune"], remoteOk: true, level: "entry", employmentTypes: [] }, minTier: "GOOD", dailyLimit: 10, perCompanyLimit: 5, dryRun: false, answers: COMPLETE_ANSWERS });
         await giveConsent();
         await setAutoApplyEnabled(true);
         for (const [slot, posting] of postings.entries()) {

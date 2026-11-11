@@ -10,6 +10,7 @@
 
 import { afterAll, describe, expect, it, vi } from "vitest";
 
+import { EMPTY_ANSWERS } from "@/lib/apply/answers";
 import { runAsUser } from "@/lib/owner/context";
 import { rawClientOf } from "@/lib/owner/scope";
 import { createTestClient, resetDatabase } from "@/test/db";
@@ -73,8 +74,10 @@ await import("@/lib/prisma");
 const raw = () => rawClientOf(db.client!);
 afterAll(() => db.client?.$disconnect());
 
-const preferences = { titles: ["Data Analyst", "Software Engineer"], skills: ["SQL", "Python", "Excel", "Java"], countries: ["in"], cities: [], remoteOk: true, level: "entry" as const, employmentTypes: [] };
+const preferences = { titles: ["Data Analyst", "Software Engineer"], skills: ["SQL", "Python", "Excel", "Java"], countries: ["in"], cities: ["Bengaluru", "Pune", "Hyderabad", "Mumbai", "Gurugram", "Noida", "Delhi", "Chennai"], remoteOk: true, level: "entry" as const, employmentTypes: [] };
 const fullAnswers = {
+  ...EMPTY_ANSWERS,
+  onsiteOk: true,
   workAuthorized: true,
   needsSponsorship: false,
   noticePeriod: "immediate" as const,

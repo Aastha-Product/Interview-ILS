@@ -2,12 +2,14 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { EMPTY_ANSWERS } from "@/lib/apply/answers";
+import { EMPTY_ANSWERS, missingAnswers } from "@/lib/apply/answers";
 import type { AutoApplyScreenView } from "@/lib/apply/view";
 
 import { markApplied, prepareApplicationAgain, saveJobSearch, skipApplication, switchAutoApply } from "./actions";
 import { AutoApplyScreen } from "./auto-apply-screen";
 import { listFrom, SetupScreen } from "./setup/setup-screen";
+
+import { COMPLETE_ANSWERS } from "@/test/answers";
 
 const router = vi.hoisted(() => ({ refresh: vi.fn(), push: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => router, usePathname: () => "/auto-apply" }));
@@ -22,8 +24,10 @@ vi.mock("./actions", () => ({
   markApplied: vi.fn(async () => ({ ok: true, data: null })),
 }));
 
-const preferences = { titles: ["Data Analyst"], skills: ["SQL"], countries: ["in"], cities: [], remoteOk: true, level: "entry" as const, employmentTypes: [] };
-const settings = { enabled: false, consented: true, consentOutdated: false, preferences, minTier: "GOOD" as const, dailyLimit: 10, perCompanyLimit: 2, dryRun: true, answers: EMPTY_ANSWERS };
+const preferences = { titles: ["Data Analyst"], skills: ["SQL"], countries: ["in"], cities: ["Pune"], remoteOk: true, level: "entry" as const, employmentTypes: [] };
+const settings = { enabled: false, consented: true, consentOutdated: false, preferences, minTier: "GOOD" as const, dailyLimit: 10, perCompanyLimit: 2, dryRun: true, answers: COMPLETE_ANSWERS, missing: [] };
+/** A student who has set nothing up yet. */
+const blank = { ...settings, answers: EMPTY_ANSWERS, missing: missingAnswers(EMPTY_ANSWERS, { cities: [], level: "entry" }) };
 const tasks = { PREPARING: 1, READY: 2, LEASED: 0, SUBMITTING: 0, APPLIED: 3, NEEDS_STUDENT: 1, UNCERTAIN: 0, FAILED: 0, SKIPPED: 0 };
 const view = (overrides: Partial<AutoApplyScreenView> = {}): AutoApplyScreenView => ({
   settings,
@@ -108,6 +112,12 @@ describe("the auto-apply dashboard (auto-apply step 4)", () => {
     expect(prepareApplicationAgain).toHaveBeenCalledWith({ taskId: "t1" });
   });
 
+  it("has no switch while a required answer is missing, and says which (the owner's rule)", () => {
+    render(<AutoApplyScreen view={view({ settings: { ...settings, missing: ["cities", "expectedSalary"] } })} />);
+    expect(screen.queryByRole("switch")).toBeNull();
+    expect(screen.getByRole("alert")).toHaveTextContent("Auto-apply is waiting for 2 required answers (Cities, Expected salary). Nothing is prepared or submitted until you give them in Set up job search.");
+  });
+
   it("sends a student who hasn't agreed yet to set up first", () => {
     render(<AutoApplyScreen view={view({ settings: { ...settings, consented: false } })} />);
     expect(screen.queryByRole("switch")).toBeNull();
@@ -122,23 +132,71 @@ describe("set up job search (auto-apply step 4)", () => {
 
   it("saves what the student chose, and asks for a role first", async () => {
     render(<SetupScreen settings={{ ...settings, consented: false }} preferences={preferences} consentText="I allow Pathfinder to apply." countries={[{ code: "in", name: "India" }]} />);
-    const roles = screen.getByLabelText("Roles");
+    const roles = screen.getByRole("textbox", { name: "Roles" });
     await userEvent.clear(roles);
     await userEvent.click(screen.getByRole("button", { name: "Save" }));
     expect(screen.getByText("Add at least one role you're looking for.")).toBeInTheDocument();
     expect(saveJobSearch).not.toHaveBeenCalled();
 
     await userEvent.type(roles, "Data Analyst, Business Analyst");
-    await userEvent.selectOptions(screen.getByLabelText(/legally allowed to work/), "yes");
+    await userEvent.selectOptions(screen.getByRole("combobox", { name: /legally allowed to work/ }), "yes");
     await userEvent.click(screen.getByLabelText("I agree"));
     await userEvent.click(screen.getByRole("button", { name: "Save" }));
     expect(saveJobSearch).toHaveBeenCalledWith(
       expect.objectContaining({
-        preferences: expect.objectContaining({ titles: ["Data Analyst", "Business Analyst"], countries: ["in"] }),
-        answers: expect.objectContaining({ workAuthorized: true }),
+        preferences: expect.objectContaining({ titles: ["Data Analyst", "Business Analyst"], countries: ["in"], cities: ["Pune"] }),
+        answers: expect.objectContaining({ workAuthorized: true, expectedSalary: "6 LPA" }),
         dryRun: true,
       }),
     );
     expect(router.push).toHaveBeenCalledWith("/auto-apply");
+  });
+
+  it("stars every required answer, and won't save until they're all given (the owner's rule)", async () => {
+    render(<SetupScreen settings={blank} preferences={{ ...preferences, cities: [] }} consentText="I allow Pathfinder to apply." countries={[{ code: "in", name: "India" }]} />);
+    // Starred and marked required: the cities, each yes/no question, the notice period, salaries and graduation year.
+    for (const name of ["Roles", "Cities", "Current salary", "Expected salary", "Graduation year"]) expect(screen.getByRole("textbox", { name })).toBeRequired();
+    for (const name of [/legally allowed to work/, /visa sponsorship/, /willing to relocate/, /work from the office every working day/, "Notice period"]) expect(screen.getByRole("combobox", { name })).toBeRequired();
+    expect(screen.getAllByText("*").length).toBeGreaterThanOrEqual(19);
+    // A first job needs no reason for change.
+    expect(screen.getByRole("textbox", { name: /Why are you looking for a change\? \(optional\)/ })).not.toBeRequired();
+
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(saveJobSearch).not.toHaveBeenCalled();
+    expect(screen.getByText(/^Fill in the 18 starred answers still empty to save: Cities, Allowed to work, /)).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Cities" })).toBeInvalid();
+    expect(screen.getByRole("textbox", { name: "Expected salary" })).toBeInvalid();
+
+    // Filling them in, one kind at a time.
+    await userEvent.type(screen.getByRole("textbox", { name: "Cities" }), "Pune, Bengaluru");
+    for (const select of screen.getAllByRole("combobox").filter((element) => (element as HTMLSelectElement).value === "" && element.hasAttribute("required"))) {
+      const options = Array.from((select as HTMLSelectElement).options).map((option) => option.value);
+      await userEvent.selectOptions(select, options.includes("no") ? "no" : "immediate");
+    }
+    await userEvent.click(screen.getByRole("checkbox", { name: /I don't have a salary now/ }));
+    expect(screen.getByRole("textbox", { name: "Current salary" })).toBeDisabled();
+    await userEvent.type(screen.getByRole("textbox", { name: "Expected salary" }), "6 LPA");
+    await userEvent.type(screen.getByRole("textbox", { name: "Graduation year" }), "2026");
+    expect(screen.getByText(/All required answers are given\./)).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(saveJobSearch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        preferences: expect.objectContaining({ cities: ["Pune", "Bengaluru"] }),
+        answers: expect.objectContaining({ noCurrentSalary: true, expectedSalary: "6 LPA", graduationYear: "2026", noticePeriod: "immediate", onsiteOk: false, willingToRelocate: false }),
+      }),
+    );
+  });
+
+  it("asks an experienced student why they're looking for a change", async () => {
+    render(<SetupScreen settings={settings} preferences={{ ...preferences, level: "experienced" }} consentText="I allow Pathfinder to apply." countries={[{ code: "in", name: "India" }]} />);
+    const reason = screen.getByRole("textbox", { name: "Why are you looking for a change?" });
+    expect(reason).toBeRequired();
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(saveJobSearch).not.toHaveBeenCalled();
+    expect(reason).toBeInvalid();
+    await userEvent.type(reason, "A larger product scope.");
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(saveJobSearch).toHaveBeenCalledWith(expect.objectContaining({ answers: expect.objectContaining({ reasonForChange: "A larger product scope." }) }));
   });
 });
