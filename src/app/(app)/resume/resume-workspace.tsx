@@ -9,16 +9,20 @@ import { ResumeDocument } from "@/components/documents/resume-document";
 import { PageHeader } from "@/components/page-header";
 import { toast, toastResult } from "@/components/toast";
 import { buttonClassName } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { Select } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Toggle } from "@/components/ui/toggle";
 import type { PaperSize } from "@/generated/prisma/enums";
 import type { ProfileData } from "@/lib/profile";
+import { nextFitScale, SCALE_PERCENTS, scalePercent } from "@/lib/resume-fit";
 import { saveFile } from "@/lib/save-file";
 import { pagesInWords } from "@/lib/settings";
 import { parseThemeFile, themeFile, themeFileName } from "@/lib/theme-file";
 import { PAPER_SIZES, type ThemeData } from "@/lib/themes";
 
-import { deleteTheme, duplicateTheme, importTheme, saveTheme, setBaseTheme } from "./actions";
+import { deleteTheme, duplicateTheme, importTheme, saveResumeFit, saveTheme, setBaseTheme } from "./actions";
 import { draftFrom, ThemeBuilder, type ThemeDraft } from "./theme-builder";
 import { ThemePicker } from "./theme-picker";
 
@@ -30,6 +34,10 @@ export type ResumeWorkspaceProps = {
   baseThemeId: string;
   paper: PaperSize;
   includeReferences: boolean;
+  /** How much the base resume is scaled down to fit fewer pages (Pathfinder); 1 is full size. */
+  scale: number;
+  /** Whether the preview keeps the resume at the largest scale that fits one page (Pathfinder). */
+  fitToPage: boolean;
   /** Settings → "Resume length" (SET-9): the most pages a tailored resume may have, or null for no limit. */
   maxPages: number | null;
   /** Settings → "Base resume language", for its headings and dates; null for English. */
@@ -44,7 +52,7 @@ type Panel = "themes" | "customize";
  * shows it right away and saves it in the background; while you customise
  * one, the preview shows the draft.
  */
-export function ResumeWorkspace({ profile, themes: initialThemes, usage, baseThemeId, paper, includeReferences, maxPages, language }: ResumeWorkspaceProps) {
+export function ResumeWorkspace({ profile, themes: initialThemes, usage, baseThemeId, paper, includeReferences, scale: initialScale, fitToPage, maxPages, language }: ResumeWorkspaceProps) {
   const [themes, setThemes] = useState(initialThemes);
   const [baseId, setBaseId] = useState(baseThemeId);
   const [panel, setPanel] = useState<Panel>("themes");
@@ -64,6 +72,44 @@ export function ResumeWorkspace({ profile, themes: initialThemes, usage, baseThe
     profile.projects.length === 0 &&
     profile.education.length === 0 &&
     profile.skills.length === 0;
+
+  // Page fit (Pathfinder): how much the resume is scaled down, and whether the preview keeps it at
+  // the largest size that fits one page. When fitting, the preview reports its page count to
+  // onFitPages, which steps the scale down until it reads a single page.
+  const [scale, setScale] = useState(initialScale);
+  const [fit, setFit] = useState(fitToPage);
+  // The scale last saved to the server, so the fit loop saves only once it settles.
+  const savedScale = useRef(initialScale);
+
+  const persistFit = (changes: { scale?: number; fitToPage?: boolean }) => {
+    void saveResumeFit(changes).then((result) => void toastResult(result));
+  };
+
+  // While fitting, step the scale down until the preview reports a single page (see resume-fit.ts).
+  // A taller theme makes the loop tighten again; to loosen after the resume gets shorter, the
+  // student toggles the switch, which re-fits from full size.
+  const onFitPages = (pages: number) => {
+    if (!fit) return;
+    const next = nextFitScale(pages, scale);
+    if (next !== null) {
+      setScale(next);
+    } else if (scale !== savedScale.current) {
+      savedScale.current = scale;
+      persistFit({ scale });
+    }
+  };
+
+  const setManualScale = (value: number) => {
+    setScale(value);
+    savedScale.current = value;
+    persistFit({ scale: value });
+  };
+
+  const toggleFit = (on: boolean) => {
+    setFit(on);
+    if (on) setScale(1); // The loop steps down from full size to the largest fit.
+    persistFit({ fitToPage: on });
+  };
 
   // E11-3: opening or leaving the builder replaces the panel's controls, so
   // focus follows: to the theme's name, or back to the theme in use.
@@ -171,6 +217,7 @@ export function ResumeWorkspace({ profile, themes: initialThemes, usage, baseThe
       <div className="@container flex flex-1 flex-wrap border-t border-line">
         <DocumentPreview
           label={theme.name}
+          onPages={onFitPages}
           meta={(pages) => `${PAPER_SIZES[paper].label} · ${pages} ${pages === 1 ? "page" : "pages"}`}
           notice={(pages) =>
             empty ? (
@@ -194,13 +241,40 @@ export function ResumeWorkspace({ profile, themes: initialThemes, usage, baseThe
             )
           }
         >
-          <ResumeDocument theme={theme} profile={profile} paper={paper} includeReferences={includeReferences} language={language} />
+          <ResumeDocument theme={theme} profile={profile} paper={paper} scale={scale} includeReferences={includeReferences} language={language} />
         </DocumentPreview>
         <aside
           ref={panelArea}
           aria-label="Theme"
           className="flex flex-[1_0_300px] flex-col border-t border-line bg-paper px-7 pt-7 pb-12 @min-[780px]:border-t-0 @min-[780px]:border-l"
         >
+          <Card padding="none" className="mb-6 flex flex-col gap-4 px-5 py-4">
+            <Toggle
+              label="Fit to one page"
+              description={
+                fit
+                  ? scale < 1
+                    ? `On. Shrunk to ${scalePercent(scale)} to fit a single page.`
+                    : "On. Fits a single page at full size."
+                  : "Off. Set the scale yourself below."
+              }
+              checked={fit}
+              onCheckedChange={toggleFit}
+            />
+            <Select
+              label="Scale"
+              hint="Shrinks the spacing and text so more fits on a page."
+              value={String(Math.round(scale * 100))}
+              disabled={fit}
+              onChange={(event) => setManualScale(Number(event.target.value) / 100)}
+            >
+              {[...new Set([Math.round(scale * 100), ...SCALE_PERCENTS])].sort((a, b) => b - a).map((percent) => (
+                <option key={percent} value={percent}>
+                  {percent}%
+                </option>
+              ))}
+            </Select>
+          </Card>
           <Tabs value={panel} onValueChange={(value) => openPanel(value as Panel)} className="flex flex-col gap-6">
             <TabsList variant="segmented">
               <TabsTrigger value="themes">Themes</TabsTrigger>

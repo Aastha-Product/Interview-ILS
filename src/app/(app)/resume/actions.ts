@@ -5,7 +5,7 @@ import { z } from "zod";
 
 import { ActionError, toolAction } from "@/lib/action";
 import { prisma } from "@/lib/prisma";
-import { DEFAULT_BASE_THEME } from "@/lib/settings";
+import { DEFAULT_BASE_THEME, MIN_RESUME_SCALE } from "@/lib/settings";
 import { loadSettings, saveSettings } from "@/lib/settings-data";
 import { THEME_FIELDS } from "@/lib/theme-data";
 import { parseThemeFile, themeFieldsSchema } from "@/lib/theme-file";
@@ -21,6 +21,23 @@ export const setBaseTheme = toolAction(z.object({ id: z.string().min(1) }), asyn
   revalidatePath("/resume");
   return null;
 });
+
+/**
+ * Saves the base resume's page fit (Pathfinder): how much it's scaled down, and whether the preview
+ * keeps it at the largest size that fits one page. The preview sends the scale it measured while
+ * fitting, so the PDF (which reads these settings) matches what's on screen.
+ */
+export const saveResumeFit = toolAction(
+  z.object({
+    scale: z.coerce.number().min(MIN_RESUME_SCALE).max(1).optional(),
+    fitToPage: z.boolean().optional(),
+  }),
+  async ({ scale, fitToPage }) => {
+    await saveSettings({ resumeScale: scale, resumeFitToPage: fitToPage });
+    revalidatePath("/resume");
+    return null;
+  },
+);
 
 /**
  * Saves the theme builder's draft (RES-3, RES-4) and makes it the base

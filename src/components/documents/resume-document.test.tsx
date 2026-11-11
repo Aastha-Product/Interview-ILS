@@ -75,6 +75,23 @@ describe("ResumeDocument", () => {
     expect(screen.getByRole("article", { name: "Resume" }).className).toMatch(/sideHeadings/);
   });
 
+  it("shrinks the spacing and text by the scale, leaving the paper and side margins (Pathfinder)", () => {
+    const entry = theme("editorial");
+    const { container: full } = render(<ResumeDocument theme={entry} profile={profile} paper="A4" today={today} />);
+    const fullPage = within(full).getByRole("article", { name: "Resume" });
+    const fullFont = Number(fullPage.style.getPropertyValue("--font-size"));
+    const fullPadX = fullPage.style.getPropertyValue("--pad-x");
+    const fullPageHeight = fullPage.style.getPropertyValue("--page-height");
+
+    const { container: small } = render(<ResumeDocument theme={entry} profile={profile} paper="A4" scale={0.8} today={today} />);
+    const page = within(small).getByRole("article", { name: "Resume" });
+    expect(Number(page.style.getPropertyValue("--font-size"))).toBeCloseTo(fullFont * 0.8, 5);
+    expect(Number(page.style.getPropertyValue("--pad-y"))).toBeCloseTo(Number(fullPage.style.getPropertyValue("--pad-y")) * 0.8, 5);
+    // The paper and horizontal margins don't scale, so the layout keeps its shape and page size.
+    expect(page.style.getPropertyValue("--pad-x")).toBe(fullPadX);
+    expect(page.style.getPropertyValue("--page-height")).toBe(fullPageHeight);
+  });
+
   it("shows the skills used in each role and the education notes", () => {
     render(<ResumeDocument theme={theme("editorial")} profile={profile} paper="A4" today={today} />);
     const role = screen.getByText("UX Designer").closest("[data-unit]")!;

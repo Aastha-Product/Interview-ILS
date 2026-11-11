@@ -61,6 +61,7 @@ export function DocumentPreview({
   label,
   meta,
   notice,
+  onPages,
   className,
   children,
 }: {
@@ -68,6 +69,8 @@ export function DocumentPreview({
   meta?: ReactNode | ((pages: number) => ReactNode);
   /** A note between the label row and the page, e.g. what was left out to fit the page limit. */
   notice?: ReactNode | ((pages: number) => ReactNode);
+  /** Called after each measure with the page count, e.g. to fit the resume to one page (Pathfinder). */
+  onPages?: (pages: number) => void;
   className?: string;
   /** A document component, e.g. ResumeDocument. */
   children: ReactNode;
@@ -82,13 +85,16 @@ export function DocumentPreview({
   // After every render, since a new theme can change the page padding
   // without changing its height, and whenever the page's size changes, e.g.
   // once the fonts have loaded. A paged preview has a fixed size, so the
-  // page itself is watched too.
+  // page itself is watched too. The effect re-runs on every render, so `measure`
+  // always closes over the latest onPages.
   useLayoutEffect(() => {
     const measure = () => {
       const page = pageRef.current?.firstElementChild;
       if (!(page instanceof HTMLElement)) return;
       const style = getComputedStyle(page);
-      setPages(countPages(page, { paged }));
+      const count = countPages(page, { paged });
+      setPages(count);
+      onPages?.(count);
       setPageHeight(pageHeightOf(style, paged));
       setPadY(Number(style.getPropertyValue("--pad-y")) || 0);
     };

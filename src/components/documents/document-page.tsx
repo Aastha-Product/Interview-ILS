@@ -8,30 +8,36 @@ import { PAPER_SIZES, SIDEBAR, type ResolvedTheme } from "@/lib/themes";
 
 import styles from "./document.module.css";
 
-/** The theme's numbers as the custom properties document.module.css reads. */
-function themeStyle(theme: ResolvedTheme, paper: PaperSize): CSSProperties {
+/**
+ * The theme's numbers as the custom properties document.module.css reads. `scale` (Pathfinder,
+ * 1 by default) compresses a resume toward fewer pages: it shrinks the vertical spacing and the
+ * text while the page size, horizontal margins and line-height ratio stay put, so the layout keeps
+ * its shape and only gets tighter. The paper and page-height stay full size, so the same content
+ * fills fewer pages.
+ */
+function themeStyle(theme: ResolvedTheme, paper: PaperSize, scale = 1): CSSProperties {
   const { density, heading, name } = theme;
   return {
     "--page-height": PAPER_SIZES[paper].pageHeight,
     "--paper-width": PAPER_SIZES[paper].widthMm,
     "--paper-height": PAPER_SIZES[paper].heightMm,
-    "--pad-y": density.paddingY,
+    "--pad-y": density.paddingY * scale,
     "--pad-x": density.paddingX,
-    "--gap": density.gap,
-    "--item-gap": density.itemGap,
-    "--font-size": density.fontSize,
+    "--gap": density.gap * scale,
+    "--item-gap": density.itemGap * scale,
+    "--font-size": density.fontSize * scale,
     "--line-height": density.lineHeight,
     "--head-font": theme.headFamily,
     "--body-font": theme.bodyFamily,
     "--accent": theme.accent,
-    "--name-size": name.size,
+    "--name-size": name.size * scale,
     "--name-weight": name.weight,
-    "--heading-size": heading.size,
+    "--heading-size": heading.size * scale,
     "--heading-weight": heading.weight,
     "--heading-transform": heading.uppercase ? "uppercase" : "none",
     "--heading-tracking": heading.tracking,
     "--heading-rule": heading.rule ? 1 : 0,
-    "--heading-padding": heading.padding,
+    "--heading-padding": heading.padding * scale,
     "--sidebar-width": SIDEBAR.width,
     "--sidebar-gap": SIDEBAR.gap,
     ...(theme.banner && { "--on-accent": theme.onAccent }),
@@ -61,6 +67,7 @@ function themeClasses(theme: ResolvedTheme) {
 export function DocumentPage({
   theme,
   paper,
+  scale,
   lang,
   dir,
   className,
@@ -69,6 +76,8 @@ export function DocumentPage({
 }: {
   theme: ResolvedTheme;
   paper: PaperSize;
+  /** How much to compress the spacing and text, to fit fewer pages (Pathfinder); 1 is full size. */
+  scale?: number;
   /** The document's language tag, e.g. "fa"; picks Chinese, Japanese or Korean glyphs. */
   lang?: string;
   dir: TextDirection;
@@ -83,7 +92,7 @@ export function DocumentPage({
       lang={lang}
       dir={dir}
       className={cn(styles.page, themeClasses(theme), className)}
-      style={themeStyle(theme, paper)}
+      style={themeStyle(theme, paper, scale)}
     >
       {children}
     </article>

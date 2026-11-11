@@ -36,6 +36,8 @@ describe("stored settings", () => {
       strict: true,
       showDiff: true,
       paper: "A4",
+      resumeScale: 1,
+      resumeFitToPage: false,
       dateFormat: "DAY_MONTH_YEAR",
       defaultTone: "WARM",
       docLanguage: null,
@@ -134,6 +136,13 @@ describe("stored settings", () => {
     ]);
     expect(settings).toMatchObject({ provider: null, paper: "A4", strict: true, customLanguages: [], quietDays: 7, jobRetentionHours: 24 });
     expect(settings).not.toHaveProperty("theme");
+  });
+
+  it("keeps the resume scale within its range, falling back to full size (Pathfinder)", () => {
+    expect(settingsFromRows([{ key: "resumeScale", value: "0.8" }]).resumeScale).toBe(0.8);
+    expect(settingsFromRows([{ key: "resumeScale", value: "0.2" }]).resumeScale).toBe(1);
+    expect(settingsFromRows([{ key: "resumeScale", value: "nonsense" }]).resumeScale).toBe(1);
+    expect(settingsFromRows([{ key: "resumeFitToPage", value: "true" }]).resumeFitToPage).toBe(true);
   });
 
   it("reads the old one-page switch as a page limit (SET-9)", () => {
