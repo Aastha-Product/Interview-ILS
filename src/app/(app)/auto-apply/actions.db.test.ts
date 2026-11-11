@@ -8,7 +8,7 @@ import { rawClientOf } from "@/lib/owner/scope";
 import { COMPLETE_ANSWERS } from "@/test/answers";
 import { createTestClient, resetDatabase } from "@/test/db";
 
-import { agreeToAutoApply, findMatchesNow, prepareApplicationAgain, saveJobSearch, skipApplication, switchAutoApply } from "./actions";
+import { agreeToAutoApply, answerApplicationQuestions, findMatchesNow, prepareApplicationAgain, saveJobSearch, skipApplication, switchAutoApply } from "./actions";
 
 const db = vi.hoisted(() => ({ client: undefined as ReturnType<typeof createTestClient> | undefined }));
 vi.mock("@/lib/prisma", async () => {
@@ -150,5 +150,37 @@ describe("the auto-apply screens' actions (auto-apply step 4)", () => {
     expect(await runAsUser("other-student", () => loadAutoApplyScreen())).toMatchObject({ tasks: [] });
     await runAsUser("other-student", () => skipApplication({ taskId: mine.id }));
     expect((await prisma().applyTask.findUniqueOrThrow({ where: { id: mine.id } })).state).toBe("READY");
+  });
+});
+
+describe("answering an application's questions (apply task questions)", () => {
+  const withQuestion = async () => {
+    const task = await taskIn("NEEDS_STUDENT");
+    await prisma().applyTask.update({ where: { id: task.id }, data: { questions: [{ key: "why", label: "Why us?", required: true, type: "text", options: [] }] } });
+    return task;
+  };
+
+  it("saves the answer by its wording and prepares the application again", async () => {
+    const task = await withQuestion();
+    expect(await answerApplicationQuestions({ taskId: task.id, answers: { why: "I like the mission." } })).toMatchObject({ ok: true, data: null });
+    // The answer is kept by wording, for later forms that ask the same.
+    const settings = await prisma().autoApplySettings.findFirst();
+    expect(settings?.answers).toMatchObject({ custom: { "why us": { label: "Why us?", text: "I like the mission." } } });
+    // The task is queued to prepare again, and its questions are cleared.
+    const after = await prisma().applyTask.findUniqueOrThrow({ where: { id: task.id } });
+    expect(after.state).toBe("PREPARING");
+    expect(after.questions).toEqual([]);
+    expect(startJob).toHaveBeenCalled();
+  });
+
+  it("refuses when no fitting answer is given", async () => {
+    const task = await withQuestion();
+    expect(await answerApplicationQuestions({ taskId: task.id, answers: { why: "   " } })).toMatchObject({ ok: false, error: expect.stringContaining("Answer at least one") });
+    expect((await prisma().applyTask.findUniqueOrThrow({ where: { id: task.id } })).state).toBe("NEEDS_STUDENT");
+  });
+
+  it("refuses an application that isn't waiting for answers", async () => {
+    const task = await taskIn("READY");
+    expect(await answerApplicationQuestions({ taskId: task.id, answers: { why: "Anything" } })).toMatchObject({ ok: false, error: expect.stringContaining("isn't waiting") });
   });
 });

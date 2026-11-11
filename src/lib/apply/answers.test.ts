@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { adultBy, answerForm, EMPTY_ANSWERS, missingAnswers, missingAnswersMessage, splitName, type AnswerContext, type FieldOption, type FormField, type SavedAnswers } from "./answers";
+import { adultBy, answerForm, askableHere, customKey, EMPTY_ANSWERS, missingAnswers, missingAnswersMessage, missingFields, splitName, type AnswerContext, type FieldOption, type FormField, type SavedAnswers } from "./answers";
 
 const yesNo: FieldOption[] = [
   { label: "Yes", value: "1" },
@@ -498,5 +498,30 @@ describe("answering a form (auto-apply step 4)", () => {
   it("splits a name into first and last", () => {
     expect(splitName("Asha")).toEqual(["Asha", ""]);
     expect(splitName(" Asha  Rani Verma ")).toEqual(["Asha Rani", "Verma"]);
+  });
+});
+
+describe("questions the student answers themself (apply task questions)", () => {
+  const pytorch = field("q_ml", "Have you used PyTorch?", "single", true, yesNo);
+
+  it("asks about what nothing covers, and names it among the required fields to answer", () => {
+    const { missing } = answerForm([pytorch], context());
+    expect(missing).toEqual(["Have you used PyTorch?"]);
+    expect(missingFields([pytorch], missing)).toEqual([pytorch]);
+  });
+
+  it("fills it from the answer the student gave that wording before", () => {
+    const saved: SavedAnswers = { ...answered, custom: { [customKey("Have you used PyTorch?")]: { label: "Have you used PyTorch?", options: ["Yes"] } } };
+    const { answers, missing } = answerForm([pytorch], context({ saved }));
+    expect(missing).toEqual([]);
+    expect(answers.q_ml).toEqual({ kind: "option", value: "1", label: "Yes" });
+  });
+
+  it("keeps answers by wording (ignoring case and punctuation), and won't take on what's the student's own to do", () => {
+    expect(customKey("Have you used PyTorch?")).toBe(customKey("have you used pytorch"));
+    expect(askableHere({ label: "Why do you want to work here?", type: "textarea" })).toBe(true);
+    expect(askableHere({ label: "Type your full name to sign", type: "text" })).toBe(false);
+    expect(askableHere({ label: "What is your gender?", type: "single" })).toBe(false);
+    expect(askableHere({ label: "Resume", type: "file" })).toBe(false);
   });
 });

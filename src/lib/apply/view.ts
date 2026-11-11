@@ -9,6 +9,7 @@ import { prisma, systemPrisma } from "@/lib/prisma";
 import { loadProfile } from "@/lib/profile-data";
 
 import { autoApplySummary, type AutoApplySummary } from "./prepare";
+import { taskQuestions, type TaskQuestion } from "./questions";
 import { CONSENT_TEXT, loadAutoApply, type AutoApplyView } from "./settings";
 
 // Pathfinder (auto-apply step 4): what the auto-apply screens show for the current student.
@@ -25,6 +26,8 @@ export type ApplyTaskView = {
   tier: MatchTier | null;
   /** Why it waits, failed or was skipped. */
   reason: string | null;
+  /** Waiting on the student: the form's questions nobody could answer, to answer on this page. */
+  questions: TaskQuestion[];
   /** The application with the tailored documents, once written. */
   applicationId: string | null;
   appliedAt: string | null;
@@ -110,6 +113,7 @@ export async function loadAutoApplyScreen(now = new Date()): Promise<AutoApplySc
         score: task.jobMatch.score,
         tier: task.jobMatch.tier,
         reason: task.reason,
+        questions: task.state === "NEEDS_STUDENT" ? taskQuestions(task.questions) : [],
         applicationId: task.applicationId,
         appliedAt: task.appliedAt?.toISOString() ?? null,
         confirmation: task.state === "APPLIED" ? confirmationOf(task.evidence) : null,

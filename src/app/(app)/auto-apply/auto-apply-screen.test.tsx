@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { EMPTY_ANSWERS, missingAnswers } from "@/lib/apply/answers";
 import type { AutoApplyScreenView } from "@/lib/apply/view";
 
-import { markApplied, prepareApplicationAgain, saveJobSearch, skipApplication, switchAutoApply } from "./actions";
+import { answerApplicationQuestions, markApplied, prepareApplicationAgain, saveJobSearch, skipApplication, switchAutoApply } from "./actions";
 import { AutoApplyScreen } from "./auto-apply-screen";
 import { listFrom, SetupScreen } from "./setup/setup-screen";
 
@@ -22,6 +22,7 @@ vi.mock("./actions", () => ({
   skipApplication: vi.fn(async () => ({ ok: true, data: null })),
   prepareApplicationAgain: vi.fn(async () => ({ ok: true, data: null })),
   markApplied: vi.fn(async () => ({ ok: true, data: null })),
+  answerApplicationQuestions: vi.fn(async () => ({ ok: true, data: null })),
 }));
 
 const preferences = { titles: ["Data Analyst"], skills: ["SQL"], countries: ["in"], cities: ["Pune"], remoteOk: true, level: "entry" as const, employmentTypes: [] };
@@ -35,8 +36,8 @@ const view = (overrides: Partial<AutoApplyScreenView> = {}): AutoApplyScreenView
   consentText: "I allow Pathfinder to submit job applications for me.",
   summary: { matches: { STRONG: 4, GOOD: 2, PARTIAL: 5, NOT_RECOMMENDED: 9, pending: 0, failed: 0 }, tasks },
   tasks: [
-    { id: "t1", state: "NEEDS_STUDENT", title: "Data Analyst", company: "Groww", location: "Bengaluru", url: "https://groww.example/1", score: 86, tier: "STRONG", reason: "Answer this question to apply: Why Groww?", applicationId: "app-1", appliedAt: null, confirmation: null, updatedAt: "2026-11-10T08:00:00Z" },
-    { id: "t2", state: "APPLIED", title: "Business Analyst", company: "Paytm", location: "Noida", url: "", score: 72, tier: "GOOD", reason: null, applicationId: "app-2", appliedAt: "2026-11-10T07:00:00Z", confirmation: { by: "board", text: "Thank you for applying to Paytm." }, updatedAt: "2026-11-10T07:00:00Z" },
+    { id: "t1", state: "NEEDS_STUDENT", title: "Data Analyst", company: "Groww", location: "Bengaluru", url: "https://groww.example/1", score: 86, tier: "STRONG", reason: "Answer this question to apply: Why Groww?", questions: [], applicationId: "app-1", appliedAt: null, confirmation: null, updatedAt: "2026-11-10T08:00:00Z" },
+    { id: "t2", state: "APPLIED", title: "Business Analyst", company: "Paytm", location: "Noida", url: "", score: 72, tier: "GOOD", reason: null, questions: [], applicationId: "app-2", appliedAt: "2026-11-10T07:00:00Z", confirmation: { by: "board", text: "Thank you for applying to Paytm." }, updatedAt: "2026-11-10T07:00:00Z" },
   ],
   matchRunId: null,
   openJobs: 1734,
@@ -61,6 +62,28 @@ describe("the auto-apply dashboard (auto-apply step 4)", () => {
     expect(within(rows[0]).getByRole("link", { name: "Documents" })).toHaveAttribute("href", "/applications/app-1");
     // An application already sent can't be skipped.
     expect(within(rows[1]).queryByRole("button", { name: "Skip" })).toBeNull();
+  });
+
+  it("answers an application's questions on the page, and flags the ones only the student can do", async () => {
+    const withQuestions = view({
+      tasks: [
+        {
+          ...view().tasks[0],
+          questions: [
+            { key: "q-why", label: "Why do you want to work here?", type: "textarea", options: [], here: true },
+            { key: "q-exp", label: "Years of SQL experience", type: "single", options: ["0-1", "2-3", "4+"], here: true },
+            { key: "q-file", label: "Upload a reference letter", type: "file", options: [], here: false },
+          ],
+        },
+      ],
+    });
+    render(<AutoApplyScreen view={withQuestions} />);
+    await userEvent.type(screen.getByLabelText("Why do you want to work here?"), "I admire the product.");
+    await userEvent.selectOptions(screen.getByLabelText("Years of SQL experience"), "2-3");
+    // The file question can't be answered here; the student is told.
+    expect(screen.getByText(/on the job site itself/)).toHaveTextContent("Upload a reference letter");
+    await userEvent.click(screen.getByRole("button", { name: "Save and try again" }));
+    expect(answerApplicationQuestions).toHaveBeenCalledWith({ taskId: "t1", answers: { "q-why": "I admire the product.", "q-exp": "2-3" } });
   });
 
   it("switches auto-apply on and skips an application", async () => {

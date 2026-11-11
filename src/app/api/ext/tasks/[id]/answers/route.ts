@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { answerForm } from "@/lib/apply/answers";
+import { answerForm, missingFields } from "@/lib/apply/answers";
 import { heldTask } from "@/lib/apply/lease";
 import { answerContext } from "@/lib/apply/prepare";
 import { extensionError, extensionRoute } from "@/lib/extension/route";
-import { systemPrisma } from "@/lib/prisma";
+import { prisma, systemPrisma } from "@/lib/prisma";
 
 const fieldSchema = z.object({
   key: z.string().min(1).max(300),
@@ -27,5 +27,10 @@ export const POST = extensionRoute<RouteContext<"/api/ext/tasks/[id]/answers">>(
   const task = await heldTask((await params).id, body.data.leaseId);
   if (!task) return extensionError(409, "This application isn't held by this browser any more.");
   const posting = await systemPrisma.sharedPosting.findUnique({ where: { id: task.sharedPostingId }, select: { companyName: true, location: true } });
-  return NextResponse.json(answerForm(body.data.fields, await answerContext(posting?.companyName ?? "", posting?.location ?? "")));
+  const form = answerForm(body.data.fields, await answerContext(posting?.companyName ?? "", posting?.location ?? ""));
+  // What it couldn't answer is kept with the task, for the student to answer on the Auto-apply
+  // page if the browser then hands the application to them (src/lib/apply/questions.ts). The
+  // latest reading counts: the extension asks again about what's still empty after filling.
+  await prisma.applyTask.updateMany({ where: { id: task.id, leaseId: body.data.leaseId }, data: { questions: missingFields(body.data.fields, form.missing).slice(0, 40) } });
+  return NextResponse.json(form);
 });

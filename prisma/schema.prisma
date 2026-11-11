@@ -1281,6 +1281,9 @@ model ApplyTask {
   leaseUntil      DateTime?
   /// Times a browser took it.
   attempts        Int           @default(0)
+  /// The form's required questions nobody could answer yet (FormField[]), for the student to
+  /// answer on the Auto-apply page; empty once it's prepared again.
+  questions       Json          @default("[]")
   /// What showed it was submitted: confirmation text, final address, time.
   evidence        Json?
   appliedAt       DateTime?
