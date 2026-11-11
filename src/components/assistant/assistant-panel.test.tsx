@@ -19,6 +19,11 @@ const open = async (user: ReturnType<typeof userEvent.setup>) => {
 beforeEach(() => {
   vi.mocked(askAssistant).mockReset();
   vi.mocked(runAssistantTool).mockReset();
+  try {
+    window.localStorage.clear();
+  } catch {
+    // ignore
+  }
 });
 
 describe("AssistantPanel (Pathfinder)", () => {
@@ -79,6 +84,28 @@ describe("AssistantPanel (Pathfinder)", () => {
     await user.click(await screen.findByRole("button", { name: "Cancel" }));
     expect(runAssistantTool).not.toHaveBeenCalled();
     expect(screen.getByText(/didn.t change anything/)).toBeInTheDocument();
+  });
+
+  it("remembers the conversation after it's reopened, and 'New chat' clears it", async () => {
+    const user = userEvent.setup();
+    vi.mocked(askAssistant).mockResolvedValue({ ok: true, data: { text: "Your applications are under Applications.", navigate: null, proposal: null } });
+
+    const first = render(<AssistantPanel />);
+    await user.click(screen.getByRole("button", { name: "Open the assistant" }));
+    await user.type(screen.getByRole("textbox", { name: "Message the assistant" }), "where are my applications?{Enter}");
+    expect(await screen.findByText("Your applications are under Applications.")).toBeInTheDocument();
+    first.unmount();
+
+    // A fresh mount (like a reload) loads the remembered chat.
+    render(<AssistantPanel />);
+    await user.click(screen.getByRole("button", { name: "Open the assistant" }));
+    expect(await screen.findByText("where are my applications?")).toBeInTheDocument();
+    expect(screen.getByText("Your applications are under Applications.")).toBeInTheDocument();
+
+    // New chat wipes it back to just the greeting.
+    await user.click(screen.getByRole("button", { name: "New chat" }));
+    expect(screen.queryByText("where are my applications?")).toBeNull();
+    expect(screen.getByText(/I'm the Pathfinder assistant/)).toBeInTheDocument();
   });
 
   it("closes from the header", async () => {

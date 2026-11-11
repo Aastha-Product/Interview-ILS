@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, Sparkles, X } from "lucide-react";
+import { ArrowRight, SquarePen, Sparkles, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState, useTransition, type FormEvent, type KeyboardEvent } from "react";
@@ -10,9 +10,9 @@ import { Button, buttonClassName } from "@/components/ui/button";
 import { destinationLabel } from "@/lib/assistant/assistant";
 import { cn } from "@/lib/cn";
 
-// Pathfinder: the site-wide assistant panel (Phase 1). A button in the corner opens a chat on the
-// right; the student asks about Pathfinder and gets an answer, sometimes with a link to the right
-// screen. It changes nothing yet (see assistant.ts); later phases add actions behind a confirmation.
+// Pathfinder: the site-wide assistant panel. A button in the corner opens a chat on the right; the
+// student asks about Pathfinder, gets an answer (sometimes a link to a screen), and can confirm a
+// change (Phase 2–3). The conversation is remembered between visits in this browser (Phase 4).
 
 type Message = {
   role: "user" | "assistant";
@@ -33,15 +33,58 @@ const GREETING: Message = {
   content: "Hi! I'm the Pathfinder assistant. Ask me how something works, or where to go — like “how do I make my resume one page?” or “where are my applications?”.",
 };
 
+// Phase 4: the chat is kept per browser, as a convenience — it isn't shared or sent anywhere on its
+// own. A half-finished proposal is dropped on load, so a reload never leaves a Confirm that would
+// act on stale state.
+const STORAGE_KEY = "pathfinder.assistant.chat";
+
+function loadStored(): Message[] {
+  try {
+    const raw = typeof window === "undefined" ? null : window.localStorage.getItem(STORAGE_KEY);
+    const saved = raw ? (JSON.parse(raw) as Message[]) : null;
+    if (!Array.isArray(saved) || saved.length === 0) return [GREETING];
+    return saved.map((message) => (message.proposalState === "pending" ? { ...message, proposal: null, proposalState: undefined } : message));
+  } catch {
+    return [GREETING];
+  }
+}
+
+function store(messages: Message[]) {
+  try {
+    if (typeof window !== "undefined") window.localStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
+  } catch {
+    // Private windows and full storage throw; the chat still works, just isn't remembered.
+  }
+}
+
 export function AssistantPanel() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  // Starts from the greeting so server and client render the same; the stored chat loads after mount.
   const [messages, setMessages] = useState<Message[]>([GREETING]);
   const [input, setInput] = useState("");
   const [pending, startTransition] = useTransition();
   const [running, startRun] = useTransition();
+  const loaded = useRef(false);
   const threadEnd = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // Load the remembered chat once, after mount (not during render, to avoid a hydration mismatch).
+  useEffect(() => {
+    if (loaded.current) return;
+    loaded.current = true;
+    setMessages(loadStored());
+  }, []);
+  // Remember the chat whenever it changes (after the initial load has set `loaded`).
+  useEffect(() => {
+    if (loaded.current) store(messages);
+  }, [messages]);
+
+  const newChat = () => {
+    setMessages([GREETING]);
+    store([GREETING]);
+    inputRef.current?.focus();
+  };
 
   useEffect(() => {
     if (open) inputRef.current?.focus();
@@ -122,9 +165,14 @@ export function AssistantPanel() {
               <Sparkles className="size-5 text-primary-text" aria-hidden />
               Assistant
             </span>
-            <button type="button" onClick={() => setOpen(false)} aria-label="Close the assistant" className="rounded-control p-1 text-muted hover:text-ink">
-              <X className="size-5" aria-hidden />
-            </button>
+            <div className="flex items-center gap-1">
+              <button type="button" onClick={newChat} aria-label="New chat" className="rounded-control p-1 text-muted hover:text-ink">
+                <SquarePen className="size-5" aria-hidden />
+              </button>
+              <button type="button" onClick={() => setOpen(false)} aria-label="Close the assistant" className="rounded-control p-1 text-muted hover:text-ink">
+                <X className="size-5" aria-hidden />
+              </button>
+            </div>
           </header>
 
           <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-auto px-5 py-5">
