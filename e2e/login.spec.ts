@@ -59,7 +59,7 @@ test.describe("without scripts", () => {
 
     await page.getByLabel("Access code", { exact: true }).fill(PASSWORD);
     await page.getByRole("button", { name: "Sign in" }).click();
-    await expect(page).toHaveURL("/");
+    await expect(page).toHaveURL("/analyze");
     await expect(page.getByRole("button", { name: "Sign out" })).toBeVisible();
   });
 

@@ -63,3 +63,7 @@ next-env.d.ts
 
 # The extension built for its Chrome tests (node extension/build.mjs --test)
 /extension/dist-test/
+
+# The Web Store build and its zip (node extension/build.mjs --store)
+/extension/dist-store/
+/extension/release/

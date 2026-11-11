@@ -25,7 +25,7 @@ describe("the privacy notice", () => {
   it("says what's kept, where and for how long, and the student's rights", () => {
     render(<PrivacyPage />);
     expect(screen.getByRole("heading", { level: 1, name: "Privacy notice" })).toBeInTheDocument();
-    for (const title of ["1. Who we are", "3. What we keep, and why", "5. Where your data is stored", "6. Who else receives your data", "7. How long we keep it", "8. Your rights"]) {
+    for (const title of ["1. Who we are", "3. What we keep, and why", "5. Where your data is stored", "6. Who else receives your data", "7. The Pathfinder extension for Chrome", "8. How long we keep it", "9. Your rights"]) {
       expect(screen.getByRole("heading", { level: 2, name: title })).toBeInTheDocument();
     }
     const text = document.body.textContent ?? "";
@@ -37,8 +37,21 @@ describe("the privacy notice", () => {
     expect(text).toContain("Export everything");
     expect(text).toContain("Data Protection Board of India");
     // Both kinds of nightly copy, with how long they're kept.
-    const retention = within(screen.getByRole("heading", { name: "7. How long we keep it" }).parentElement!);
+    const retention = within(screen.getByRole("heading", { name: "8. How long we keep it" }).parentElement!);
     expect(retention.getAllByText("14 days", { exact: false })).toHaveLength(2);
+  });
+
+  it("says auto-apply applies for the student, and what its extension reads, keeps and sends (Chrome Web Store)", () => {
+    render(<PrivacyPage />);
+    const text = document.body.textContent ?? "";
+    expect(text).not.toContain("never applies on your behalf");
+    expect(text).toContain("it applies for you to the jobs that match, from your own browser");
+    const extension = within(screen.getByRole("heading", { name: "7. The Pathfinder extension for Chrome" }).parentElement!);
+    for (const words of ["Limited Use", "job-boards.greenhouse.io", "jobs.lever.co", "jobs.ashbyhq.com", "can't read other sites", "What it keeps in your browser", "What it sends to Pathfinder", "first 500 characters", "Pause in this browser", "90 days"]) {
+      expect(extension.getAllByText(words, { exact: false }).length, words).toBeGreaterThan(0);
+    }
+    expect(text).toContain("Auto-apply asks for its own consent");
+    expect(text).toContain("Employers, through their job sites, only with auto-apply");
   });
 
   it("marks the contacts that aren't filled in yet, and warns not to invite students", () => {
