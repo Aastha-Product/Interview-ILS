@@ -91,11 +91,17 @@ export async function apply(port: Port, doc: Document, location: Location | { ho
   if (challengeShown(doc)) return needsStudent(REASONS.challenge);
   if (task.dryRun) return { report: { outcome: "dry-run" }, keepTab: true };
 
-  // The browser's own required check would stop Submit silently: whatever it objects to is the student's.
+  // A completeness backstop just before Submit: the browser's own required check on a real <form>
+  // (Greenhouse, Lever) would stop Submit silently; where there's no <form> (Ashby) the board does the
+  // equivalent check itself. Whatever it objects to is the student's to finish.
+  let invalid: string[] = [];
   if (form instanceof HTMLFormElement && !form.noValidate && !form.checkValidity()) {
-    const invalid = Array.from(form.querySelectorAll<HTMLInputElement>(":invalid")).map((element) => labelOf(element) || element.name || element.id).filter(Boolean);
-    return needsStudent(REASONS.unanswered(invalid.length > 0 ? [...new Set(invalid)] : ["a required question on the form"]));
+    invalid = Array.from(form.querySelectorAll<HTMLInputElement>(":invalid")).map((element) => labelOf(element) || element.name || element.id).filter(Boolean);
+    if (invalid.length === 0) invalid = ["a required question on the form"];
+  } else if (board.preSubmitInvalid) {
+    invalid = board.preSubmitInvalid(form);
   }
+  if (invalid.length > 0) return needsStudent(REASONS.unanswered([...new Set(invalid)]));
 
   // 5. Pathfinder must agree first: if this browser lost the task, Submit is never pressed.
   const button = board.submitButton(form);

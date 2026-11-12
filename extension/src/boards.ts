@@ -120,11 +120,33 @@ export const ashby: Board = {
       const raw = title?.textContent ?? key;
       const required = /(^|\s|_)required/.test(title?.className.toString() ?? "") || markedRequired(raw);
       const control = ashbyControl(entry);
-      if (key && control) questions.push({ key, label: cleanLabel(raw), required, control });
+      if (!key || !control) continue;
+      questions.push({ key, label: cleanLabel(raw), required, control });
+      // A required radio/checkbox group sharing the entry with the main control (e.g. a consent box
+      // next to the phone number) is otherwise dropped, and Ashby has no native form check to catch
+      // it. Surface a required one as its own question so it's answered, not silently skipped. An
+      // optional one stays ignored, as before (the phone number is the question, not its SMS consent).
+      if (control.kind !== "choices" && control.kind !== "buttons" && control.kind !== "other") {
+        const choices = Array.from(entry.querySelectorAll<HTMLInputElement>('input[type="radio"], input[type="checkbox"]')).filter((input) => input.tabIndex !== -1);
+        if (choices.length > 0 && choices.some(isRequiredElement)) {
+          questions.push({ key: `${key}#choice`, label: cleanLabel(labelOf(choices[0]) || raw), required: true, control: { kind: "choices", elements: choices } });
+        }
+      }
     }
     return questions;
   },
   submitButton: (form) => visibleButton(form.ownerDocument, ".ashby-application-form-submit-button"),
+  preSubmitInvalid(form) {
+    const errors = Array.from(form.querySelectorAll('[class*="_error_"], [role="alert"], [id$="-error"], .error-message, .field-error'))
+      .filter((node) => isVisible(node))
+      .map((node) => (node.textContent ?? "").replace(/\s+/g, " ").trim())
+      .filter(Boolean);
+    if (errors.length > 0) return [...new Set(errors)];
+    // Ashby keeps Submit disabled until the form validates; a disabled button means something's missing.
+    const button = form.ownerDocument.querySelector<HTMLButtonElement>(".ashby-application-form-submit-button");
+    if (button && (button.disabled || button.getAttribute("aria-disabled") === "true")) return ["a required question on the form"];
+    return [];
+  },
 };
 
 function ashbyControl(entry: HTMLElement): Control | null {

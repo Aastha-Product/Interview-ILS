@@ -32,6 +32,12 @@ export type Board = {
   findForm(doc: Document): HTMLElement | null;
   questions(form: HTMLElement): Question[];
   submitButton(form: HTMLElement): HTMLElement | null;
+  /**
+   * A completeness backstop just before Submit, for a board with no real <form> (Ashby) where the
+   * browser's own `checkValidity()` can't run: the wording of anything the board still marks unfilled
+   * or invalid, or `[]` when it looks complete. Boards with a real <form> leave this out.
+   */
+  preSubmitInvalid?(form: HTMLElement): string[];
   /** The page's path once applied, where the board moves to one. */
   confirmationPath?: RegExp;
   /** How long to wait after attaching the resume: Lever reads it and fills fields in itself. */
