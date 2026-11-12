@@ -4,7 +4,7 @@ import { AiError } from "@/lib/ai/errors";
 import { runAsUser } from "@/lib/owner/context";
 import { rawClientOf } from "@/lib/owner/scope";
 import type { ProfileData } from "@/lib/profile";
-import { createTestClient } from "@/test/db";
+import { createTestClient, resetDatabase } from "@/test/db";
 
 import type { MatchPreferences } from "./preferences";
 
@@ -90,6 +90,10 @@ async function posting(externalId: string, data: { title: string; description?: 
 }
 
 beforeEach(async () => {
+  // A blank database with the test student in it. Without this the file relied on whichever
+  // test file ran before it having left that student there, and failed when it hadn't (six
+  // tests, "Foreign key constraint violated", seen once on 11 November 2026).
+  await resetDatabase(prisma());
   await raw().job.deleteMany();
   await raw().jobMatch.deleteMany();
   await raw().sharedPosting.deleteMany();

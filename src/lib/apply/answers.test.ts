@@ -475,6 +475,13 @@ describe("answering a form (auto-apply step 4)", () => {
     expect(missingAnswersMessage(missingAnswers(EMPTY_ANSWERS, { cities: [], level: "entry" }))).toBe("Answer these in Set up job search first: Cities, Allowed to work, Visa sponsorship, Relatives at the company and 14 more.");
   });
 
+  it("answers a file question only with a file, and a written one never with a file", () => {
+    const form = [field("portfolio", "Attach your portfolio", "file"), field("site", "Portfolio link", "text"), field("resume", "Resume/CV", "file")];
+    const { answers, missing } = answerForm(form, context({ basics: { ...context().basics, website: "https://asha.dev" } }));
+    expect(answers).toEqual({ site: { kind: "text", value: "https://asha.dev" }, resume: { kind: "file", file: "resume" } });
+    expect(missing).toEqual(["Attach your portfolio"]);
+  });
+
   it("never signs, waives or agrees to a legal document for the student", () => {
     const form = [
       field("nda", "Please Review the NDA and indicate your agreement by typing your full name below", "text"),

@@ -660,6 +660,8 @@ export function answerForm(fields: readonly FormField[], context: AnswerContext)
     }
     // What the profile and the saved answers don't cover, the student may have answered themself.
     answer ??= custom(field, context);
+    // A file is only ever answered with a file: "Attach your portfolio" isn't the website's address.
+    if (answer && (field.type === "file") !== (answer.kind === "file")) answer = null;
     if (answer) answers[field.key] = answer;
     else if (field.required) missing.push(field.label.trim() || field.key);
   }

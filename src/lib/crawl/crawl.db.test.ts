@@ -2,7 +2,7 @@ import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { RetryLater } from "@/lib/jobs/retry-later";
 import { rawClientOf } from "@/lib/owner/scope";
-import { createTestClient } from "@/test/db";
+import { createTestClient, resetDatabase } from "@/test/db";
 
 import type { CrawledJob, ListedJob } from "./types";
 
@@ -78,6 +78,8 @@ async function company(data: Partial<{ boardToken: string; nextCrawlAt: Date; cr
 const postings = () => raw().sharedPosting.findMany({ orderBy: { externalId: "asc" } });
 
 beforeEach(async () => {
+  // A blank database, whatever the test file before this one left in it.
+  await resetDatabase(db.client!);
   await raw().sharedPosting.deleteMany();
   await raw().company.deleteMany();
   await raw().providerBudget.deleteMany();

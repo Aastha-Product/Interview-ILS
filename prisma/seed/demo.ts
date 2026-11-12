@@ -8,6 +8,7 @@ import {
 } from "@/lib/application-data";
 import { dateSpan, demoLetterUnits, demoProfile, demoResumeUnits, LEVELS_BY_LABEL } from "@/lib/demo-profile";
 import { basicsFromFields, fieldsFromBasics } from "@/lib/profile";
+import { scopedClient } from "@/lib/owner/scope";
 import { advance, type StatusFields } from "@/lib/status";
 
 import sample from "./prototype-sample.json";
@@ -18,6 +19,9 @@ import sample from "./prototype-sample.json";
 const DAY = 86_400_000;
 /** The prototype's "today"; its relative dates ("3 Oct", "sent 40 days ago") count from here. */
 const PROTOTYPE_TODAY = Date.UTC(2026, 8, 27);
+
+/** The demo student's address, unless DEMO_EMAIL names another (Pathfinder v1 plan, task 4). */
+export const DEMO_EMAIL = "demo@example.test";
 
 /** Thrown when demo data would replace the user's own data. */
 export class DemoRefused extends Error {
@@ -337,4 +341,27 @@ export async function seedDemo(
     },
     { timeout: 30_000 },
   );
+}
+
+/**
+ * Loads the demo data for the demo student (Pathfinder: every profile belongs to a student),
+ * making that student if there isn't one. `db` is the unscoped client; everything the demo adds
+ * is the demo student's, so no other student's data is read or changed.
+ *
+ * Safe to run twice: a student who already has a profile or applications is left as they are
+ * (`skipped`), unless `reset` says to replace them.
+ */
+export async function seedDemoStudent(
+  db: PrismaClient,
+  { email = DEMO_EMAIL, now, reset = false }: { email?: string; now?: Date; reset?: boolean } = {},
+): Promise<{ email: string; userId: string; applications: number; skipped: boolean }> {
+  const address = (email.trim() || DEMO_EMAIL).toLowerCase();
+  const student = await db.user.upsert({ where: { email: address }, update: {}, create: { email: address, name: "Jane Doe" }, select: { id: true } });
+  try {
+    const { applications } = await seedDemo(scopedClient(db, async () => student.id), { now, reset });
+    return { email: address, userId: student.id, applications, skipped: false };
+  } catch (error) {
+    if (!(error instanceof DemoRefused)) throw error;
+    return { email: address, userId: student.id, applications: 0, skipped: true };
+  }
 }
