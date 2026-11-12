@@ -9,7 +9,9 @@ import { createTestClient, resetDatabase } from "@/test/db";
 import { CURRENT_USER } from "@/lib/owner/scope";
 
 import { seedBuiltIns } from "./built-ins";
-import { DemoRefused, seedDemo } from "./demo";
+import { runAsUser } from "@/lib/owner/context";
+
+import { DEMO_EMAIL, DemoRefused, seedDemo, seedDemoStudent } from "./demo";
 
 const db = createTestClient();
 const now = new Date("2026-10-10T08:00:00Z");
@@ -169,5 +171,55 @@ describe("demo seed", () => {
     expect(await db.application.count()).toBe(9);
     expect(await db.skill.count()).toBe(7);
     expect((await basics()).name).toBe("Jane Doe");
+  });
+});
+
+describe("the demo student (Pathfinder v1 plan, task 4)", () => {
+  const raw = () => rawClientOf(db);
+
+  it("gets the demo data as its own student, and no real student's data is touched", async () => {
+    // A real student with data of their own (the test student), and another with none.
+    await db.profileField.create({ data: { key: "name", value: "A real student" } });
+    await db.application.create({ data: { company: "Theirs" } });
+    await raw().user.create({ data: { id: "another", email: "another@example.test" } });
+
+    const demo = await seedDemoStudent(raw(), { now });
+    expect(demo).toMatchObject({ email: DEMO_EMAIL, applications: 9, skipped: false });
+    expect(DEMO_EMAIL).toBe("demo@example.test");
+    expect(await raw().user.findUniqueOrThrow({ where: { email: DEMO_EMAIL } })).toMatchObject({ id: demo.userId, name: "Jane Doe" });
+
+    // Everything it added is the demo student's.
+    expect(await raw().application.count({ where: { userId: demo.userId } })).toBe(9);
+    expect(await raw().application.count()).toBe(10);
+    await runAsUser(demo.userId, async () => {
+      expect((await basics()).name).toBe("Jane Doe");
+      expect(await db.application.count()).toBe(9);
+    });
+    // The real students are as they were.
+    expect((await basics()).name).toBe("A real student");
+    expect((await db.application.findMany()).map((application) => application.company)).toEqual(["Theirs"]);
+    await runAsUser("another", async () => {
+      expect(await db.profileField.count()).toBe(0);
+      expect(await db.application.count()).toBe(0);
+    });
+  });
+
+  it("is safe to run twice: the second run changes nothing, and --reset loads it afresh", async () => {
+    const first = await seedDemoStudent(raw(), { now });
+    await runAsUser(first.userId, () => db.application.deleteMany({ where: { company: "Ledgerly" } }));
+
+    const second = await seedDemoStudent(raw(), { now });
+    expect(second).toMatchObject({ userId: first.userId, skipped: true, applications: 0 });
+    expect(await raw().user.count({ where: { email: DEMO_EMAIL } })).toBe(1);
+    expect(await raw().application.count({ where: { userId: first.userId } })).toBe(8);
+
+    expect(await seedDemoStudent(raw(), { now, reset: true })).toMatchObject({ userId: first.userId, skipped: false, applications: 9 });
+    expect(await raw().application.count({ where: { userId: first.userId } })).toBe(9);
+  });
+
+  it("goes to another address when one is given, as the end-to-end tests do", async () => {
+    const demo = await seedDemoStudent(raw(), { email: " Jane.Doe@Example.com ", now });
+    expect(demo.email).toBe("jane.doe@example.com");
+    expect(await raw().user.count({ where: { email: DEMO_EMAIL } })).toBe(0);
   });
 });

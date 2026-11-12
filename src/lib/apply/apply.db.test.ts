@@ -314,6 +314,8 @@ describe("preparing an application (auto-apply step 4)", () => {
     expect(await prepareApplicationJob.run({ taskId: task.id }, context())).toEqual({ state: "NEEDS_STUDENT" });
     const waiting = await prisma().applyTask.findUniqueOrThrow({ where: { id: task.id } });
     expect(waiting.reason).toBe("Answer this question to apply: Why do you want to join Acme?");
+    // The question is kept with it, for the student to answer on the Auto-apply page.
+    expect(waiting.questions).toEqual([{ key: "question_2", label: "Why do you want to join Acme?", required: true, type: "textarea", options: [] }]);
     // No AI spent on documents for a form that can't be sent yet.
     expect(waiting.applicationId).toBeNull();
     expect(await prisma().application.count()).toBe(0);
@@ -332,6 +334,7 @@ describe("preparing an application (auto-apply step 4)", () => {
     const ready = await prisma().applyTask.findUniqueOrThrow({ where: { id: task.id } });
     expect(ready.applicationId).not.toBeNull();
     expect(ready.answers).toMatchObject({ question_2: { value: "Looking for my first full-time role." } });
+    expect(ready.questions).toEqual([]);
     // Only from a state that can be tried again.
     expect(await prepareAgain(task.id)).toBe(false);
   });

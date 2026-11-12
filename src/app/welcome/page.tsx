@@ -1,4 +1,4 @@
-import { Check, FileSearch, FileUp, ListChecks, Lock, ShieldCheck, Sparkles, Trash2, UserRoundPlus } from "lucide-react";
+import { Check, FileSearch, FileUp, ListChecks, Lock, MousePointerClick, ShieldCheck, SlidersHorizontal, Sparkles, Target, Trash2, UserRoundPlus } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import type { ReactNode } from "react";
@@ -48,6 +48,9 @@ export default async function WelcomePage() {
           <div className="flex items-center gap-1 sm:gap-6">
             <a href="#how" className="hidden rounded-md px-3 py-2 text-on-brand-muted hover:text-white md:inline">
               How it works
+            </a>
+            <a href="#auto-apply" className="hidden rounded-md px-3 py-2 text-on-brand-muted hover:text-white md:inline">
+              Auto-apply
             </a>
             <a href="#plans" className="hidden rounded-md px-3 py-2 text-on-brand-muted hover:text-white md:inline">
               Plans
@@ -131,6 +134,32 @@ export default async function WelcomePage() {
           </ul>
         </Section>
 
+        {/* Auto-apply is in pilot: said as it is, with what it needs, so nobody signs up expecting more (the owner's decision, 11 November 2026). */}
+        <Section
+          id="auto-apply"
+          title="Auto-apply, in pilot"
+          intro="Pathfinder can also apply for you: to jobs that fit your profile, from your own browser, within the limits you set."
+          tone="gray"
+        >
+          <ul className="grid gap-8 md:grid-cols-3">
+            <Feature icon={<Target className="size-6" aria-hidden="true" />} title="Jobs that fit you">
+              Pathfinder reads companies&apos; own job boards, scores each job against your profile, and tailors your resume and cover letter
+              for the good matches. It never makes up experience.
+            </Feature>
+            <Feature icon={<MousePointerClick className="size-6" aria-hidden="true" />} title="From your own Chrome">
+              The Pathfinder extension fills in each application in your browser. It starts as a dry run, so you can check the forms before
+              anything is sent, and it stops for anything only you can do.
+            </Feature>
+            <Feature icon={<SlidersHorizontal className="size-6" aria-hidden="true" />} title="You stay in charge">
+              You choose the roles, the cities and how many applications a day. Pause it, or switch it off, at any time.
+            </Feature>
+          </ul>
+          <p className="mx-auto max-w-3xl text-center text-muted">
+            Auto-apply is in pilot. It needs the Pathfinder extension for Chrome on a computer, which isn&apos;t in the Chrome Web Store yet, and
+            it works with a limited set of companies&apos; job boards. Once you&apos;ve signed in, you&apos;ll find it under Auto-apply.
+          </p>
+        </Section>
+
         <Section id="plans" title="Plans" intro="Free to start, with no card required." tone="gray">
           <div className="grid gap-8 md:grid-cols-2">
             <div className="flex flex-col gap-6 rounded-panel border border-line bg-white p-8 shadow-page">
@@ -167,7 +196,8 @@ export default async function WelcomePage() {
               Your resume and analyses are tied to your account. Other users can&apos;t open them.
             </Feature>
             <Feature icon={<ShieldCheck className="size-6" aria-hidden="true" />} title="Never sold">
-              We use your resume only to analyse it for you, and never sell it.
+              We use your resume only to help you: to analyse it and, if you switch auto-apply on, to apply for jobs for you. We never
+              sell it.
             </Feature>
             <Feature icon={<Trash2 className="size-6" aria-hidden="true" />} title="Delete it any time">
               Remove an analysis, or everything we hold about you, from Settings.

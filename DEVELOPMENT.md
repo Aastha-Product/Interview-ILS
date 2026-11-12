@@ -86,9 +86,11 @@ Change an application's status only through `setStatus` in `src/lib/status-actio
 Each start runs `prisma db seed`, which creates the six built-in themes, an empty profile and default settings. It never overwrites your profile or settings. To load the prototype's sample data (Jane Doe and nine applications):
 
 ```bash
-docker/bin/yarn prisma db seed -- --demo           # refuses if you already have a profile or applications
-docker/bin/yarn prisma db seed -- --demo --reset   # deletes your profile and applications first
+docker/bin/yarn prisma db seed -- --demo           # leaves the demo student as they are if they already have data
+docker/bin/yarn prisma db seed -- --demo --reset   # deletes the demo student's profile and applications first
 ```
+
+Pathfinder: every profile belongs to a student, so the demo data goes to the **demo student**, `demo@example.test` (or the address in `DEMO_EMAIL`), created if there isn't one. Sign in with that address to see it. No other student's data is read or changed.
 
 ## Mutations and private routes
 

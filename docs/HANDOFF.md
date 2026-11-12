@@ -113,6 +113,37 @@ https://claude.ai/artifact/GSHLW1T2jiX99CUiBtAUov): all five P0 tasks.
 
 Newest first. One entry per session: date, account, branch, what changed, what's next.
 
+- **2026-11-12 · account 3 · `chore/tests-and-welcome`**: the tests the plan still lacked, and the
+  welcome page, at the owner's request.
+  - **Deployed:** `main` up to #30 is live (the owner ran the deploy on 11 November; the privacy
+    notice's extension section shows). #31 to #39 were merged after that by another account,
+    without an entry here: the site-wide assistant (#33, #35 to #38), fitting the base resume on
+    one page (#32), the job agent's search from the resume (#31), and answering an application's
+    questions on the Auto-apply page (#39, finishing this account's work in progress). Whether
+    they're deployed isn't recorded.
+  - **Plan task 3:** `src/lib/new-student.db.test.ts`: a first sign-in gets the default settings,
+    the built-in themes, an empty profile and auto-apply off, and one student's changes stay
+    theirs.
+  - **Plan task 4:** the demo data goes to the demo student, `demo@example.test`
+    (`seedDemoStudent` in `prisma/seed/demo.ts`; `DEMO_EMAIL` names another, as the e2e run does).
+    A second run leaves them as they are; no other student is read or changed.
+  - **Browser test for auto-apply** (`e2e/auto-apply.spec.ts`): from nothing to on as a dry run;
+    the starred answers refused while empty; paused when one goes missing; axe in both schemes.
+  - **Kept questions (#39):** tests for the extension's answers route keeping what it couldn't
+    answer, the student's answer filling it the next time, and nothing about who they are being
+    kept. **Fix:** a file question is only ever answered with a file ("Attach your portfolio" got
+    the website's address).
+  - **The matching tests that failed now and then:** `match.db.test.ts` and `crawl.db.test.ts`
+    never reset the database, so they needed the test student another file had left behind. Both
+    reset it now. Reproduced by emptying the User table first.
+  - **Welcome page:** an "Auto-apply, in pilot" section saying what it does and what it needs (the
+    extension, not yet in the Chrome Web Store), and the privacy card says what a resume is used
+    for with auto-apply.
+  - **Local Postgres:** after a restart of the PC, start it with `node scripts/services.mjs up`
+    in `D:\Pathfinder\pathfinder` (no Docker). Without it vitest stops with "No test files found".
+  - **Next:** pilot stage 1 with a real submission (the owner completes Set up job search first);
+    Chrome Web Store listing; the privacy contacts.
+
 - **2026-11-11 · account 3 · `feature/required-answers`** (built on #28): the owner's rule after
   pilot stage 1, where applications kept stopping at questions nearly every form asks.
   - **Set up job search stars its answers, and all are required** (`missingAnswers` in

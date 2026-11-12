@@ -23,7 +23,10 @@ vi.mock("@/lib/pdf/render", () => ({ renderPdf: vi.fn(async (path: string) => ne
 
 const { rawClientOf } = await import("@/lib/owner/scope");
 const { createExtensionToken } = await import("@/lib/extension/tokens");
-const { giveConsent, saveAutoApply, setAutoApplyEnabled } = await import("@/lib/apply/settings");
+const { giveConsent, loadAutoApply, saveAutoApply, setAutoApplyEnabled } = await import("@/lib/apply/settings");
+const { answerQuestions } = await import("@/lib/apply/questions");
+const { prepareApplicationJob } = await import("@/lib/apply/prepare");
+const { loadAutoApplyScreen } = await import("@/lib/apply/view");
 const status = await import("./status/route");
 const lease = await import("./lease/route");
 const answers = await import("./tasks/[id]/answers/route");
@@ -109,6 +112,55 @@ describe("the extension's API (auto-apply step 5)", () => {
     expect(await prisma().applyTask.findUniqueOrThrow({ where: { id: taskId } })).toMatchObject({ state: "APPLIED" });
     // A second "applied" changes nothing.
     expect((await send({ outcome: "applied", leaseId: task.leaseId, evidence: { url: "", text: "" } })).status).toBe(409);
+  });
+
+  it("keeps what it couldn't answer for the student, and fills in their answer the next time", async () => {
+    const fields = [
+      { key: "auth", label: "Are you legally authorized to work in India?", required: true, type: "single", options: [{ label: "Yes", value: "y" }, { label: "No", value: "n" }] },
+      { key: "why", label: "Why Acme?", required: true, type: "textarea", options: [] },
+      { key: "pronouns", label: "Preferred pronouns", required: true, type: "single", options: [{ label: "She/her", value: "s" }, { label: "He/him", value: "h" }] },
+      { key: "sample", label: "Attach a writing sample", required: true, type: "file", options: [] },
+      { key: "blog", label: "Your blog", required: false, type: "text", options: [] },
+    ];
+    const ask = async () => {
+      const task = await (await call(lease.POST, "/api/ext/lease", { method: "POST", token })).json();
+      const answered = await call(answers.POST, `/api/ext/tasks/${taskId}/answers`, { method: "POST", token, id: taskId, body: { leaseId: task.leaseId, fields } });
+      return { task, form: (await answered.json()) as { answers: Record<string, unknown>; missing: string[] } };
+    };
+
+    const first = await ask();
+    expect(first.form.missing).toEqual(["Why Acme?", "Preferred pronouns", "Attach a writing sample"]);
+    // The required ones it couldn't answer are kept with the application; the optional one isn't.
+    expect((await prisma().applyTask.findUniqueOrThrow({ where: { id: taskId } })).questions).toMatchObject([{ key: "why" }, { key: "pronouns" }, { key: "sample" }]);
+    // The browser hands it to the student.
+    expect((await call(report.POST, `/api/ext/tasks/${taskId}/report`, { method: "POST", token, id: taskId, body: { outcome: "needs-student", leaseId: first.task.leaseId, reason: "Answer these questions to apply: Why Acme?" } })).status).toBe(200);
+
+    // On the Auto-apply page, only the one to write can be answered: not who they are, not a file.
+    const shown = (await loadAutoApplyScreen()).tasks[0].questions;
+    expect(shown.map(({ key, here }) => [key, here])).toEqual([["why", true], ["pronouns", false], ["sample", false]]);
+    expect(await answerQuestions(taskId, { why: "I use Acme every day.", pronouns: "She/her", sample: "sample.pdf" })).toBe("answered");
+    // Kept by the question's wording; nothing about who they are is kept.
+    expect((await loadAutoApply()).answers.custom).toEqual({ "why acme": { label: "Why Acme?", text: "I use Acme every day." } });
+    expect(await prisma().applyTask.findUniqueOrThrow({ where: { id: taskId } })).toMatchObject({ state: "PREPARING", questions: [] });
+
+    // Prepared again, and the next browser to take it gets the student's answer.
+    expect(await prepareApplicationJob.run({ taskId }, { id: "prepare", step: async () => {}, signal: new AbortController().signal, finalAttempt: true })).toEqual({ state: "READY" });
+    const second = await ask();
+    expect(second.form.answers).toMatchObject({ auth: { kind: "option", value: "y" }, why: { kind: "text", value: "I use Acme every day." } });
+    expect(second.form.missing).toEqual(["Preferred pronouns", "Attach a writing sample"]);
+    expect((await prisma().applyTask.findUniqueOrThrow({ where: { id: taskId } })).questions).toMatchObject([{ key: "pronouns" }, { key: "sample" }]);
+  });
+
+  it("keeps each student's answers to themself", async () => {
+    await prisma().applyTask.update({ where: { id: taskId }, data: { state: "NEEDS_STUDENT", questions: [{ key: "why", label: "Why Acme?", required: true, type: "text", options: [] }] } });
+    await raw().user.create({ data: { id: "other-student", email: "other@example.test" } });
+    const { runAsUser } = await import("@/lib/owner/context");
+    // Another student can't answer this one's application, and sees none of its questions.
+    expect(await runAsUser("other-student", () => answerQuestions(taskId, { why: "Not mine to answer." }))).toBe("gone");
+    expect(await runAsUser("other-student", async () => (await loadAutoApplyScreen()).tasks)).toEqual([]);
+    expect((await loadAutoApply()).answers.custom).toEqual({});
+    expect(await answerQuestions(taskId, { why: "Mine." })).toBe("answered");
+    expect(await runAsUser("other-student", async () => (await loadAutoApply()).answers.custom)).toEqual({});
   });
 
   it("gives nothing to a browser that doesn't hold the application", async () => {
