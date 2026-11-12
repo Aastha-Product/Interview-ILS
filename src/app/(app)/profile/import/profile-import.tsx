@@ -288,7 +288,7 @@ function Preview({
           <ul className="flex flex-wrap gap-2 text-sm">
             {profile.skills.map((skill, index) => (
               <li key={`${skill.name}-${index}`} className="flex items-center gap-1 rounded-full border border-line-field bg-input px-3 py-1">
-                <span>{skill.name}</span>
+                {skill.name}
                 {!skill.found && (
                   <>
                     {" "}
