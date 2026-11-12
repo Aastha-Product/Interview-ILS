@@ -138,8 +138,16 @@ export async function reportOutcome(taskId: string, report: Report, now = new Da
     }
     case "dry-run":
       return move(held, { state: ApplyState.NEEDS_STUDENT, reason: DRY_RUN_REASON, leaseUntil: null });
-    case "needs-student":
-      return move({ ...mine, state: { in: [ApplyState.LEASED, ApplyState.SUBMITTING] } }, { state: ApplyState.NEEDS_STUDENT, reason: report.reason, leaseUntil: null });
+    case "needs-student": {
+      // Before Submit (LEASED): a question only the student can answer; they answer it and it's
+      // prepared again (prepareAgain re-opens NEEDS_STUDENT).
+      if (await move({ ...mine, state: ApplyState.LEASED }, { state: ApplyState.NEEDS_STUDENT, reason: report.reason, leaseUntil: null })) return true;
+      // After Submit was pressed (SUBMITTING): the application may already have reached the employer
+      // (a challenge, an emailed code or an error can appear after a real submit), so it must NEVER be
+      // handed out again. It becomes uncertain for the student to check — not a retryable question —
+      // the same as a submit that went quiet. This is what stops a second submission.
+      return move({ ...mine, state: ApplyState.SUBMITTING }, { state: ApplyState.UNCERTAIN, reason: report.reason });
+    }
     case "uncertain":
       return move({ ...mine, state: ApplyState.SUBMITTING }, { state: ApplyState.UNCERTAIN, reason: report.reason || UNCERTAIN_REASON });
     case "failed":

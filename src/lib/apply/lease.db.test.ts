@@ -131,6 +131,18 @@ describe("what a browser reports (auto-apply step 5)", () => {
     expect((await state(task.id)).state).toBe("APPLIED");
   });
 
+  it("after Submit, a needs-student report becomes uncertain and is never handed out again (no double submit)", async () => {
+    const { task, leaseId } = await leased();
+    await reportOutcome(task.id, { outcome: "submitting", leaseId });
+    expect((await state(task.id)).state).toBe("SUBMITTING");
+    // Submit was pressed, then the page showed a CAPTCHA / emailed-code step / error: the browser
+    // reports needs-student. It must NOT become a retryable NEEDS_STUDENT — the application may be in.
+    expect(await reportOutcome(task.id, { outcome: "needs-student", leaseId, reason: "The form showed an error after submitting." })).toBe(true);
+    expect(await state(task.id)).toMatchObject({ state: "UNCERTAIN", reason: "The form showed an error after submitting." });
+    // Not eligible for leasing or re-preparation, so it can never be submitted a second time.
+    expect(await leaseNext(new Date(Date.now() + 1000))).toBeNull();
+  });
+
   it("puts a hold that ran out before Submit back for any browser", async () => {
     const { task, leaseId } = await leased();
     const later = new Date(Date.now() + LEASE_MS + 1000);
