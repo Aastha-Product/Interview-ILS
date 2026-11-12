@@ -52,9 +52,14 @@ describe("askAssistant (Pathfinder)", () => {
     expect(result).toEqual({ ok: true, data: { text: "Go to your base resume.", navigate: "/resume", proposal: null } });
   });
 
-  it("passes a valid proposal through with a confirmation summary", async () => {
+  it("drops a screen the model named that isn't a real one", async () => {
+    vi.mocked(getAiProvider).mockResolvedValue(provider({ text: "Sure.", navigate: "/evil", proposal: null }) as never);
+    expect(await ask("take me somewhere")).toMatchObject({ ok: true, data: { navigate: null } });
+  });
+
+  it("parses the proposal's JSON args and passes it through with a confirmation summary", async () => {
     vi.mocked(getAiProvider).mockResolvedValue(
-      provider({ text: "I'll set your title.", navigate: null, proposal: { tool: "update_profile", args: { headline: "Product Manager" } } }) as never,
+      provider({ text: "I'll set your title.", navigate: null, proposal: { tool: "update_profile", args: '{"headline":"Product Manager"}' } }) as never,
     );
     const result = await ask("change my title to Product Manager");
     expect(result).toMatchObject({
@@ -63,9 +68,11 @@ describe("askAssistant (Pathfinder)", () => {
     });
   });
 
-  it("drops a proposal whose args the tool won't accept", async () => {
-    vi.mocked(getAiProvider).mockResolvedValue(provider({ text: "Hmm.", navigate: null, proposal: { tool: "update_profile", args: {} } }) as never);
+  it("drops a proposal with invalid JSON, or args the tool won't accept", async () => {
+    vi.mocked(getAiProvider).mockResolvedValue(provider({ text: "Hmm.", navigate: null, proposal: { tool: "update_profile", args: "not json" } }) as never);
     expect(await ask("do something")).toMatchObject({ ok: true, data: { proposal: null } });
+    vi.mocked(getAiProvider).mockResolvedValue(provider({ text: "Hmm.", navigate: null, proposal: { tool: "update_profile", args: "{}" } }) as never);
+    expect(await ask("do something else")).toMatchObject({ ok: true, data: { proposal: null } });
   });
 
   it("explains, kindly, when no AI provider is set up", async () => {

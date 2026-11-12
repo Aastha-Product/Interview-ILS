@@ -36,19 +36,18 @@ export type AppInfo = { id: string; company: string; role: string; status: strin
  * to propose. A proposal never runs on its own — the student confirms it first (Phase 2). Its args
  * are strings keyed by field; the server validates them against the specific tool before anything.
  */
-export function assistantReplySchema(paths: readonly string[], toolNames: readonly string[]) {
-  const path = paths.length > 0 ? z.enum(paths as [string, ...string[]]) : z.string();
-  const tool = toolNames.length > 0 ? z.enum(toolNames as [string, ...string[]]) : z.string();
+export function assistantReplySchema() {
+  // Kept to plain, closed types: nullable strings, no z.record, enum or .catch. Gemini's strict
+  // JSON-schema mode rejects open-ended objects (z.record) and some wrappers, so the shape stays
+  // simple here and the values are checked in code (the path must be a known screen, the tool a
+  // known tool, the args valid JSON for it). See the server action's validateProposal.
   return z.object({
     /** The answer to show the student, in plain language. */
     text: z.string().min(1).max(4000),
-    /** A screen to offer a link to, or null for none. One of the available paths. */
-    navigate: path.nullable().catch(null),
-    /** An action to propose (the student confirms it), or null for none. */
-    proposal: z
-      .object({ tool, args: z.record(z.string(), z.string()) })
-      .nullable()
-      .catch(null),
+    /** A screen to offer a link to (one of the listed paths), or null for none. */
+    navigate: z.string().nullable(),
+    /** An action to propose; the student confirms it. null for none. `args` is a JSON object as a string. */
+    proposal: z.object({ tool: z.string(), args: z.string() }).nullable(),
   });
 }
 
@@ -65,7 +64,7 @@ Help the student with what they ask: explain how Pathfinder works, explain what'
 
 Be brief, warm and concrete — a sentence or two, not an essay. Use the student's own words back to them.
 
-Making a change: when the student clearly asks for one of the actions below, set "proposal" to { "tool": the action's name, "args": its arguments as named }. Don't run it in your head — the student sees a short summary and confirms before anything happens, so your "text" should say what you're about to do, not that it's done. Only propose an action the student actually asked for, propose at most one at a time, and put only the fields they want to change in "args". For anything not in the list — sending an email, applying to a job, deleting things — say you can't do that one and point them to the screen where they can.
+Making a change: when the student clearly asks for one of the actions below, set "proposal" to { "tool": the action's name, "args": a JSON object of its arguments written as a string (for example "{\\"headline\\":\\"Product Manager\\"}") }. Don't run it in your head — the student sees a short summary and confirms before anything happens, so your "text" should say what you're about to do, not that it's done. Only propose an action the student actually asked for, propose at most one at a time, and put only the fields they want to change in "args". For anything not in the list — sending an email, applying to a job, deleting things — say you can't do that one and point them to the screen where they can.
 
 When a screen would help, set "navigate" to its path (exactly as listed) and refer to it by name; the student gets a button to open it. Use only a path from the list, or null. Never invent features, screens or actions Pathfinder doesn't have.`;
 

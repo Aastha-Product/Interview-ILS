@@ -23,17 +23,16 @@ describe("assistant destinations (Pathfinder)", () => {
 });
 
 describe("the reply shape the model must return", () => {
-  const schema = assistantReplySchema(["/", "/resume"], ["update_profile"]);
+  // Kept Gemini-safe: plain nullable strings and a string-encoded args object (no z.record/enum/.catch).
+  const schema = assistantReplySchema();
 
-  it("takes an answer, an allowed screen and an action to propose", () => {
-    const reply = schema.parse({ text: "I'll set your title.", navigate: "/resume", proposal: { tool: "update_profile", args: { headline: "PM" } } });
-    expect(reply).toEqual({ text: "I'll set your title.", navigate: "/resume", proposal: { tool: "update_profile", args: { headline: "PM" } } });
+  it("takes an answer, a screen to link to, and an action whose args are a JSON string", () => {
+    const reply = schema.parse({ text: "I'll set your title.", navigate: "/resume", proposal: { tool: "update_profile", args: '{"headline":"PM"}' } });
+    expect(reply).toEqual({ text: "I'll set your title.", navigate: "/resume", proposal: { tool: "update_profile", args: '{"headline":"PM"}' } });
   });
 
-  it("drops a screen or an action that isn't on offer, rather than failing", () => {
-    expect(schema.parse({ text: "x", navigate: "/evil" }).navigate).toBeNull();
-    expect(schema.parse({ text: "x", proposal: { tool: "delete_everything", args: {} } }).proposal).toBeNull();
-    expect(schema.parse({ text: "x" }).proposal).toBeNull();
+  it("allows null for the screen and the action", () => {
+    expect(schema.parse({ text: "Here's how.", navigate: null, proposal: null })).toEqual({ text: "Here's how.", navigate: null, proposal: null });
   });
 
   it("needs some answer text", () => {

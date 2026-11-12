@@ -7,7 +7,7 @@ import { ActionError, action } from "@/lib/action";
 import { loadApplicationRows } from "@/lib/applications-data";
 import { DEFAULT_SORT } from "@/lib/applications-list";
 import { assistantReplySchema, assistantSystem, availableDestinations, type AppInfo } from "@/lib/assistant/assistant";
-import { assistantTool, availableTools, toolInfos } from "@/lib/assistant/tools";
+import { assistantTool, toolInfos } from "@/lib/assistant/tools";
 import { toolsEnabled } from "@/lib/tools";
 
 /** The student's applications (newest first, capped) for the prompt, so the assistant can act on one by id. */
@@ -50,8 +50,7 @@ export const askAssistant = action(
     if (messages.at(-1)?.role !== "user") throw new ActionError("Ask a question first.");
 
     const destinations = availableDestinations(toolsEnabled());
-    const tools = availableTools();
-    const schema = assistantReplySchema(destinations.map((destination) => destination.path), tools.map((tool) => tool.name));
+    const schema = assistantReplySchema();
 
     let provider;
     try {
@@ -73,18 +72,29 @@ export const askAssistant = action(
       throw error;
     }
 
-    return { text: reply.text, navigate: reply.navigate, proposal: validateProposal(reply.proposal) };
+    // The model returns plain strings; we check them here (the schema can't, so Gemini accepts it).
+    const navigate = reply.navigate && destinations.some((destination) => destination.path === reply.navigate) ? reply.navigate : null;
+    return { text: reply.text, navigate, proposal: validateProposal(reply.proposal) };
   },
 );
 
-/** The model's proposal, kept only when it names a real tool and its args pass that tool's checks. */
-function validateProposal(proposal: { tool: string; args: Record<string, string> } | null): AssistantProposal | null {
+/**
+ * The model's proposal, kept only when it names a real tool and its args pass that tool's checks.
+ * `args` arrives as a JSON string (Gemini can't return an open-ended object), so it's parsed here.
+ */
+function validateProposal(proposal: { tool: string; args: string } | null): AssistantProposal | null {
   if (!proposal) return null;
   const tool = assistantTool(proposal.tool);
   if (!tool) return null;
-  const parsed = tool.schema.safeParse(proposal.args);
+  let args: unknown;
+  try {
+    args = JSON.parse(proposal.args);
+  } catch {
+    return null;
+  }
+  const parsed = tool.schema.safeParse(args);
   if (!parsed.success) return null;
-  return { tool: tool.name, args: proposal.args, summary: tool.summarize(parsed.data) };
+  return { tool: tool.name, args: args as Record<string, string>, summary: tool.summarize(parsed.data) };
 }
 
 /**
