@@ -10,6 +10,7 @@ import { formatDateRange } from "@/lib/profile";
 import { getResumeAnalysis } from "@/lib/resume-analysis";
 
 import { DeleteAnalysisButton } from "./delete-button";
+import { ImportIntoProfileButton } from "./import-button";
 import { PrintButton } from "./print-button";
 
 export const metadata: Metadata = { title: "Your resume analysis" };
@@ -170,9 +171,10 @@ export default async function AnalysisPage({ params }: PageProps<"/analyze/[id]"
           <p className="text-field text-ink">
             {analysis.profileFilled
               ? "We used this resume to fill in your profile, so you can tailor it to a job straight away."
-              : "Your profile wasn't changed. Edit it to add anything from this resume you want to keep."}
+              : "Your profile already has details, so we didn't change it. You can add what this resume found to it in one step, or edit your profile by hand."}
           </p>
           <div className="flex flex-wrap gap-3">
+            {!analysis.profileFilled && <ImportIntoProfileButton id={analysis.id} />}
             <Link href="/new?fresh=1" className={buttonClassName("secondary")}>
               Tailor it to a job
             </Link>
