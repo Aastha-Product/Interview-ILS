@@ -54,7 +54,8 @@ describe("assistant tools (Pathfinder, Phase 2)", () => {
   it("offers the job-agent tools only where the job tools are on", () => {
     expect(availableTools().map((tool) => tool.name)).toEqual(expect.arrayContaining(["set_job_search", "run_job_agent", "configure_job_agent"]));
     toolsOn.value = false;
-    expect(availableTools().map((tool) => tool.name)).toEqual(["update_profile"]);
+    // Only the always-on tools remain when the job tools are off.
+    expect(availableTools().map((tool) => tool.name)).toEqual(["update_profile", "improve_resume_summary"]);
     expect(assistantTool("run_job_agent")).toBeUndefined();
   });
 
