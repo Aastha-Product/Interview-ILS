@@ -48,4 +48,22 @@ export const STARTER_COMPANIES: readonly StarterCompany[] = [
   { name: "Freshworks", system: "SMARTRECRUITERS", boardToken: "Freshworks" }, // 32
   { name: "Ubisoft", system: "SMARTRECRUITERS", boardToken: "Ubisoft2" }, // 7
   { name: "Western Digital", system: "SMARTRECRUITERS", boardToken: "WesternDigital" }, // 2
+
+  // ── Added 12 November 2026. Companies with real India engineering offices, each board checked
+  //    live against its public API the same day (open India-city jobs then in the comment). Global
+  //    consumer boards were tested too but dropped: once remote-US roles are excluded they had no
+  //    India jobs, so they'd add crawl load without relevant postings. ──
+  // Greenhouse
+  { name: "Datadog", system: "GREENHOUSE", boardToken: "datadog" }, // 8
+  { name: "Sumo Logic", system: "GREENHOUSE", boardToken: "sumologic" }, // 12
+  { name: "New Relic", system: "GREENHOUSE", boardToken: "newrelic" }, // 5
+  { name: "Coursera", system: "GREENHOUSE", boardToken: "coursera" }, // 5
+  { name: "Mixpanel", system: "GREENHOUSE", boardToken: "mixpanel" }, // 4
+  { name: "Samsara", system: "GREENHOUSE", boardToken: "samsara" }, // 3
+  { name: "CockroachDB", system: "GREENHOUSE", boardToken: "cockroachlabs" }, // 1
+  // Ashby
+  { name: "OpenAI", system: "ASHBY", boardToken: "openai" }, // 17
+  // SmartRecruiters (company ids are case-sensitive)
+  { name: "Experian", system: "SMARTRECRUITERS", boardToken: "Experian" }, // 25
+  { name: "NielsenIQ", system: "SMARTRECRUITERS", boardToken: "NielsenIQ" }, // 17
 ];
