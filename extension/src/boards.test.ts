@@ -149,6 +149,11 @@ describe("Ashby's form (auto-apply step 5c)", () => {
     expect(field('[data-field-path="_systemfield_location"] input').value).toBe("");
   });
 
+  it("won't match a place by a word in its middle: \"Maharashtra\" isn't Pune, Maharashtra (M4)", async () => {
+    expect(await fill(ashby, form, { _systemfield_location: { kind: "text", value: "Maharashtra" } }, {})).toEqual(["Location"]);
+    expect(field('[data-field-path="_systemfield_location"] input').value).toBe("");
+  });
+
   it("finds Submit, and the thanks that replaces the form", () => {
     expect(ashby.submitButton(form)?.textContent).toBe("Submit Application");
     expect(outcome(ashby, document, { pathname: "/Acme/1/application", href: "" })).toBeNull();

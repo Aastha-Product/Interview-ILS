@@ -154,4 +154,16 @@ describe("what the page says after Submit", () => {
       expect(challengeShown(document), source).toBe(true);
     }
   });
+
+  it("stops for Arkose/FunCaptcha, DataDome and GeeTest too (M3)", () => {
+    for (const source of ["https://client-api.arkoselabs.com/v2/1/enforcement.html", "https://funcaptcha.com/fc/gc/", "https://geo.captcha-delivery.com/captcha/", "https://api.geetest.com/gettype.php"]) {
+      greenhousePage(document, { extra: `<iframe src="${source}"></iframe>` });
+      expect(challengeShown(document), source).toBe(true);
+    }
+  });
+
+  it("doesn't take \"thank you for your interest\" for a confirmation, even once the form is gone (M2)", () => {
+    document.body.innerHTML = "<main><h1>Thank you for your interest in Acme!</h1><p>Browse our other roles.</p></main>";
+    expect(outcome(greenhouse, document, at)).toBeNull();
+  });
 });

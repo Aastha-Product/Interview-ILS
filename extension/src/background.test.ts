@@ -120,6 +120,13 @@ describe("taking applications one at a time", () => {
     expect(server.calls).toEqual([]);
   });
 
+  it("survives a network failure in a run instead of throwing, and tries again next time (M7)", async () => {
+    await setUp({ "POST /api/ext/lease": () => { throw new Error("offline"); } });
+    connectNow();
+    await expect(worker.tick()).resolves.toBeUndefined();
+    expect(fake.chrome.tabs.create).not.toHaveBeenCalled();
+  });
+
   it("leases one, opens the job in a background tab, and puts the apply script in each page that loads there", async () => {
     connectNow();
     await Promise.all([worker.tick(1000), worker.tick(1000)]);

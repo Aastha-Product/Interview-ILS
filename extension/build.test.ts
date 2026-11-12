@@ -16,6 +16,9 @@ describe("the extension's builds", () => {
     expect(zip).toContain(`pathfinder-extension-${manifest.version}.zip`);
     expect(manifest.host_permissions).toContain("https://pathfinderedtech.com/*");
     for (const name of Object.keys(files).filter((file) => !file.endsWith(".png"))) expect(strFromU8(files[name]), name).not.toContain("localhost");
+    // Minified (QA M6): a dropped `minify` flag would ship readable source and still pass the checks
+    // above. esbuild's minified output has no source-style indentation.
+    for (const name of ["worker.js", "apply.js", "popup.js", "bridge.js"]) expect(strFromU8(files[name]), name).not.toMatch(/\n {2,}/);
   }, 60_000);
 
   it("keeps it in the build for working on Pathfinder locally", async () => {

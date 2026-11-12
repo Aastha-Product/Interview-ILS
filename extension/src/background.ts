@@ -75,6 +75,16 @@ export function tick(now = Date.now()): Promise<void> {
 }
 
 async function runTick(now: number): Promise<void> {
+  try {
+    await runTickOnce(now);
+  } catch (error) {
+    // Offline, a DNS failure, an aborted request or a tab that won't open: give up this run and try
+    // again on the next alarm. Never let it become an unhandled rejection (QA M7).
+    console.warn("Pathfinder: this run didn't finish", error);
+  }
+}
+
+async function runTickOnce(now: number): Promise<void> {
   const link = await connection();
   if (!link) return;
   const held = await current();
