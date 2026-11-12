@@ -15,6 +15,7 @@ vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 const toolsOn = vi.hoisted(() => ({ value: true }));
 vi.mock("@/lib/tools", () => ({ toolsEnabled: () => toolsOn.value, TOOLS_OFF_MESSAGE: "off" }));
 vi.mock("@/lib/ai/config", async (orig) => ({ ...(await orig<object>()), isAiConfigured: async () => true }));
+vi.mock("@/lib/ai", async (orig) => ({ ...(await orig<object>()), getAiProvider: async () => ({ complete: async () => ({ summary: "A fresh AI-written summary." }) }) }));
 
 const prisma = () => db.client!;
 const asUser = <T>(fn: () => Promise<T>) => runAsUser(TEST_USER_ID, fn);
@@ -53,7 +54,8 @@ describe("assistant tools (Pathfinder, Phase 2)", () => {
   it("offers the job-agent tools only where the job tools are on", () => {
     expect(availableTools().map((tool) => tool.name)).toEqual(expect.arrayContaining(["set_job_search", "run_job_agent", "configure_job_agent"]));
     toolsOn.value = false;
-    expect(availableTools().map((tool) => tool.name)).toEqual(["update_profile"]);
+    // Only the always-on tools remain when the job tools are off.
+    expect(availableTools().map((tool) => tool.name)).toEqual(["update_profile", "improve_resume_summary"]);
     expect(assistantTool("run_job_agent")).toBeUndefined();
   });
 
@@ -96,5 +98,12 @@ describe("assistant tools (Pathfinder, Phase 2)", () => {
     await expect(
       asUser(() => assistantTool("tailor_application")!.run({ applicationId: "no-such-app", document: "letter", instruction: "x" })),
     ).rejects.toThrow(/couldn.t find/i);
+  });
+
+  it("improve_resume_summary saves the AI-written summary to the profile", async () => {
+    const done = await asUser(() => assistantTool("improve_resume_summary")!.run({ instruction: "make it shorter" }));
+    expect(done).toContain("A fresh AI-written summary.");
+    const field = await asUser(() => prisma().profileField.findUnique({ where: { userId_key: { userId: TEST_USER_ID, key: "summary" } } }));
+    expect(field?.value).toBe("A fresh AI-written summary.");
   });
 });
