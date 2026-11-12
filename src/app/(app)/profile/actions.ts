@@ -13,7 +13,7 @@ import { findOrCreateSkill, firstSort, nextSort } from "@/lib/profile-entries";
 import { discardProfileImports, importProfileJob } from "@/lib/jobs/import-profile";
 import { isPhotoDataUrl, PHOTO_KEY, PHOTO_MAX_LENGTH, PHOTO_ON_RESUMES_KEY } from "@/lib/photo";
 import { loadProfileName } from "@/lib/profile-data";
-import { importCounts } from "@/lib/profile-import";
+import { importCounts, importedProfileSchema } from "@/lib/profile-import";
 import { applyImportedProfile } from "@/lib/profile-import-apply";
 import { loadSettings, saveSettings } from "@/lib/settings-data";
 
@@ -483,18 +483,20 @@ export const sortEntriesByDate = action(z.object({ section }), async ({ section 
 
 /**
  * Merges the profile read from a resume into the profile, or replaces it.
- * Nothing goes into the profile before this: the read profile waits in its
- * job, and is taken from there rather than from the browser. Then the job is
- * deleted, with the resume's text.
+ * Nothing goes into the profile before this: the read profile waits in its job.
+ * Pathfinder (Phase C): the preview is editable, so the student may send back the
+ * version they confirmed — basics changed, entries removed; it's validated the
+ * same way the reading is. Without it, the reading from the job is used, as before.
+ * Then the job is deleted, with the resume's text.
  */
 export const applyProfileImport = action(
-  z.object({ jobId: id, mode: z.enum(["merge", "replace"]) }),
-  async ({ jobId, mode }, { toast }) => {
+  z.object({ jobId: id, mode: z.enum(["merge", "replace"]), edited: importedProfileSchema.optional() }),
+  async ({ jobId, mode, edited }, { toast }) => {
     const job = await prisma.job.findUnique({ where: { id: jobId }, select: { type: true, status: true, result: true } });
     if (job?.type !== importProfileJob.type || job.status !== JobStatus.DONE) {
       throw new ActionError("That resume isn't read yet, or it's no longer there. Choose the file again.");
     }
-    const { profile } = importProfileJob.result.parse(job.result);
+    const profile = edited ?? importProfileJob.result.parse(job.result).profile;
     await applyImportedProfile(prisma, profile, mode);
     await prisma.job.deleteMany({ where: { id: jobId } });
     revalidatePath("/", "layout");
