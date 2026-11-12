@@ -105,15 +105,31 @@ describe("ProfileImport (E4-10)", () => {
     render(<ProfileImport keptFor="24 hours" aiReady provider="LOCAL" initialJobId="job-1" />);
     expect(screen.getByRole("heading", { name: "Here's what your resume says" })).toBeInTheDocument();
     expect(screen.getByText(/^1 role, 0 projects, 0 degrees, 2 skills, 1 language, 0 references\./)).toBeInTheDocument();
-    expect(screen.getByText("John Doe")).toBeInTheDocument();
+    // Basics are editable inputs now, so the value shows on the field, not as text.
+    expect(screen.getByLabelText("Full name")).toHaveValue("John Doe");
     expect(screen.getByText("Service design")).toHaveTextContent("Service design check: not in the file");
     expect(screen.getByText("Design Lead · Acme Payments")).toHaveTextContent("check: “Acme Payments” not in the file");
     expect(screen.getByText("Payouts for online marketplaces")).toBeInTheDocument();
     expect(screen.getByText(/^German/)).toHaveTextContent("(no level given; change it any time)");
 
     await user.click(screen.getByRole("button", { name: "Merge into my profile" }));
-    expect(applyProfileImport).toHaveBeenCalledWith({ jobId: "job-1", mode: "merge" });
+    expect(applyProfileImport).toHaveBeenCalledWith({ jobId: "job-1", mode: "merge", edited: undefined });
     expect(router.push).toHaveBeenCalledWith("/profile");
+  });
+
+  it("sends the student's edits (fixed basics, removed skill) when they change the preview", async () => {
+    const user = userEvent.setup();
+    vi.mocked(useJob).mockReturnValue(done as never);
+    render(<ProfileImport keptFor="24 hours" aiReady provider="LOCAL" initialJobId="job-1" />);
+    const name = screen.getByLabelText("Full name");
+    await user.clear(name);
+    await user.type(name, "Jane Roe");
+    await user.click(screen.getByRole("button", { name: "Remove skill Figma" }));
+    await user.click(screen.getByRole("button", { name: "Merge into my profile" }));
+    const call = vi.mocked(applyProfileImport).mock.calls.at(-1)?.[0];
+    expect(call?.mode).toBe("merge");
+    expect(call?.edited?.basics.name).toBe("Jane Roe");
+    expect(call?.edited?.skills.map((skill) => skill.name)).toEqual(["Service design"]);
   });
 
   it("deletes the reading when another file is chosen", async () => {
@@ -132,6 +148,6 @@ describe("ProfileImport (E4-10)", () => {
     await user.click(screen.getByRole("button", { name: "Replace my profile…" }));
     expect(applyProfileImport).not.toHaveBeenCalled();
     await user.click(screen.getByRole("button", { name: "Replace my profile" }));
-    expect(applyProfileImport).toHaveBeenCalledWith({ jobId: "job-1", mode: "replace" });
+    expect(applyProfileImport).toHaveBeenCalledWith({ jobId: "job-1", mode: "replace", edited: undefined });
   });
 });
