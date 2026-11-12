@@ -419,6 +419,26 @@ describe("applying a profile read from a resume (E4-10)", () => {
     expect(await prisma().job.count()).toBe(0);
   });
 
+  it("applies the edited preview the student sends back, not the raw reading (Pathfinder, Phase C)", async () => {
+    const job = await prisma().job.create({ data: { type: "import-profile", input: { resume: "…" }, status: "DONE", result } });
+    // The student fixed their name and removed the skill the reading found.
+    const edited = {
+      basics: { name: "Jane Roe" },
+      skills: [],
+      languages: [],
+      experience: [],
+      projects: [],
+      education: [],
+      publications: [],
+      references: [],
+    };
+    expect(await applyProfileImport({ jobId: job.id, mode: "replace", edited })).toMatchObject({ ok: true });
+    const profile = await loadProfile();
+    expect(profile.basics.name).toBe("Jane Roe");
+    expect(profile.skills).toHaveLength(0);
+    expect(await prisma().job.count()).toBe(0);
+  });
+
   it("deletes a reading set aside with Choose another file, and only that one", async () => {
     const job = await prisma().job.create({ data: { type: "import-profile", input: { resume: "…" }, status: "DONE", result } });
     const other = await prisma().job.create({ data: { type: "read-posting", input: {}, status: "DONE", result } });

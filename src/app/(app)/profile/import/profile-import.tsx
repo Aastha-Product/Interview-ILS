@@ -64,10 +64,21 @@ export function ProfileImport({
   const [uploading, setUploading] = useState(false);
   const [applying, setApplying] = useState(false);
   const [confirmReplace, setConfirmReplace] = useState(false);
+  // Pathfinder (Phase C): the student's edits to the preview; null until they change something, so an
+  // untouched import behaves exactly as before (the server uses the reading from the job).
+  const [edited, setEdited] = useState<ImportedProfile | null>(null);
   const job = useJob<ImportProfileResult>(jobId, revision);
   const fileId = useId();
 
   const phase = !jobId ? "choose" : job?.status === "DONE" && job.result ? "preview" : "reading";
+  const current = edited ?? (phase === "preview" && job?.result ? job.result.profile : null);
+
+  const setBasic = (field: BasicsField, value: string) => {
+    if (current) setEdited({ ...current, basics: { ...current.basics, [field]: value } });
+  };
+  const removeAt = <K extends "skills" | "languages" | "experience" | "projects" | "education" | "publications" | "references">(key: K, index: number) => {
+    if (current) setEdited({ ...current, [key]: current[key].filter((_, i) => i !== index) });
+  };
 
   // E11-3: each phase replaces the last one's controls, so focus goes to its heading.
   const area = useRef<HTMLDivElement>(null);
@@ -80,6 +91,7 @@ export function ProfileImport({
 
   const follow = (id: string | null) => {
     setJobId(id);
+    setEdited(null);
     router.replace(id ? `/profile/import?job=${id}` : "/profile/import");
   };
 
@@ -111,7 +123,8 @@ export function ProfileImport({
   async function apply(mode: ImportMode) {
     if (!jobId) return;
     setApplying(true);
-    const result = toastResult(await applyProfileImport({ jobId, mode }));
+    // Only send the edited profile when the student actually changed something.
+    const result = toastResult(await applyProfileImport({ jobId, mode, edited: edited ?? undefined }));
     setApplying(false);
     if (result.ok) router.push("/profile");
   }
@@ -180,11 +193,12 @@ export function ProfileImport({
           />
         )}
 
-        {phase === "preview" && job?.result && (
+        {phase === "preview" && current && (
           <>
-            <Preview profile={job.result.profile} />
+            <Preview profile={current} onBasic={setBasic} onRemove={removeAt} />
             <Card className="flex flex-col gap-4">
               <p className="text-sm text-muted">
+                Fix anything above, or remove what you don&apos;t want, before you add it.{" "}
                 <strong className="font-medium text-ink">Merge</strong> adds all this to your profile; where your profile already has the same
                 detail, role, degree or reference, what the resume says wins. <strong className="font-medium text-ink">Replace</strong> clears your
                 profile first.
@@ -216,10 +230,20 @@ export function ProfileImport({
   );
 }
 
-/** Everything read from the resume, with what couldn't be found in it marked. */
-function Preview({ profile }: { profile: ImportedProfile }) {
-  // In the order of the Basics form, whatever order the model answered in.
-  const basics = BASICS_FIELDS.flatMap((field): [BasicsField, string][] => (profile.basics[field] ? [[field, profile.basics[field]]] : []));
+/**
+ * Everything read from the resume, editable before it's added (Pathfinder, Phase C): the basics can be
+ * fixed or filled in, and any item removed. What couldn't be found in the file word for word is marked.
+ */
+function Preview({
+  profile,
+  onBasic,
+  onRemove,
+}: {
+  profile: ImportedProfile;
+  onBasic: (field: BasicsField, value: string) => void;
+  onRemove: (key: "skills" | "languages" | "experience" | "projects" | "education" | "publications" | "references", index: number) => void;
+}) {
+  const ids = useId();
   return (
     <Card className="flex flex-col gap-7">
       <div className="flex flex-col gap-1">
@@ -227,34 +251,51 @@ function Preview({ profile }: { profile: ImportedProfile }) {
         <h2 tabIndex={-1} className="font-serif text-section">
           Here&apos;s what your resume says
         </h2>
-        <p className="text-meta text-muted">{importCounts(profile)}. Anything marked “check” isn&apos;t in the file word for word.</p>
+        <p className="text-meta text-muted">
+          {importCounts(profile)}. Fix anything that&apos;s wrong, fill in what&apos;s blank, and remove what you don&apos;t want. Anything marked
+          “check” isn&apos;t in the file word for word.
+        </p>
       </div>
 
-      {basics.length > 0 && (
-        <Section title="Basics">
-          <dl className="grid grid-cols-[max-content_1fr] gap-x-6 gap-y-1.5 text-sm">
-            {basics.map(([field, value]) => (
-              <div key={field} className="contents">
-                <dt className="text-muted">{BASICS_LABELS[field]}</dt>
-                <dd className="whitespace-pre-line">{value}</dd>
-              </div>
-            ))}
-          </dl>
-        </Section>
-      )}
+      <Section title="Basics">
+        <div className="grid gap-3 sm:grid-cols-2">
+          {BASICS_FIELDS.map((field) => (
+            <label key={field} htmlFor={`${ids}-${field}`} className={field === "summary" ? "flex flex-col gap-1 sm:col-span-2" : "flex flex-col gap-1"}>
+              <span className="text-label text-muted">{BASICS_LABELS[field]}</span>
+              {field === "summary" ? (
+                <textarea
+                  id={`${ids}-${field}`}
+                  value={profile.basics[field] ?? ""}
+                  onChange={(event) => onBasic(field, event.target.value)}
+                  rows={3}
+                  className="w-full rounded-control border border-line-control bg-input px-3 py-2 text-sm text-ink"
+                />
+              ) : (
+                <input
+                  id={`${ids}-${field}`}
+                  value={profile.basics[field] ?? ""}
+                  onChange={(event) => onBasic(field, event.target.value)}
+                  className="w-full rounded-control border border-line-control bg-input px-3 py-2 text-sm text-ink"
+                />
+              )}
+            </label>
+          ))}
+        </div>
+      </Section>
 
       {profile.skills.length > 0 && (
         <Section title="Skills">
           <ul className="flex flex-wrap gap-2 text-sm">
-            {profile.skills.map((skill) => (
-              <li key={skill.name} className="rounded-full border border-line-field bg-input px-3 py-1">
-                {skill.name}
+            {profile.skills.map((skill, index) => (
+              <li key={`${skill.name}-${index}`} className="flex items-center gap-1 rounded-full border border-line-field bg-input px-3 py-1">
+                <span>{skill.name}</span>
                 {!skill.found && (
                   <>
                     {" "}
                     <Check>not in the file</Check>
                   </>
                 )}
+                <RemoveButton label={`skill ${skill.name}`} onClick={() => onRemove("skills", index)} compact />
               </li>
             ))}
           </ul>
@@ -264,10 +305,13 @@ function Preview({ profile }: { profile: ImportedProfile }) {
       {profile.languages.length > 0 && (
         <Section title="Languages">
           <ul className="flex flex-col gap-1 text-sm">
-            {profile.languages.map((language) => (
-              <li key={language.name}>
-                {language.name}: {languageLevelLabel(language.level)}
-                {!language.levelGiven && <span className="text-muted"> (no level given; change it any time)</span>}
+            {profile.languages.map((language, index) => (
+              <li key={`${language.name}-${index}`} className="flex items-center gap-2">
+                <span>
+                  {language.name}: {languageLevelLabel(language.level)}
+                  {!language.levelGiven && <span className="text-muted"> (no level given; change it any time)</span>}
+                </span>
+                <RemoveButton label={`language ${language.name}`} onClick={() => onRemove("languages", index)} compact />
               </li>
             ))}
           </ul>
@@ -282,6 +326,7 @@ function Preview({ profile }: { profile: ImportedProfile }) {
               title={[entry.role, entry.company].filter(Boolean).join(" · ")}
               meta={[entry.location, formatDateRange(entry)].filter(Boolean).join(" · ")}
               unverified={entry.unverified}
+              onRemove={() => onRemove("experience", index)}
             >
               {entry.descriptor && <p className="text-muted italic">{entry.descriptor}</p>}
               {entry.bullets && (
@@ -305,6 +350,7 @@ function Preview({ profile }: { profile: ImportedProfile }) {
               title={entry.name}
               meta={[entry.link, formatDateRange(entry)].filter(Boolean).join(" · ")}
               unverified={entry.unverified}
+              onRemove={() => onRemove("projects", index)}
             >
               {entry.bullets && (
                 <ul className="list-disc pl-5">
@@ -327,6 +373,7 @@ function Preview({ profile }: { profile: ImportedProfile }) {
               title={[entry.degree, entry.school].filter(Boolean).join(" · ")}
               meta={formatDateRange(entry)}
               unverified={entry.unverified}
+              onRemove={() => onRemove("education", index)}
             >
               {entry.notes && <p>{entry.notes}</p>}
             </Entry>
@@ -337,7 +384,7 @@ function Preview({ profile }: { profile: ImportedProfile }) {
       {profile.publications.length > 0 && (
         <Section title="Publications">
           {profile.publications.map((entry, index) => (
-            <Entry key={index} title={citationText(entry.citation)} meta={entry.link} unverified={entry.unverified} />
+            <Entry key={index} title={citationText(entry.citation)} meta={entry.link} unverified={entry.unverified} onRemove={() => onRemove("publications", index)} />
           ))}
         </Section>
       )}
@@ -350,6 +397,7 @@ function Preview({ profile }: { profile: ImportedProfile }) {
               title={entry.name}
               meta={[entry.relation, entry.company, entry.email, entry.phone].filter(Boolean).join(" · ")}
               unverified={entry.unverified}
+              onRemove={() => onRemove("references", index)}
             />
           ))}
         </Section>
@@ -367,21 +415,42 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
-function Entry({ title, meta, unverified, children }: { title: string; meta: string; unverified: string[]; children?: ReactNode }) {
+function Entry({ title, meta, unverified, onRemove, children }: { title: string; meta: string; unverified: string[]; onRemove?: () => void; children?: ReactNode }) {
   return (
     <div className="flex flex-col gap-1.5 text-sm">
-      <p className="font-medium">
-        {title}
-        {unverified.length > 0 && (
-          <>
-            {" "}
-            <Check>{unverified.map((word) => `“${word}”`).join(" and ")} not in the file</Check>
-          </>
-        )}
-      </p>
+      <div className="flex items-start justify-between gap-3">
+        <p className="font-medium">
+          {title}
+          {unverified.length > 0 && (
+            <>
+              {" "}
+              <Check>{unverified.map((word) => `“${word}”`).join(" and ")} not in the file</Check>
+            </>
+          )}
+        </p>
+        {onRemove && <RemoveButton label={title || "this entry"} onClick={onRemove} />}
+      </div>
       {meta && <p className="text-meta text-muted tabular-nums">{meta}</p>}
       {children}
     </div>
+  );
+}
+
+/** Takes one item out of the preview before it's added. */
+function RemoveButton({ label, onClick, compact = false }: { label: string; onClick: () => void; compact?: boolean }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={`Remove ${label}`}
+      className={
+        compact
+          ? "shrink-0 leading-none text-muted hover:text-ink"
+          : "shrink-0 text-meta text-muted underline underline-offset-2 hover:text-ink"
+      }
+    >
+      {compact ? "×" : "Remove"}
+    </button>
   );
 }
 
