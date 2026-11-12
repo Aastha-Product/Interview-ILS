@@ -155,4 +155,25 @@ describe("Ashby's form (auto-apply step 5c)", () => {
     ashbyThanks(document);
     expect(outcome(ashby, document, { pathname: "/Acme/1/application", href: "" })).toEqual({ kind: "confirmed", text: expect.stringContaining("successfully submitted") });
   });
+
+  it("surfaces a required choice group sharing an entry with a text field, so it isn't skipped", async () => {
+    // Ashby can put a required consent (a radio/checkbox) in the same entry as the phone number.
+    document.querySelector<HTMLInputElement>('[data-field-path="phone-1"] input[type="radio"]')!.required = true;
+    expect((await readFields(ashby, form)).map((entry) => entry.key)).toContain("phone-1#choice");
+    // Required and unanswered, so it's flagged for the student instead of being silently skipped.
+    expect((await emptyRequired(ashby, form)).map((entry) => entry.key)).toContain("phone-1#choice");
+  });
+
+  it("backstops Ashby before Submit (no native form check): a disabled Submit or a field error", () => {
+    expect(ashby.preSubmitInvalid!(form)).toEqual([]);
+    const submit = document.querySelector<HTMLButtonElement>(".ashby-application-form-submit-button")!;
+    submit.disabled = true;
+    expect(ashby.preSubmitInvalid!(form)).toEqual(["a required question on the form"]);
+    submit.disabled = false;
+    const error = document.createElement("div");
+    error.className = "_error_x1";
+    error.textContent = "This field is required";
+    document.querySelector('[data-field-path="notice-1"]')!.append(error);
+    expect(ashby.preSubmitInvalid!(form)).toEqual(["This field is required"]);
+  });
 });

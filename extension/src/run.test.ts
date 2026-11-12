@@ -230,4 +230,16 @@ describe("applying on Lever and Ashby (auto-apply step 5c)", () => {
     const finish = await apply(port, document, { hostname: "jobs.ashbyhq.com", pathname: "/Acme/1/application", href: "https://jobs.ashbyhq.com/Acme/1/application" }, { task: task({ answers: null, system: "ASHBY" }), submitted: false });
     expect(finish.report).toMatchObject({ outcome: "applied", evidence: { text: expect.stringContaining("successfully submitted") } });
   });
+
+  it("on Ashby, won't press a disabled Submit: the backstop for the missing native form check", async () => {
+    ashbyPage(document);
+    let clicked = 0;
+    const submit = document.querySelector<HTMLButtonElement>(".ashby-application-form-submit-button")!;
+    submit.disabled = true;
+    submit.addEventListener("click", () => clicked++);
+    const { port } = fakePort({ more: rules({ Name: "Asha Rao", Email: "asha@example.test", "Phone Number": "+91 98765 43210", Location: "Pune", "Have you previously worked at Acme?": "No", "What is your notice period?": "Immediate" }) });
+    const finish = await apply(port, document, { hostname: "jobs.ashbyhq.com", pathname: "/Acme/1/application", href: "" }, { task: task({ answers: null, system: "ASHBY" }), submitted: false });
+    expect(finish.report.outcome).toBe("needs-student");
+    expect(clicked).toBe(0);
+  });
 });
