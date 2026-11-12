@@ -5,15 +5,19 @@ import { z } from "zod";
 
 import { ChatRole, DocumentKind } from "@/generated/prisma/enums";
 import { ActionError } from "@/lib/action";
+import { getAiProvider } from "@/lib/ai";
 import { AGENT_JOB_KEY, agentScanJob } from "@/lib/agent/jobs";
 import { agentQueryReady, agentSetupProblem } from "@/lib/agent/run";
 import { runLimitProblem } from "@/lib/agent/runs";
 import { isAiConfigured } from "@/lib/ai/config";
+import { loadTaskOptions } from "@/lib/ai/task-options";
+import { improveSummary } from "@/lib/ai/tasks/improve-summary";
 import { countryCodeFor, countryName } from "@/lib/job-search/countries";
 import { refineJob, refineJobKey } from "@/lib/jobs/refine";
 import { findUnfinishedJobs, startJob } from "@/lib/jobs/runner";
 import { CURRENT_USER } from "@/lib/owner/scope";
 import { prisma } from "@/lib/prisma";
+import { loadProfile } from "@/lib/profile-data";
 import { loadSettings, saveSettings } from "@/lib/settings-data";
 import { toolsEnabled } from "@/lib/tools";
 
@@ -206,6 +210,29 @@ const tailorApplication: AssistantTool<{ applicationId: string; document: "resum
   },
 };
 
+const improveResumeSummary: AssistantTool<{ instruction?: string }> = {
+  name: "improve_resume_summary",
+  description:
+    "Rewrite the professional summary at the top of the base resume, using AI, from the student's profile. Use this for \"improve/update my resume\" when they mean the summary. Args: instruction (optional — what they want, e.g. \"make it shorter\" or \"lead with my PM work\"). It saves the new summary to the profile; it invents nothing.",
+  tool: false,
+  schema: z.object({ instruction: z.string().trim().min(1).max(500).optional() }),
+  summarize: (args) => `Rewrite your resume summary with AI${args.instruction ? `: ${quote(args.instruction)}` : ""}.`,
+  run: async ({ instruction }) => {
+    if (!(await isAiConfigured())) throw new ActionError("That needs an AI provider. Choose one in Settings → AI provider.");
+    const [provider, profile, options] = await Promise.all([getAiProvider(), loadProfile(), loadTaskOptions()]);
+    const { data: summary } = await improveSummary(provider, { profile, instruction }, options);
+    if (!summary.trim()) throw new ActionError("The AI couldn't write a summary just now. Try again in a moment.");
+    await prisma.profileField.upsert({
+      where: { userId_key: { userId: CURRENT_USER, key: "summary" } },
+      create: { key: "summary", value: summary.trim() },
+      update: { value: summary.trim() },
+    });
+    revalidatePath("/profile");
+    revalidatePath("/resume");
+    return `Updated your resume summary:\n\n“${summary.trim()}”\n\nYou can fine-tune it on your Profile.`;
+  },
+};
+
 /** Every assistant tool, by name. */
 const TOOLS = {
   [updateProfile.name]: updateProfile,
@@ -213,6 +240,7 @@ const TOOLS = {
   [runJobAgent.name]: runJobAgent,
   [configureJobAgent.name]: configureJobAgent,
   [tailorApplication.name]: tailorApplication,
+  [improveResumeSummary.name]: improveResumeSummary,
 } as Record<string, AssistantTool<unknown>>;
 
 /** The tools on offer now: the always-on ones, plus the job tools where this server has them on. */
