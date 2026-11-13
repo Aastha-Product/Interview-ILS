@@ -172,7 +172,7 @@ export async function handle(message: unknown, sender: chrome.runtime.MessageSen
       return response.ok ? ok(await response.json()) : fail(await errorOf(response));
     }
     case "document": {
-      const response = await call(link, `${path}/document?kind=${request.kind}&lease=${encodeURIComponent(task.leaseId)}`);
+      const response = await call(link, `${path}/document?kind=${encodeURIComponent(request.kind)}&lease=${encodeURIComponent(task.leaseId)}`);
       if (!response.ok) return fail(await errorOf(response));
       const file: DocumentFile = {
         name: fileName(response.headers.get("content-disposition"), request.kind === "resume" ? "Resume.pdf" : "Cover letter.pdf"),

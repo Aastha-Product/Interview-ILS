@@ -112,6 +112,11 @@ describe("Greenhouse's form (auto-apply step 5b)", () => {
   it("finds the Submit button", () => {
     expect(greenhouse.submitButton(form)?.textContent).toBe("Submit application");
   });
+
+  it("prefers the real Submit over an earlier non-final button (QA L)", () => {
+    form.insertAdjacentHTML("afterbegin", '<button type="submit">Save draft</button>');
+    expect(greenhouse.submitButton(form)?.textContent).toBe("Submit application");
+  });
 });
 
 describe("what the page says after Submit", () => {

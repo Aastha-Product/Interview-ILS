@@ -137,9 +137,15 @@ async function fillOne(control: Control, answer: Answer, files: Files): Promise<
   const labels = answer.kind === "option" ? [answer.label] : answer.kind === "options" ? answer.labels : [answer.value];
   const values = answer.kind === "option" ? [answer.value] : answer.kind === "options" ? answer.values : [answer.value];
   switch (control.kind) {
-    case "text":
-      setValue(control.element, labels.join(", "));
-      return control.element.value === labels.join(", ");
+    case "text": {
+      const want = labels.join(", ");
+      setValue(control.element, want);
+      // A field may reformat what we type (a phone adds spaces, say); count a non-empty value that
+      // matches ignoring spacing as filled, so it isn't wrongly flagged unanswered (QA L).
+      const key = (value: string) => norm(value).replace(/\s+/g, "");
+      const got = control.element.value;
+      return got === want || (got.trim() !== "" && key(got) === key(want));
+    }
     case "combobox":
       // A written answer ("Pune") picks the suggestion that starts with it ("Pune, Maharashtra, India").
       return chooseInCombobox(control.element, labels, { loose: answer.kind === "text" });

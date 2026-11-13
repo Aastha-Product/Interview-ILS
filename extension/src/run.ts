@@ -105,7 +105,9 @@ export async function apply(port: Port, doc: Document, location: Location | { ho
 
   // 5. Pathfinder must agree first: if this browser lost the task, Submit is never pressed.
   const button = board.submitButton(form);
-  if (!button) return { report: { outcome: "failed", reason: REASONS.noForm }, keepTab: false };
+  // The form was found and filled but has no Submit button we can press: hand the filled form to the
+  // student to submit, with an accurate reason (not "this company uses its own page") (QA L).
+  if (!button) return needsStudent(REASONS.noSubmit);
   await ask<null>(port, { type: "report", report: { outcome: "submitting" } });
   button.click();
 
