@@ -9,6 +9,13 @@ type Field = HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement;
 
 const visibleButton = (root: ParentNode, selector: string) => Array.from(root.querySelectorAll<HTMLElement>(selector)).find((button) => isVisible(button) && !(button as HTMLButtonElement).disabled) ?? null;
 
+/** Among the visible, enabled buttons, the one that reads like the final submit (else the first): a form
+ *  with an earlier "Save draft" submit shouldn't be clicked instead of "Submit application" (QA L). */
+const submitLike = (root: ParentNode, selector: string): HTMLElement | null => {
+  const buttons = Array.from(root.querySelectorAll<HTMLElement>(selector)).filter((button) => isVisible(button) && !(button as HTMLButtonElement).disabled);
+  return buttons.find((button) => /submit|apply/i.test(`${button.textContent ?? ""} ${(button as HTMLInputElement).value ?? ""}`)) ?? buttons[0] ?? null;
+};
+
 /** A question's wording, looked for upwards from its control (a file input's own label is just "Attach"). */
 function wordingAbove(element: Element): string {
   const legend = element.closest("fieldset")?.querySelector("legend")?.textContent;
@@ -69,7 +76,7 @@ export const greenhouse: Board = {
       return { key, label: cleanLabel(raw), required: elements.some(isRequiredElement) || markedRequired(raw), control };
     });
   },
-  submitButton: (form) => visibleButton(form, 'button[type="submit"], input[type="submit"]'),
+  submitButton: (form) => submitLike(form, 'button[type="submit"], input[type="submit"]'),
   confirmationPath: /\/confirmation\b/,
 };
 

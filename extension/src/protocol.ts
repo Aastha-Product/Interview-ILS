@@ -79,6 +79,7 @@ export const REASONS = {
   challenge: "The job site asked for a check only you can do. The form is filled in and open in Chrome: finish the check and submit it there, then mark it as applied.",
   emailCode: "The job site sent a code to your email. The form is open in Chrome: enter the code there, then mark it as applied.",
   noForm: "This company uses its own application page, which Pathfinder can't fill yet. Apply from the job's page.",
+  noSubmit: "The form is filled in and open in Chrome, but Pathfinder couldn't find its Submit button. Submit it there, then mark it as applied.",
   login: "The job site asked you to sign in. Sign in and apply from the job's page.",
   unanswered: (labels: string[]) => `Answer ${labels.length === 1 ? "this question" : "these questions"} to apply: ${labels.slice(0, 5).join("; ")}${labels.length > 5 ? "; …" : ""}. The form is filled in up to there and open in Chrome.`,
   formError: (text: string) => `The job site didn't accept the form${text ? `: "${text.slice(0, 200)}"` : ""}. It's open in Chrome to fix and submit.`,
