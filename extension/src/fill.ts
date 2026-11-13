@@ -116,7 +116,9 @@ function matches(text: string | null | undefined, label: string, loose: boolean)
   const [have, want] = [norm(text), norm(label)];
   if (have === want) return true;
   if (!loose || want === "") return false;
-  if (have.startsWith(want) || have.includes(want)) return true;
+  // Starts-with only: a bare "includes" picked the wrong suggestion ("York" matching "New York"),
+  // so a written answer must begin the option (QA M4). The word-subset below covers "Pune, India".
+  if (have.startsWith(want)) return true;
   // "Pune, India" is "Pune, Maharashtra, India": it starts the same and has every word.
   const words = want.split(" ");
   const own = new Set(have.split(" "));

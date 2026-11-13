@@ -181,7 +181,9 @@ export async function fill(board: Board, form: HTMLElement, answers: Record<stri
   return unfilled;
 }
 
-const THANKS = /(thank you for (applying|your application|your interest)|application (has been |was )?(submitted|received)|we('ve| have) received your application|successfully (submitted|applied)|application submitted)/i;
+// "thank you for your interest" is marketing copy that also appears on error/landing pages, so it's
+// not treated as proof of submission (QA M2); the signals kept all mean an application went through.
+const THANKS = /(thank you for (applying|your application)|application (has been |was )?(submitted|received)|we('ve| have) received your application|successfully (submitted|applied)|application submitted)/i;
 const EMAIL_CODE = /(security code|verification code|enter the code|code (was |has been )?sent to)/i;
 
 const textOf = (root: Element | null | undefined) => ((root as HTMLElement | null)?.innerText ?? root?.textContent ?? "").replace(/\s+/g, " ").trim();
@@ -190,7 +192,13 @@ const textOf = (root: Element | null | undefined) => ((root as HTMLElement | nul
 export function challengeShown(doc: Document): boolean {
   return Array.from(doc.querySelectorAll<HTMLIFrameElement>("iframe")).some((frame) => {
     const source = frame.src || frame.getAttribute("src") || "";
-    const puzzle = (/recaptcha/.test(source) && /\/bframe\b/.test(source)) || /hcaptcha\.com/.test(source) || /challenges\.cloudflare\.com/.test(source);
+    const puzzle =
+      (/recaptcha/.test(source) && /\/bframe\b/.test(source)) ||
+      /hcaptcha\.com/.test(source) ||
+      /challenges\.cloudflare\.com/.test(source) || // Cloudflare Turnstile and the interstitial
+      /(arkoselabs|funcaptcha)\.com/.test(source) || // Arkose Labs / FunCaptcha
+      /captcha-delivery\.com/.test(source) || // DataDome
+      /geetest\.com/.test(source); // GeeTest
     const checkbox = /recaptcha/.test(source) && /\/anchor\b/.test(source) && /size=normal/.test(source);
     if (!puzzle && !checkbox) return false;
     if (!isVisible(frame)) return false;
