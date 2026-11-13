@@ -15,13 +15,11 @@ import { defineJob, JOB_MESSAGES, passing, startJob, type JobContext } from "@/l
 import { writeDocumentsJob } from "@/lib/jobs/write-documents";
 import { studentMessage } from "@/lib/managed";
 import { prisma, systemPrisma } from "@/lib/prisma";
-import { experienceMonths } from "@/lib/match/preferences";
-import { loadProfile } from "@/lib/profile-data";
 import { loadSettings } from "@/lib/settings-data";
 
 import { extensionCanApply } from "./appliable";
-import { answerForm, missingFields, type AnswerContext, type FormAnswers, type FormField } from "./answers";
-import { greenhouseForm } from "./greenhouse-form";
+import { type FormAnswers, type FormField } from "./answers";
+import { greenhouseAnswers } from "./greenhouse-answers";
 import { loadAutoApply } from "./settings";
 
 // Pathfinder (auto-apply step 4): preparing applications. Once a student has switched auto-apply
@@ -114,38 +112,6 @@ function detailsFrom(extracted: Extracted, fallback: { title: string; company: s
   };
 }
 
-/** What the answers can draw on, from the profile and the saved answers; also for forms the extension reads. */
-export async function answerContext(company: string, jobLocation = ""): Promise<AnswerContext> {
-  const [profile, settings] = await Promise.all([loadProfile(), loadAutoApply()]);
-  const years = profile.education.map((entry) => (entry.current ? null : entry.endYear)).filter((year): year is number => year !== null);
-  // The current role, else the first in the profile's order (newest first).
-  const role = profile.experience.find((entry) => entry.current) ?? profile.experience[0];
-  return {
-    basics: {
-      name: profile.basics.name,
-      email: profile.basics.email,
-      phone: profile.basics.phone,
-      city: profile.basics.city,
-      country: profile.basics.country,
-      linkedin: profile.basics.linkedin,
-      website: profile.basics.website,
-      address: profile.basics.address,
-      dob: profile.basics.dob,
-    },
-    pastEmployers: profile.experience.map((entry) => entry.company).filter(Boolean),
-    currentCompany: role?.company ?? "",
-    currentTitle: role?.role ?? "",
-    university: profile.education[0]?.school ?? "",
-    experienceMonths: experienceMonths(profile.experience),
-    experienceMonthsWithoutInternships: experienceMonths(profile.experience.filter((entry) => !/\bintern(ship)?\b|\btrainee\b/i.test(entry.role))),
-    graduationYear: years.length > 0 ? String(Math.max(...years)) : "",
-    company,
-    jobLocation,
-    cities: settings.preferences?.cities ?? [],
-    saved: settings.answers,
-  };
-}
-
 /** Writes a task's documents and application, unless an earlier run of the job already did. */
 async function writeApplication(taskId: string, posting: { title: string; companyName: string; location: string; remote: boolean | null; salary: string; description: string; url: string }, score: number, context: JobContext): Promise<string> {
   const text = postingText({ title: posting.title, company: posting.companyName, place: posting.location, remote: posting.remote, salary: posting.salary, description: posting.description });
@@ -201,9 +167,8 @@ async function prepare({ taskId }: { taskId: string }, context: JobContext): Pro
     let answers: FormAnswers["answers"] | null = null;
     if (posting.system === "GREENHOUSE") {
       await context.step("Reading the application form");
-      const fields = await greenhouseForm(posting.company.boardToken, posting.externalId, context.signal);
-      const form = answerForm(fields, await answerContext(posting.companyName, posting.location));
-      if (form.missing.length > 0) return finish(ApplyState.NEEDS_STUDENT, { reason: needsAnswers(form.missing), answers: form.answers, questions: missingFields(fields, form.missing) });
+      const form = await greenhouseAnswers({ boardToken: posting.company.boardToken, externalId: posting.externalId, companyName: posting.companyName, location: posting.location }, context.signal);
+      if (form.missing.length > 0) return finish(ApplyState.NEEDS_STUDENT, { reason: needsAnswers(form.missing), answers: form.answers, questions: form.questions });
       answers = form.answers;
     }
     if (!task.applicationId) await writeApplication(taskId, posting, task.jobMatch.score ?? 0, context);

@@ -10,6 +10,7 @@ import { prisma, systemPrisma } from "@/lib/prisma";
 import { applyStatusChange } from "@/lib/status-changes";
 
 import type { Answer } from "./answers";
+import { greenhouseAnswers } from "./greenhouse-answers";
 import { loadAutoApply } from "./settings";
 
 // Pathfinder (auto-apply step 5): the extension's side of an application. A browser leases one
@@ -73,10 +74,43 @@ export async function leaseNext(now = new Date()): Promise<LeasedTask | null> {
     });
     if (count === 0) continue;
     const task = await prisma.applyTask.findUniqueOrThrow({ where: { id: candidate.id }, include: { application: { select: { documents: { select: { kind: true } } } } } });
-    const posting = await systemPrisma.sharedPosting.findUnique({ where: { id: task.sharedPostingId }, select: { applyUrl: true, system: true, title: true, companyName: true, closedAt: true } });
+    const posting = await systemPrisma.sharedPosting.findUnique({
+      where: { id: task.sharedPostingId },
+      select: { applyUrl: true, system: true, title: true, companyName: true, location: true, externalId: true, closedAt: true, company: { select: { boardToken: true } } },
+    });
     if (!posting || posting.closedAt) {
       await prisma.applyTask.updateMany({ where: { id: task.id, leaseId }, data: { state: ApplyState.SKIPPED, reason: "The job closed before it could be applied for.", leaseId: null, leaseUntil: null } });
       continue;
+    }
+    // Greenhouse answers were worked out when the task was prepared; re-answer now from the student's
+    // current profile and saved answers, so an edit since then isn't submitted stale (QA M1). Lever and
+    // Ashby forms the extension reads live when it opens them, so their answers are already current.
+    let answers = (task.answers as Record<string, Answer> | null) ?? null;
+    if (posting.system === "GREENHOUSE") {
+      try {
+        const fresh = await greenhouseAnswers(
+          { boardToken: posting.company?.boardToken ?? "", externalId: posting.externalId, companyName: posting.companyName, location: posting.location },
+          AbortSignal.timeout(15_000),
+        );
+        if (fresh.missing.length > 0) {
+          // A required answer the student removed since preparing: don't submit stale — hand it back.
+          await prisma.applyTask.updateMany({
+            where: { id: task.id, leaseId },
+            data: {
+              state: ApplyState.NEEDS_STUDENT,
+              reason: `Answer ${fresh.missing.length === 1 ? "this question" : "these questions"} to apply: ${fresh.missing.join("; ")}`,
+              questions: fresh.questions.slice(0, 40),
+              answers: fresh.answers ?? undefined,
+              leaseId: null,
+              leaseUntil: null,
+            },
+          });
+          continue;
+        }
+        answers = fresh.answers;
+      } catch {
+        // Couldn't re-read Greenhouse's form (it's down or slow): fall back to the prepared answers.
+      }
     }
     const kinds = new Set(task.application?.documents.map((document) => document.kind));
     return {
@@ -88,7 +122,7 @@ export async function leaseNext(now = new Date()): Promise<LeasedTask | null> {
       title: posting.title,
       company: posting.companyName,
       dryRun: settings.dryRun,
-      answers: (task.answers as Record<string, Answer> | null) ?? null,
+      answers,
       documents: { resume: kinds.has("RESUME"), coverLetter: kinds.has("COVER_LETTER") },
     };
   }

@@ -13,6 +13,16 @@ vi.mock("@/lib/prisma", async () => {
   return { prisma: db.client, systemPrisma: rawClientOf(db.client) };
 });
 vi.mock("@/lib/env", () => ({ env: {} }));
+// leaseNext re-answers Greenhouse forms at lease time (QA M1); mock it so tests don't hit the real
+// Greenhouse API. The default matches the answers readyTask stores, so the other tests are unaffected.
+const gh = vi.hoisted(() => ({ answers: { first_name: { kind: "text", value: "Asha" } } as Record<string, unknown> | null, missing: [] as string[], questions: [] as unknown[], throws: false }));
+vi.mock("./greenhouse-answers", async (orig) => ({
+  ...(await orig<object>()),
+  greenhouseAnswers: async () => {
+    if (gh.throws) throw new Error("greenhouse down");
+    return { answers: gh.answers, missing: gh.missing, questions: gh.questions };
+  },
+}));
 
 const { rawClientOf } = await import("@/lib/owner/scope");
 const { giveConsent, saveAutoApply, setAutoApplyEnabled } = await import("./settings");
@@ -41,6 +51,10 @@ async function readyTask(id: string, options: { closed?: boolean; answers?: obje
 const state = async (id: string) => prisma().applyTask.findUniqueOrThrow({ where: { id } });
 
 beforeEach(async () => {
+  gh.answers = { first_name: { kind: "text", value: "Asha" } };
+  gh.missing = [];
+  gh.questions = [];
+  gh.throws = false;
   await resetDatabase(prisma());
   for (const table of ["applyTask", "autoApplySettings", "jobMatch", "sharedPosting", "company", "extensionToken"] as const) await (raw()[table] as { deleteMany: () => Promise<unknown> }).deleteMany();
   company = (await raw().company.create({ data: { name: "Acme", system: "GREENHOUSE", boardToken: "acme" } })).id;
@@ -97,6 +111,29 @@ describe("what a browser reports (auto-apply step 5)", () => {
     const lease = (await leaseNext())!;
     return { task, leaseId: lease.leaseId };
   }
+
+  it("re-answers a Greenhouse task at lease from the current profile, not what was frozen at prepare (M1)", async () => {
+    await switchedOn(true);
+    await readyTask("1", { answers: { first_name: { kind: "text", value: "STALE" } } });
+    gh.answers = { first_name: { kind: "text", value: "Asha Fresh" } };
+    expect((await leaseNext())?.answers).toEqual({ first_name: { kind: "text", value: "Asha Fresh" } });
+  });
+
+  it("falls back to the prepared answers when Greenhouse can't be re-read at lease (M1)", async () => {
+    await switchedOn(true);
+    await readyTask("1", { answers: { first_name: { kind: "text", value: "Prepared" } } });
+    gh.throws = true;
+    expect((await leaseNext())?.answers).toEqual({ first_name: { kind: "text", value: "Prepared" } });
+  });
+
+  it("hands a Greenhouse task back to the student if a required answer went missing since preparing (M1)", async () => {
+    await switchedOn(true);
+    const task = await readyTask("1");
+    gh.missing = ["Email"];
+    gh.questions = [{ key: "email", label: "Email", required: true, type: "text", options: [] }];
+    expect(await leaseNext()).toBeNull();
+    expect(await state(task.id)).toMatchObject({ state: "NEEDS_STUDENT" });
+  });
 
   it("records an application as applied after Submit, with proof, and shows it as sent", async () => {
     const { task, leaseId } = await leased();
