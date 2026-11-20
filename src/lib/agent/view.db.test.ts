@@ -36,11 +36,13 @@ beforeEach(async () => {
 afterAll(() => prisma().$disconnect());
 
 describe("the Agent screen's data (E16-6)", () => {
-  it("splits the queue into drafts, scored postings and those below the minimum, best first", async () => {
+  it("splits the queue into drafts and scored postings at 80 or above with a link, best first; the rest is dropped", async () => {
     const application = await prisma().application.create({ data: { origin: "AGENT", awaitingReview: true } });
     await candidate("draft", 90, { status: "DRAFTED", applicationId: application.id });
-    const good = await candidate("good", 75);
+    const good = await candidate("good", 85);
     await candidate("better", 88);
+    await candidate("middling", 75);
+    await candidate("nolink", 95, { url: "" });
     await candidate("low", 30);
     await candidate("gone", 95, { status: "DISMISSED" });
     await candidate("kept", 95, { status: "APPROVED" });
@@ -49,7 +51,9 @@ describe("the Agent screen's data (E16-6)", () => {
     const view = await loadAgentView(now);
     expect(view.drafts.map((entry) => entry.title)).toEqual(["Posting draft"]);
     expect(view.scored.map((entry) => entry.title)).toEqual(["Posting better", "Posting good"]);
-    expect(view.belowMinimum.map((entry) => entry.title)).toEqual(["Posting low"]);
+    // Below 80, or without a link: dropped, not listed.
+    expect(view.belowMinimum).toEqual([]);
+    expect(view.minScore).toBe(80);
     expect(view.scored[1]).toMatchObject({ facts: "Berlin · Remote", origin: "Posted 2 days ago · via LinkedIn on JSearch", draftJobId: job.id });
     expect(view).toMatchObject({
       search: "Data scientist · Berlin, 25 km · via JSearch",
@@ -58,7 +62,7 @@ describe("the Agent screen's data (E16-6)", () => {
       lastRun: { at: "Tue 20 Oct, 07:00", message: "2 new postings are waiting for a look." },
       nextRun: "Wed 21 Oct, 07:00",
     });
-    // The badge: scored at or above the minimum, and drafts.
+    // The badge: scored at or above the minimum with a link, and drafts.
     expect(await countAgentQueue()).toBe(3);
   });
 
