@@ -69,6 +69,7 @@ describe("stored settings", () => {
       typesafeKeyEnc: null,
       agentEnabled: false,
       agentQuery: { keywords: "", place: "", country: "", radiusKm: 25, remoteOnly: false, postedWithin: "any" },
+      agentExtraQueries: [],
       agentHour: 7,
       agentMinScore: 80,
       agentMaxScores: 15,

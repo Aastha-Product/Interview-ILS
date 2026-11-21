@@ -1,8 +1,9 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { toast } from "@/components/toast";
+import { EMPTY_QUERY } from "@/lib/job-search/search";
 
 import { saveAgentSettings } from "../agent/actions";
 import { AgentSection, type AgentSettings } from "./agent-section";
@@ -19,6 +20,7 @@ const initial: AgentSettings = {
   maxDrafts: 3,
   autoDraft: false,
   blockedCompanies: [],
+  extraQueries: [],
 };
 const countries = [
   { code: "de", name: "Germany" },
@@ -104,6 +106,29 @@ describe("Settings → Job agent (E16-7)", () => {
     await user.tab();
     expect(saveAgentSettings).toHaveBeenLastCalledWith({ blockedCompanies: ["Wipro", "Infosys", "TCS"] });
     expect(field).toHaveValue("Wipro\nInfosys\nTCS");
+  });
+
+  it("adds up to two more searches, saves them once typing pauses, and removes one at once (job profiles)", async () => {
+    const user = userEvent.setup();
+    open();
+    await user.click(screen.getByRole("button", { name: "Add another search" }));
+    const second = screen.getByRole("group", { name: "Search 2" });
+    // A new search starts in the main search's country.
+    expect(within(second).getByLabelText("Country")).toHaveValue("de");
+    await user.type(within(second).getByLabelText("What"), "Business analyst");
+    await waitFor(
+      () => expect(saveAgentSettings).toHaveBeenLastCalledWith({ extraQueries: [{ ...EMPTY_QUERY, country: "de", keywords: "Business analyst" }] }),
+      { timeout: 2000 },
+    );
+    await user.click(screen.getByRole("button", { name: "Add another search" }));
+    expect(screen.getByRole("group", { name: "Search 3" })).toBeInTheDocument();
+    // Two more at most.
+    expect(screen.queryByRole("button", { name: "Add another search" })).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "Remove search 2" }));
+    expect(saveAgentSettings).toHaveBeenLastCalledWith({ extraQueries: [{ ...EMPTY_QUERY, country: "de" }] });
+    expect(screen.queryByRole("group", { name: "Search 3" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Add another search" })).toBeInTheDocument();
   });
 
   it("explains the limits in plain words", () => {

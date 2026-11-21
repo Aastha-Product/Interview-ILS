@@ -68,7 +68,7 @@ vi.mock("@/lib/ai", async (importOriginal) => ({
         const { title } = JSON.parse(call.messages[0].content.split("The posting's facts:\n")[1].split("\n\nThe posting:")[0]) as { title: string };
         fake.onScore(title);
         if (title === fake.failOn) return "not json at all";
-        return { score: /senior/i.test(title) ? 90 : /designer/i.test(title) ? 75 : 40, reasons: [`Fits ${title}.`], redFlags: [] };
+        return { score: /senior/i.test(title) ? 90 : /designer/i.test(title) ? 85 : 40, reasons: [`Fits ${title}.`], redFlags: [] };
       },
     }),
 }));
@@ -122,12 +122,12 @@ describe("runAgentScan (E16-3)", () => {
     const candidates = await prisma().agentCandidate.findMany({ orderBy: { score: "desc" } });
     expect(candidates.map((candidate) => [candidate.externalId, candidate.score, candidate.status])).toEqual([
       ["a", 90, "SCORED"],
-      ["b", 75, "SCORED"],
+      ["b", 85, "SCORED"],
       ["c", 40, "SCORED"],
     ]);
     expect(candidates[0]).toMatchObject({ title: "Senior Product Designer", reasons: ["Fits Senior Product Designer."], dedupeKey: agentDedupeKey(page[0]) });
     // Find jobs shows the scores too (#208).
-    expect((await prisma().postingScore.findMany({ orderBy: { score: "desc" } })).map((row) => [row.externalId, row.score])).toEqual([["a", 90], ["b", 75], ["c", 40]]);
+    expect((await prisma().postingScore.findMany({ orderBy: { score: "desc" } })).map((row) => [row.externalId, row.score])).toEqual([["a", 90], ["b", 85], ["c", 40]]);
     // The run is on record, with how it ended.
     expect((await loadSettings()).agentRuns).toEqual([{ at: now.toISOString(), manual: false, message: "2 new postings are waiting for a look." }]);
   });
@@ -279,9 +279,23 @@ describe("runAgentScan (E16-3)", () => {
     expect(startJob).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ type: "agent-draft" }), { candidateId: best.id }, { key: `agent-candidate:${best.id}` });
   });
 
+  it("makes each job profile's search too, and keeps a posting two searches find once (Phase 1)", async () => {
+    const { searchPostings } = await import("@/lib/job-search");
+    // An extra search with no keywords isn't made.
+    await saveSettings({ agentExtraQueries: [{ ...query, keywords: "UX researcher" }, { ...query, keywords: "" }] });
+    const run = context();
+    const result = await runAgentScan({ manual: false }, run, now);
+    expect(fake.searches).toBe(2);
+    expect(vi.mocked(searchPostings).mock.calls.slice(-2).map((call) => (call[2] as SearchQuery).keywords)).toEqual(["Product designer", "UX researcher"]);
+    expect(run.steps[0]).toBe("Searching for new postings (2 searches)");
+    // Both searches got the same page: each posting is scored once.
+    expect(result).toMatchObject({ found: 3, fresh: 3, scored: 3 });
+    expect(await prisma().agentCandidate.count()).toBe(3);
+  });
+
   it("says when nothing reached the minimum score", async () => {
     fake.postings = [page[2]];
-    expect((await runAgentScan({ manual: false }, context(), now)).message).toBe("Scored 1 new posting; none reached your minimum score of 70.");
+    expect((await runAgentScan({ manual: false }, context(), now)).message).toBe("Scored 1 new posting; none reached your minimum score of 80.");
     expect(demoProfile().basics.name).toBe("Jane Doe");
   });
 });

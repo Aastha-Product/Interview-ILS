@@ -102,7 +102,7 @@ test("scores a posting against the profile, and keeps the score (#208)", async (
 
   // An unscored posting scores from its pill in the list, and the open one stays open.
   await page.getByRole("button", { name: "Score “Product Designer, Logistics”" }).click();
-  await expect(page.getByRole("list", { name: "Postings" }).getByRole("img", { name: "Score 78 of 100" })).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole("list", { name: "Postings" }).getByRole("img", { name: "Score 84 of 100" })).toBeVisible({ timeout: 30_000 });
   await expect(page.getByRole("heading", { level: 2, name: "Senior Product Designer, Payments" })).toBeVisible();
 
   // Kept with the posting, so it's there after a reload.

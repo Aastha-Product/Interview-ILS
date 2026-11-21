@@ -19,6 +19,7 @@ import { loadPostingScorer, scoringProblem } from "@/lib/scoring";
 import { loadSettings } from "@/lib/settings-data";
 
 import { isBlocked } from "./blocklist";
+import { agentSearches } from "./profiles";
 import { agentDedupeKey, candidateData } from "./candidates";
 import { agentDraftJob, draftJobKey } from "./draft";
 import { recordRunEnd, recordRunStart, runLimitProblem } from "./runs";
@@ -112,22 +113,41 @@ export async function runAgentScan({ manual }: { manual: boolean }, context: Job
     return result;
   };
 
-  await context.step("Searching for new postings");
+  // The main search and the job profiles' (Phase 1), one request each.
+  const searches = agentSearches(settings.agentQuery, settings.agentExtraQueries);
+  await context.step(searches.length === 1 ? "Searching for new postings" : `Searching for new postings (${searches.length} searches)`);
   const config = await loadJobSearchConfig();
   const source = config.source!;
-  let postings: FoundPosting[];
-  try {
-    // The first page only: the agent never asks for a second.
-    postings = (await searchPostings(source, credentialsFor(config, source), settings.agentQuery, null, requestContext(source))).postings;
-  } catch (error) {
-    if (error instanceof JobSearchError) return finish(stopped(error.message));
-    throw error;
+  const found: FoundPosting[] = [];
+  let failure: string | null = null;
+  for (const query of searches) {
+    if (context.signal.aborted) break;
+    try {
+      // The first page only: the agent never asks for a second.
+      found.push(...(await searchPostings(source, credentialsFor(config, source), query, null, requestContext(source))).postings);
+    } catch (error) {
+      // One search that fails doesn't stop the others.
+      if (error instanceof JobSearchError) failure ??= error.message;
+      else throw error;
+    }
   }
+  if (found.length === 0 && failure) return finish(stopped(failure));
+  // The same posting found by two searches counts once.
+  const keys = new Set<string>();
+  const postings = found.filter((posting) => {
+    const key = postingKey(posting);
+    if (keys.has(key)) return false;
+    keys.add(key);
+    return true;
+  });
 
   // A blocked company's postings are left out before scoring, so they cost nothing.
   const fresh = (await newPostings(postings)).filter((posting) => !isBlocked(posting.company, settings.agentBlockedCompanies));
   const counts = { found: postings.length, fresh: fresh.length, skipped: postings.length - fresh.length, drafted: 0 };
-  if (fresh.length === 0) return finish({ ...counts, scored: 0, message: postings.length === 0 ? "The search found no postings this time." : "No new postings this time." });
+  if (fresh.length === 0) {
+    const none = searches.length === 1 ? "The search found no postings this time." : "The searches found no postings this time.";
+    return finish({ ...counts, scored: 0, message: postings.length === 0 ? none : "No new postings this time." });
+  }
 
   const toScore = fresh.toSorted(newestFirst).slice(0, settings.agentMaxScores);
   await context.step(`Scoring ${toScore.length} ${toScore.length === 1 ? "posting" : "postings"}`);

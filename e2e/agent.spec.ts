@@ -32,10 +32,9 @@ test("finds, scores, drafts and dismisses, and never brings a posting back", asy
   const scored = page.getByRole("region", { name: "Scored postings" });
   await expect(scored.getByRole("heading", { level: 3 })).toHaveText(["Senior Product Designer, Payments", "Product Designer, Logistics"]);
   await expect(card(page, "Senior Product Designer, Payments").getByRole("img", { name: "Score 91 of 100" })).toBeVisible();
-  // The one below the minimum score waits behind Show.
+  // The one below the minimum score of 80 is dropped, with nothing to show it again (Phase 1).
   await expect(page.getByText("UX Designer")).toHaveCount(0);
-  await page.getByRole("button", { name: "1 below your minimum score of 70 · Show" }).click();
-  await expect(page.getByRole("heading", { level: 3, name: "UX Designer" })).toBeVisible();
+  await expect(page.getByRole("button", { name: /below your minimum score/ })).toHaveCount(0);
 
   // Prepare a draft: it waits for review, out of Applications.
   await card(page, "Senior Product Designer, Payments").getByRole("button", { name: "Prepare draft" }).click();

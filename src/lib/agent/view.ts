@@ -5,13 +5,14 @@ import { formatDateTime } from "@/lib/dates";
 import { loadJobSearchConfig } from "@/lib/job-search/config";
 import { managedMode, studentMessage } from "@/lib/managed";
 import { countryName } from "@/lib/job-search/countries";
-import { describeSearch, postedAgo, type JobSource } from "@/lib/job-search/search";
+import { describeSearch, EMPTY_QUERY, postedAgo, type JobSource, type SearchQuery } from "@/lib/job-search/search";
 import { SOURCE_INFO } from "@/lib/job-search/sources";
 import { prisma } from "@/lib/prisma";
 import { loadSettings } from "@/lib/settings-data";
 import { lastKnownTimeZone } from "@/lib/time-zone";
 
 import { isBlocked } from "./blocklist";
+import { agentSearches } from "./profiles";
 import { stringsOf } from "./candidates";
 import { AGENT_JOB_KEY } from "./jobs";
 import { agentSetupProblem } from "./run";
@@ -119,9 +120,10 @@ export async function loadAgentView(now = new Date()): Promise<AgentView> {
 
   const query = settings.agentQuery;
   const source: JobSource | null = config.source;
-  const search = query.keywords.trim()
-    ? `${describeSearch(query, countryName(query.country) || query.country.toUpperCase(), source)}${source ? ` · via ${SOURCE_INFO[source].name}` : ""}`
-    : null;
+  const describe = (entry: SearchQuery) => describeSearch(entry, countryName(entry.country) || entry.country.toUpperCase(), source);
+  // The main search, then the job profiles' (Phase 1) that would run.
+  const searches = [...(query.keywords.trim() ? [query] : []), ...agentSearches(EMPTY_QUERY, settings.agentExtraQueries)];
+  const search = searches.length > 0 ? `${searches.map(describe).join(" + ")}${source ? ` · via ${SOURCE_INFO[source].name}` : ""}` : null;
   const setupProblem = await agentSetupProblem(query);
 
   const view = (candidate: (typeof candidates)[number]): AgentCandidateView => ({
