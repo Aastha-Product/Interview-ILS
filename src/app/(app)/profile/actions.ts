@@ -6,13 +6,19 @@ import { z } from "zod";
 import type { Prisma } from "@/generated/prisma/client";
 import { JobStatus, LanguageLevel } from "@/generated/prisma/enums";
 import { action, ActionError } from "@/lib/action";
+import { getAiProvider } from "@/lib/ai";
+import { isAiConfigured } from "@/lib/ai/config";
+import { AiError } from "@/lib/ai/errors";
+import { loadTaskOptions } from "@/lib/ai/task-options";
+import { improveSummary } from "@/lib/ai/tasks/improve-summary";
+import { hasWorkToSummarize, SUMMARY_INSTRUCTION_MAX } from "@/lib/work-summary";
 import { prisma } from "@/lib/prisma";
 import { CURRENT_USER } from "@/lib/owner/scope";
 import { fieldsFromBasics, inEntryOrder } from "@/lib/profile";
 import { findOrCreateSkill, firstSort, nextSort } from "@/lib/profile-entries";
 import { discardProfileImports, importProfileJob } from "@/lib/jobs/import-profile";
 import { isPhotoDataUrl, PHOTO_KEY, PHOTO_MAX_LENGTH, PHOTO_ON_RESUMES_KEY } from "@/lib/photo";
-import { loadProfileName } from "@/lib/profile-data";
+import { loadProfile, loadProfileName } from "@/lib/profile-data";
 import { importCounts, importedProfileSchema } from "@/lib/profile-import";
 import { applyImportedProfile } from "@/lib/profile-import-apply";
 import { loadSettings, saveSettings } from "@/lib/settings-data";
@@ -52,6 +58,26 @@ export const saveBasics = action(
     return null;
   },
 );
+
+/**
+ * Write with AI (Phase 1): a draft of the few lines about the student, from their profile. Nothing
+ * is saved: the screen shows the draft, and it replaces the field only when they choose to use it.
+ */
+export const draftWorkSummary = action(z.object({ instruction: z.string().trim().max(SUMMARY_INSTRUCTION_MAX).optional() }), async ({ instruction }) => {
+  if (!(await isAiConfigured())) throw new ActionError("Writing a summary needs an AI provider. Choose one in Settings → AI provider.");
+  const profile = await loadProfile();
+  if (!hasWorkToSummarize(profile)) throw new ActionError("Add your experience, studies or skills first, so there's something to write about.");
+  try {
+    const [provider, options] = await Promise.all([getAiProvider(), loadTaskOptions()]);
+    const { data: summary } = await improveSummary(provider, { profile, instruction: instruction || undefined }, options);
+    if (!summary) throw new ActionError("The AI couldn't write a summary just now. Try again in a moment.");
+    return { summary: summary.slice(0, 5000) };
+  } catch (error) {
+    // The provider's own words; managed mode makes them plain for students.
+    if (error instanceof AiError) throw new ActionError(error.message);
+    throw error;
+  }
+});
 
 // ─── Photo (#224) ────────────────────────────────────────────────────────────
 

@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 
+import { toastResult } from "@/components/toast";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -10,7 +12,7 @@ import { useAutosave } from "@/hooks/use-autosave";
 import type { ProfilePhoto } from "@/lib/photo";
 import { ageOn, isOptionalBasic, type Basics, type BasicsField } from "@/lib/profile";
 
-import { saveBasics } from "./actions";
+import { draftWorkSummary, saveBasics } from "./actions";
 import { PhotoField } from "./photo-field";
 import { useTrackSave } from "@/components/save-tracker";
 
@@ -84,6 +86,19 @@ export function BasicsSection({
   };
   const age = ageOn(basics.dob, new Date());
 
+  // Write with AI (Phase 1): the draft waits here until it's used or discarded.
+  const [draft, setDraft] = useState<string | null>(null);
+  const [drafting, setDrafting] = useState(false);
+  const writeSummary = async () => {
+    setDrafting(true);
+    try {
+      const result = toastResult(await draftWorkSummary({}));
+      if (result.ok) setDraft(result.data.summary);
+    } finally {
+      setDrafting(false);
+    }
+  };
+
   return (
     <Card className="grid grid-cols-2 gap-x-[18px] gap-y-5">
       <PhotoField photo={photo} onChange={onPhotoChange} />
@@ -110,6 +125,45 @@ export function BasicsSection({
         onChange={(event) => set("summary", event.target.value)}
         onBlur={() => leave("summary")}
       />
+      <div className="col-span-2 flex flex-col gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            aria-disabled={drafting || undefined}
+            onClick={() => {
+              if (!drafting) void writeSummary();
+            }}
+          >
+            {drafting ? "Writing…" : basics.summary.trim() ? "Rewrite with AI" : "Write with AI"}
+          </Button>
+          <span className="text-meta text-muted">
+            {basics.summary.trim() ? "A fresh draft from your profile, shown here first." : "No summary yet: let AI draft one from your experience and skills."}
+          </span>
+        </div>
+        {draft !== null ? (
+          <section aria-label="AI draft of your summary" className="flex flex-col gap-3 rounded-card border border-line-card bg-surface px-4 py-4">
+            <p className="text-meta text-muted">AI draft from your profile. Use it as it is, or use it and edit it in the field above.</p>
+            <p className="whitespace-pre-line">{draft}</p>
+            <div className="flex flex-wrap gap-3">
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => {
+                  set("summary", draft);
+                  setDraft(null);
+                }}
+              >
+                Use this
+              </Button>
+              <Button type="button" size="sm" variant="text" onClick={() => setDraft(null)}>
+                Discard
+              </Button>
+            </div>
+          </section>
+        ) : null}
+      </div>
       <Checkbox
         className="col-span-2 pt-1"
         label={
