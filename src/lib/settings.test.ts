@@ -69,7 +69,7 @@ describe("stored settings", () => {
       agentEnabled: false,
       agentQuery: { keywords: "", place: "", country: "", radiusKm: 25, remoteOnly: false, postedWithin: "any" },
       agentHour: 7,
-      agentMinScore: 70,
+      agentMinScore: 80,
       agentMaxScores: 15,
       agentMaxDrafts: 3,
       agentAutoDraft: false,
@@ -172,7 +172,7 @@ describe("the job agent's settings (E16)", () => {
       { key: "agentMaxScores", value: "0" },
       { key: "agentMaxDrafts", value: "11" },
     ]);
-    expect(odd).toMatchObject({ agentQuery: { keywords: "", country: "" }, agentRuns: [], agentHour: 7, agentMinScore: 70, agentMaxScores: 15, agentMaxDrafts: 3 });
+    expect(odd).toMatchObject({ agentQuery: { keywords: "", country: "" }, agentRuns: [], agentHour: 7, agentMinScore: 80, agentMaxScores: 15, agentMaxDrafts: 3 });
   });
 });
 
