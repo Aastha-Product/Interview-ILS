@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { EMPTY_ANSWERS, missingAnswers } from "@/lib/apply/answers";
 import type { AutoApplyScreenView } from "@/lib/apply/view";
 
-import { answerApplicationQuestions, markApplied, prepareApplicationAgain, saveJobSearch, skipApplication, switchAutoApply } from "./actions";
+import { answerApplicationQuestions, draftApplicationAnswer, markApplied, prepareApplicationAgain, saveJobSearch, skipApplication, switchAutoApply } from "./actions";
 import { AutoApplyScreen } from "./auto-apply-screen";
 import { listFrom, SetupScreen } from "./setup/setup-screen";
 
@@ -23,6 +23,7 @@ vi.mock("./actions", () => ({
   prepareApplicationAgain: vi.fn(async () => ({ ok: true, data: null })),
   markApplied: vi.fn(async () => ({ ok: true, data: null })),
   answerApplicationQuestions: vi.fn(async () => ({ ok: true, data: null })),
+  draftApplicationAnswer: vi.fn(async () => ({ ok: true, data: { text: "I build SQL dashboards and want to do it for Groww's investors." } })),
 }));
 
 const preferences = { titles: ["Data Analyst"], skills: ["SQL"], countries: ["in"], cities: ["Pune"], remoteOk: true, level: "entry" as const, employmentTypes: [] };
@@ -84,6 +85,42 @@ describe("the auto-apply dashboard (auto-apply step 4)", () => {
     expect(screen.getByText(/on the job site itself/)).toHaveTextContent("Upload a reference letter");
     await userEvent.click(screen.getByRole("button", { name: "Save and try again" }));
     expect(answerApplicationQuestions).toHaveBeenCalledWith({ taskId: "t1", answers: { "q-why": "I admire the product.", "q-exp": "2-3" } });
+  });
+
+  it("drafts a written answer with AI into the field, for the student to edit and save (Phase 1)", async () => {
+    const withQuestions = view({
+      tasks: [
+        {
+          ...view().tasks[0],
+          questions: [
+            { key: "q-why", label: "Why do you want to work here?", type: "textarea", options: [], here: true },
+            { key: "q-exp", label: "Years of SQL experience", type: "single", options: ["0-1", "2-3", "4+"], here: true },
+          ],
+        },
+      ],
+    });
+    render(<AutoApplyScreen view={withQuestions} />);
+    // Only written answers get a draft; a choice doesn't.
+    expect(screen.getAllByRole("button", { name: /with AI$/ })).toHaveLength(1);
+    await userEvent.click(screen.getByRole("button", { name: "Draft an answer to “Why do you want to work here?” with AI" }));
+    expect(draftApplicationAnswer).toHaveBeenCalledWith({ taskId: "t1", questionKey: "q-why" });
+    const field = screen.getByLabelText("Why do you want to work here?");
+    expect(field).toHaveValue("I build SQL dashboards and want to do it for Groww's investors.");
+    expect(screen.getByText(/AI draft from your profile\. Check and edit it/)).toBeInTheDocument();
+    // Nothing is saved until the student saves, with their edits.
+    expect(answerApplicationQuestions).not.toHaveBeenCalled();
+    await userEvent.type(field, " Edited.");
+    await userEvent.click(screen.getByRole("button", { name: "Save and try again" }));
+    expect(answerApplicationQuestions).toHaveBeenCalledWith({ taskId: "t1", answers: { "q-why": "I build SQL dashboards and want to do it for Groww's investors. Edited." } });
+  });
+
+  it("leaves the field as it was when the AI can't draft an answer", async () => {
+    vi.mocked(draftApplicationAnswer).mockResolvedValueOnce({ ok: false, error: "Your profile doesn't say enough to draft this one. Please answer it yourself." });
+    const withQuestion = view({ tasks: [{ ...view().tasks[0], questions: [{ key: "q-salary", label: "Current salary", type: "text", options: [], here: true }] }] });
+    render(<AutoApplyScreen view={withQuestion} />);
+    await userEvent.click(screen.getByRole("button", { name: "Draft an answer to “Current salary” with AI" }));
+    expect(screen.getByLabelText("Current salary")).toHaveValue("");
+    expect(screen.queryByText(/AI draft from your profile/)).toBeNull();
   });
 
   it("switches auto-apply on and skips an application", async () => {

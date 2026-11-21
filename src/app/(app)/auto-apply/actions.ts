@@ -5,6 +5,8 @@ import { z } from "zod";
 
 import { ApplyState } from "@/generated/prisma/enums";
 import { ActionError, toolAction } from "@/lib/action";
+import { AiError } from "@/lib/ai/errors";
+import { draftAnswer, type DraftAnswerOutcome } from "@/lib/apply/draft-answer";
 import { markAppliedByStudent } from "@/lib/apply/lease";
 import { planApplications, prepareAgain } from "@/lib/apply/prepare";
 import { answerQuestions } from "@/lib/apply/questions";
@@ -95,6 +97,26 @@ export const answerApplicationQuestions = toolAction(
     return null;
   },
 );
+
+/**
+ * Draft with AI (Phase 1): a first draft of the answer to one of an application's open-ended
+ * questions, to fill the field. Nothing is saved: the student edits it and saves it with
+ * "Save and try again".
+ */
+export const draftApplicationAnswer = toolAction(z.object({ taskId: z.string().min(1), questionKey: z.string().min(1).max(300) }), async ({ taskId, questionKey }) => {
+  let outcome: DraftAnswerOutcome;
+  try {
+    outcome = await draftAnswer(taskId, questionKey);
+  } catch (error) {
+    // The provider's own words; managed mode makes them plain for students.
+    if (error instanceof AiError) throw new ActionError(error.message);
+    throw error;
+  }
+  if (outcome.kind === "gone") throw new ActionError("That application isn't waiting for this answer any more.");
+  if (outcome.kind === "no-ai") throw new ActionError("Drafting needs an AI provider. Choose one in Settings → AI provider.");
+  if (outcome.kind === "empty") throw new ActionError("Your profile doesn't say enough to draft this one. Please answer it yourself.");
+  return { text: outcome.text };
+});
 
 /** Mark as applied: after a dry run the student submitted themselves, or an uncertain one they checked. */
 export const markApplied = toolAction(z.object({ taskId: z.string().min(1) }), async ({ taskId }, { toast }) => {

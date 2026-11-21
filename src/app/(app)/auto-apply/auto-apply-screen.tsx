@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useState, useTransition, type ReactNode } from "react";
 
 import { PageHeader } from "@/components/page-header";
 import { toastResult } from "@/components/toast";
@@ -20,7 +20,7 @@ import type { TaskQuestion } from "@/lib/apply/questions";
 import type { ApplyTaskView, AutoApplyScreenView, BrowsersView } from "@/lib/apply/view";
 import { TIER_LABELS } from "@/lib/match/tiers";
 
-import { answerApplicationQuestions, findMatchesNow, markApplied, prepareApplicationAgain, skipApplication, switchAutoApply } from "./actions";
+import { answerApplicationQuestions, draftApplicationAnswer, findMatchesNow, markApplied, prepareApplicationAgain, skipApplication, switchAutoApply } from "./actions";
 
 /** Each state as the student reads it, and which group it shows in. */
 export const STATE_LABELS: Record<ApplyState, string> = {
@@ -89,10 +89,46 @@ type RowActions = { onSkip: (id: string) => void; onRetry: (id: string) => void;
  */
 function QuestionsForm({ task, busy, onAnswer }: { task: ApplyTaskView; busy: boolean; onAnswer: RowActions["onAnswer"] }) {
   const [given, setGiven] = useState<Given>({});
+  // Draft with AI: the question being drafted, and the ones whose field holds an AI draft.
+  const [drafting, setDrafting] = useState<string | null>(null);
+  const [drafted, setDrafted] = useState<ReadonlySet<string>>(new Set());
   const here = task.questions.filter((question) => question.here);
   const elsewhere = task.questions.filter((question) => !question.here);
   if (task.questions.length === 0) return null;
   const set = (key: string, value: string | string[]) => setGiven((current) => ({ ...current, [key]: value }));
+  const draft = async (question: TaskQuestion) => {
+    setDrafting(question.key);
+    try {
+      const result = toastResult(await draftApplicationAnswer({ taskId: task.id, questionKey: question.key }));
+      if (result.ok) {
+        set(question.key, result.data.text);
+        setDrafted((current) => new Set(current).add(question.key));
+      }
+    } finally {
+      setDrafting(null);
+    }
+  };
+  /** A written answer's field, with Draft with AI under it. */
+  const written = (question: TaskQuestion, field: ReactNode) => (
+    <div key={question.key} className="flex flex-col gap-2">
+      {field}
+      <div className="flex flex-wrap items-center gap-3">
+        <Button
+          type="button"
+          size="sm"
+          variant="secondary"
+          aria-label={`Draft an answer to “${question.label}” with AI`}
+          aria-disabled={drafting !== null || undefined}
+          onClick={() => {
+            if (drafting === null) void draft(question);
+          }}
+        >
+          {drafting === question.key ? "Drafting…" : "Draft with AI"}
+        </Button>
+        {drafted.has(question.key) ? <span className="text-meta text-muted">AI draft from your profile. Check and edit it: it&apos;s only used when you save.</span> : null}
+      </div>
+    </div>
+  );
   const answered = here.some((question) => (Array.isArray(given[question.key]) ? given[question.key].length > 0 : Boolean((given[question.key] as string | undefined)?.trim())));
   const control = (question: TaskQuestion) => {
     if (question.type === "single") {
@@ -123,10 +159,13 @@ function QuestionsForm({ task, busy, onAnswer }: { task: ApplyTaskView; busy: bo
         </fieldset>
       );
     }
-    return question.type === "textarea" ? (
-      <Textarea key={question.key} label={question.label} rows={3} maxLength={2000} value={(given[question.key] as string | undefined) ?? ""} onChange={(event) => set(question.key, event.target.value)} />
-    ) : (
-      <Input key={question.key} label={question.label} maxLength={2000} value={(given[question.key] as string | undefined) ?? ""} onChange={(event) => set(question.key, event.target.value)} />
+    return written(
+      question,
+      question.type === "textarea" ? (
+        <Textarea label={question.label} rows={5} maxLength={2000} value={(given[question.key] as string | undefined) ?? ""} onChange={(event) => set(question.key, event.target.value)} />
+      ) : (
+        <Input label={question.label} maxLength={2000} value={(given[question.key] as string | undefined) ?? ""} onChange={(event) => set(question.key, event.target.value)} />
+      ),
     );
   };
   return (
