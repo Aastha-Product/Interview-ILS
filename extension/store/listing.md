@@ -4,14 +4,25 @@ What to enter in the Chrome Web Store's developer dashboard for the Pathfinder e
 
 **Package:** `yarn extension:package` writes `extension/release/pathfinder-extension-<version>.zip`. That build has no `localhost` address in it (tested in `extension/build.test.ts`). Raise `version` in `extension/manifest.json` before each upload.
 
+## Status (checked 21 November 2026)
+
+The text below matches the extension as it is now: the manifest's permissions and hosts, the minute-by-minute check (`chrome.alarms`, `periodInMinutes: 1`), dry run on by default, the pause in the popup, stopping at a visible human check or an emailed code, and the privacy notice's section 7. The package builds (`extension/release/pathfinder-extension-0.1.0.zip`).
+
+**Three things block the first upload, and each needs the owner:**
+
+1. **A Pathfinder logo.** The extension's icons are still Dossier's "D", and so is the site's own mark (`src/app/icon.svg`, `src/components/brand-mark.tsx`). The store needs a 128×128 icon and a 440×280 promo tile; the extension needs 16, 32, 48 and 128 px PNGs in `extension/icons/`.
+2. **The privacy notice's contacts.** All three are still empty in `src/lib/privacy.ts` (organisation, contact email, grievance officer), so https://pathfinderedtech.com/privacy shows placeholders. Reviewers open the privacy policy URL; a notice without a contact is a common reason for rejection.
+3. **A Chrome Web Store developer account** for the organisation.
+
 ## Before the first upload (owner)
 
 - [ ] A Chrome Web Store developer account for the organisation (one-time fee), with a verified contact email.
-- [ ] A Pathfinder icon. `extension/icons/` still has Dossier's "D". The store needs the 128×128 icon, plus a 440×280 promo tile.
-- [ ] The privacy notice's contacts filled in (`src/lib/privacy.ts`), and the notice and the auto-apply consent (`CONSENT_TEXT` in `src/lib/apply/settings.ts`) reviewed by a lawyer.
-- [ ] Screenshots, 1280×800 (see below), taken once the icon is final.
+- [ ] A Pathfinder logo: the 128×128 store icon, a 440×280 promo tile, and the extension's 16/32/48/128 px icons in `extension/icons/` (still Dossier's "D"). The site's mark should change with it.
+- [ ] The privacy notice's contacts filled in (`src/lib/privacy.ts`, still empty), and the notice and the auto-apply consent (`CONSENT_TEXT` in `src/lib/apply/settings.ts`) reviewed by a lawyer.
+- [ ] Screenshots, 1280×800 (see below), taken once the logo is final.
 - [ ] A test account for the reviewers (see "Test instructions").
 - [ ] Visibility: start as **Unlisted**, so only students with the link can install it, until the pilot is done.
+- [ ] Deploy the current `main` to https://pathfinderedtech.com first, so reviewers see the same Auto-apply page as the screenshots.
 
 ## Store listing tab
 
@@ -30,7 +41,7 @@ What to enter in the Chrome Web Store's developer dashboard for the Pathfinder e
 > Pathfinder helps students and recent graduates find and apply for jobs. This extension is the part that applies: it connects Chrome to your Pathfinder account and submits the applications Pathfinder prepared for you, in your own browser.
 >
 > How it works
-> • In Pathfinder, set up Auto-apply: the roles you want, your limits per day and per company, and your answers to the questions forms often ask.
+> • In Pathfinder, set up Auto-apply: the roles you want, your limits per day and per company, and your answers to the questions forms often ask. Auto-apply starts only once you've answered every one it asks for.
 > • Connect the extension on Auto-apply → Connect the extension.
 > • About once a minute, the extension asks Pathfinder for the next application that's ready. It opens the job's form in a background tab, fills it in with your answers, your tailored resume and your cover letter, and submits it.
 > • Your dashboard shows each application as Applied (only once the job site confirms it), Needs you, or Check this one.
@@ -38,7 +49,7 @@ What to enter in the Chrome Web Store's developer dashboard for the Pathfinder e
 > You stay in charge
 > • Auto-apply starts in dry run: it fills forms and stops before Submit, so you can check them first.
 > • It never gets round a check that you're a person, a code sent to your email, or a sign-in. It leaves the form open for you to finish instead.
-> • It never makes up an answer. A question it can't answer from your profile or your saved answers comes back to you.
+> • It never makes up an answer. A question it can't answer from your profile or your saved answers comes back to you on Pathfinder's Auto-apply page. Answer it there, or let Pathfinder draft an answer from your profile for you to check and edit; nothing is used until you save it.
 > • It presses Submit at most once per application.
 > • Pause it in this browser from its icon, switch auto-apply off in Pathfinder, or disconnect the browser at any time.
 >
