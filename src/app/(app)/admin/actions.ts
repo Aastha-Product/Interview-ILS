@@ -6,7 +6,29 @@ import { z } from "zod";
 import { action, ActionError } from "@/lib/action";
 import { isAdmin } from "@/lib/admin";
 import { limitFromAllowance } from "@/lib/admin-data";
+import { addJobBoards, parseCountries, setJobBoardActive } from "@/lib/crawl/boards-admin";
 import { systemPrisma } from "@/lib/prisma";
+
+/**
+ * Admin → Job boards (Phase 2): adds the boards in pasted careers links, each checked live first.
+ * Only an admin may.
+ */
+export const addJobBoardsFromLinks = action(z.object({ links: z.string().max(20_000), countries: z.string().max(100) }), async ({ links, countries }, { session }) => {
+  if (!(await isAdmin(session.userId))) throw new ActionError("Only an admin can add job boards.");
+  const result = await addJobBoards(links, parseCountries(countries));
+  if (result.results.length === 0 && result.unread.length === 0) throw new ActionError("Paste at least one careers link first.");
+  revalidatePath("/admin");
+  return result;
+});
+
+/** Pauses a job board, or crawls it again. Only an admin may. */
+export const switchJobBoard = action(z.object({ id: z.string().min(1).max(64), active: z.boolean() }), async ({ id, active }, { session, toast }) => {
+  if (!(await isAdmin(session.userId))) throw new ActionError("Only an admin can pause or resume job boards.");
+  if (!(await setJobBoardActive(id, active))) throw new ActionError("That job board no longer exists.");
+  revalidatePath("/admin");
+  toast(active ? "Crawled again from the next look." : "Paused: it won't be crawled until you resume it.");
+  return null;
+});
 
 /** The most analyses a day an admin can give one student. */
 const MAX_ALLOWANCE = 500;

@@ -7,7 +7,12 @@ import { isAdmin, requireAdmin } from "@/lib/admin";
 import { getSession } from "@/lib/auth/session";
 import { loadAdminOverview, STUDENT_LIMIT, type AiTotals } from "@/lib/admin-data";
 
+import { SYSTEM_NAMES } from "@/lib/crawl/board-links";
+import { loadJobBoards } from "@/lib/crawl/boards-admin";
+import { crawlerEnabled } from "@/lib/crawl/crawl";
+
 import { AllowanceForm } from "./allowance-form";
+import { AddJobBoards, BoardSwitch } from "./job-boards";
 
 /** "Admin" for admins only: for anyone else the tab says nothing about the console. */
 export async function generateMetadata(): Promise<Metadata> {
@@ -27,7 +32,8 @@ const dateTime = new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "shor
  */
 export default async function AdminPage() {
   await requireAdmin();
-  const [overview, ai] = await Promise.all([loadAdminOverview(), loadAiConfig()]);
+  const [overview, ai, boards] = await Promise.all([loadAdminOverview(), loadAiConfig(), loadJobBoards()]);
+  const crawling = crawlerEnabled();
   const { students, analyses } = overview;
 
   return (
@@ -109,6 +115,44 @@ export default async function AdminPage() {
               <AllowanceForm key="allowance" userId={student.id} email={student.email} allowance={student.allowance} />,
             ])}
             empty="No students yet."
+          />
+        </section>
+
+        <section aria-labelledby="admin-boards" className="flex flex-col gap-3">
+          <h2 id="admin-boards" className="font-serif text-section">
+            Job boards
+          </h2>
+          <p className="text-sm text-muted">
+            The company boards the crawler reads through their public APIs:{" "}
+            <span className="font-medium text-ink">
+              {count.format(boards.totals.active)} active of {count.format(boards.totals.boards)}, {count.format(boards.totals.openJobs)} open jobs
+            </span>
+            .{" "}
+            {crawling
+              ? "The crawler is on: each board is read every few hours."
+              : "The crawler is off on this server (PATHFINDER_CRAWL), so boards you add wait until it's switched on."}{" "}
+            A board that disappears is paused by itself; resume it once its link is fixed.
+          </p>
+          <AddJobBoards />
+          <Table
+            caption="Job boards"
+            head={["Board", "Countries", "Open jobs", "Last read", "Status", ""]}
+            rows={boards.boards.map((board) => [
+              <span key="board" className="flex min-w-0 flex-col">
+                <span className="truncate font-medium">{board.name}</span>
+                <span className="truncate text-meta text-muted">
+                  {SYSTEM_NAMES[board.system]} · {board.boardToken}
+                </span>
+              </span>,
+              board.countries.join(", "),
+              count.format(board.openJobs),
+              board.lastCrawledAt ? dateTime.format(board.lastCrawledAt) : "Not yet",
+              <span key="status" className={board.active ? (board.lastError ? "text-warning" : "text-muted") : "text-muted"} title={board.lastError ?? undefined}>
+                {board.active ? (board.lastError ? "Last read failed" : "Active") : "Paused"}
+              </span>,
+              <BoardSwitch key="switch" id={board.id} name={board.name} active={board.active} />,
+            ])}
+            empty="No job boards yet. Paste a careers link above."
           />
         </section>
 
