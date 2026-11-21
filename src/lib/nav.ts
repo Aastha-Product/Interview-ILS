@@ -1,4 +1,4 @@
-import { Bot, BriefcaseBusiness, FileText, House, Inbox, LayoutDashboard, Rocket, Search, Settings, ShieldCheck, UserRound, Zap, type LucideIcon } from "lucide-react";
+import { Bot, BriefcaseBusiness, FileText, History, House, Inbox, LayoutDashboard, Rocket, Search, Settings, ShieldCheck, UserRound, Zap, type LucideIcon } from "lucide-react";
 
 // The app's sections, shared by the sidebar and the page bar so they always agree.
 
@@ -21,6 +21,7 @@ export const NAV: { label?: string; items: NavItem[] }[] = [
     items: [
       { href: "/analyze", label: "Home", icon: House },
       { href: "/auto-apply", label: "Auto-apply", icon: Zap },
+      { href: "/runs", label: "Runs & schedule", icon: History },
     ],
   },
   {
