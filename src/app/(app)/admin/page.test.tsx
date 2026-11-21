@@ -2,6 +2,7 @@ import { render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AdminOverview, AiTotals } from "@/lib/admin-data";
+import type { JobBoardsView } from "@/lib/crawl/boards-admin";
 
 import AdminPage, { generateMetadata } from "./page";
 
@@ -12,6 +13,8 @@ const mocks = vi.hoisted(() => ({
   ai: { model: "claude-opus-5-5" as string | null, sharedKey: true },
   session: { userId: "admin" } as { userId: string } | null,
   admin: true,
+  crawling: true,
+  boards: undefined as unknown as JobBoardsView,
 }));
 vi.mock("@/lib/admin", () => ({
   requireAdmin: vi.fn(async () => mocks.session),
@@ -26,6 +29,12 @@ vi.mock("./allowance-form", () => ({
       allowance for {email}: {allowance ?? "default"}
     </span>
   ),
+}));
+vi.mock("@/lib/crawl/boards-admin", () => ({ loadJobBoards: vi.fn(async () => mocks.boards) }));
+vi.mock("@/lib/crawl/crawl", () => ({ crawlerEnabled: () => mocks.crawling }));
+vi.mock("./job-boards", () => ({
+  AddJobBoards: () => <form aria-label="Add job boards" />,
+  BoardSwitch: ({ name, active }: { name: string; active: boolean }) => <button type="button">{`${active ? "Pause" : "Resume"} ${name}`}</button>,
 }));
 vi.mock("@/components/page-header", () => ({
   PageHeader: ({ title, description }: { title: string; description: string }) => (
@@ -66,6 +75,14 @@ beforeEach(() => {
   mocks.ai = { model: "claude-opus-5-5", sharedKey: true };
   mocks.session = { userId: "admin" };
   mocks.admin = true;
+  mocks.crawling = true;
+  mocks.boards = {
+    totals: { boards: 2, active: 1, openJobs: 105 },
+    boards: [
+      { id: "b1", name: "Okta", system: "GREENHOUSE", boardToken: "okta", countries: ["in"], active: true, openJobs: 105, lastCrawledAt: new Date("2026-11-20T10:00:00Z"), lastError: null },
+      { id: "b2", name: "Acme", system: "LEVER", boardToken: "acme", countries: ["in", "sg"], active: false, openJobs: 0, lastCrawledAt: null, lastError: "No such board. Check the board's name; crawling is paused." },
+    ],
+  };
 });
 
 const renderPage = async () => render(await AdminPage());
@@ -99,6 +116,29 @@ describe("the admin page", () => {
     expect(screen.getByText("5 free analyses a day")).toBeInTheDocument();
     // More students than the table lists.
     expect(screen.getByText(/the latest 2/)).toBeInTheDocument();
+  });
+
+  it("lists the job boards with their jobs and status, and a way to add more (Phase 2)", async () => {
+    await renderPage();
+    expect(screen.getByText("1 active of 2, 105 open jobs")).toBeInTheDocument();
+    expect(screen.getByText(/The crawler is on/)).toBeInTheDocument();
+    expect(screen.getByRole("form", { name: "Add job boards" })).toBeInTheDocument();
+    const boards = screen.getByRole("table", { name: "Job boards" });
+    const okta = within(boards).getByRole("row", { name: /Okta/ });
+    expect(within(okta).getByText("Greenhouse · okta")).toBeInTheDocument();
+    expect(within(okta).getByText("Active")).toBeInTheDocument();
+    expect(within(okta).getByRole("button", { name: "Pause Okta" })).toBeInTheDocument();
+    const acme = within(boards).getByRole("row", { name: /Acme/ });
+    expect(within(acme).getByText("in, sg")).toBeInTheDocument();
+    expect(within(acme).getByText("Not yet")).toBeInTheDocument();
+    expect(within(acme).getByText("Paused")).toBeInTheDocument();
+    expect(within(acme).getByRole("button", { name: "Resume Acme" })).toBeInTheDocument();
+  });
+
+  it("says when the crawler is off, so new boards wait", async () => {
+    mocks.crawling = false;
+    await renderPage();
+    expect(screen.getByText(/The crawler is off on this server \(PATHFINDER_CRAWL\)/)).toBeInTheDocument();
   });
 
   it("shows the latest feedback", async () => {
