@@ -7,8 +7,10 @@ import { useTrackSave } from "@/components/save-tracker";
 import { toastResult } from "@/components/toast";
 import { Card } from "@/components/ui/card";
 import { Select } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { Toggle } from "@/components/ui/toggle";
 import { useAutosave } from "@/hooks/use-autosave";
+import { BLOCKLIST_MAX_ENTRIES, parseBlocklist } from "@/lib/agent/blocklist";
 import type { Country } from "@/lib/job-search/countries";
 import { searchHref, type JobSource, type SearchQuery } from "@/lib/job-search/search";
 import type { Scorer } from "@/lib/scoring/scorers";
@@ -26,6 +28,8 @@ export type AgentSettings = {
   maxScores: number;
   maxDrafts: number;
   autoDraft: boolean;
+  /** Companies never to show, as saved. */
+  blockedCompanies: string[];
 };
 
 const HOURS = Array.from({ length: 24 }, (_, hour) => hour);
@@ -60,6 +64,8 @@ export function AgentSection({
   const track = useTrackSave();
   const [settings, setSettings] = useState(initial);
   const [errors, setErrors] = useState<SearchFieldErrors>({});
+  // The blocklist as typed, saved when the field is left.
+  const [blockText, setBlockText] = useState(initial.blockedCompanies.join("\n"));
 
   const change = (next: Partial<AgentSettings>) => {
     const previous = settings;
@@ -72,6 +78,12 @@ export function AgentSection({
   const setQuery = (patch: Partial<SearchQuery>) => {
     setErrors({});
     setSettings((current) => ({ ...current, query: { ...current.query, ...patch } }));
+  };
+
+  const saveBlocklist = () => {
+    const blockedCompanies = parseBlocklist(blockText);
+    setBlockText(blockedCompanies.join("\n"));
+    if (blockedCompanies.join("\n") !== settings.blockedCompanies.join("\n")) change({ blockedCompanies });
   };
 
   const turnOn = (on: boolean) => {
@@ -154,6 +166,17 @@ export function AgentSection({
             <RemoteOnlyField value={settings.query} onChange={setQuery} source={source} />
           </div>
         </div>
+      </Card>
+
+      <Card padding="none" className="flex flex-col gap-4 px-7 py-[26px]">
+        <Textarea
+          label="Companies to skip"
+          hint={`One per line, up to ${BLOCKLIST_MAX_ENTRIES}. Their postings are left out before scoring and hidden from the Agent screen. "Infosys" also skips "Infosys BPM Limited".`}
+          rows={4}
+          value={blockText}
+          onChange={(event) => setBlockText(event.target.value)}
+          onBlur={saveBlocklist}
+        />
       </Card>
 
       <Card padding="none" className="grid gap-x-[18px] gap-y-5 px-7 py-[26px] sm:grid-cols-2">

@@ -18,6 +18,7 @@ import { loadProfile } from "@/lib/profile-data";
 import { loadPostingScorer, scoringProblem } from "@/lib/scoring";
 import { loadSettings } from "@/lib/settings-data";
 
+import { isBlocked } from "./blocklist";
 import { agentDedupeKey, candidateData } from "./candidates";
 import { agentDraftJob, draftJobKey } from "./draft";
 import { recordRunEnd, recordRunStart, runLimitProblem } from "./runs";
@@ -34,7 +35,7 @@ export const agentScanResultSchema = z.object({
   fresh: z.number().int().min(0),
   scored: z.number().int().min(0),
   drafted: z.number().int().min(0),
-  /** Found but seen before: saved, dismissed or applied for in Find jobs, or a candidate already. */
+  /** Found but seen before (saved, dismissed or applied for in Find jobs, or a candidate already), or from a blocked company. */
   skipped: z.number().int().min(0),
   /** What to tell the user. */
   message: z.string(),
@@ -123,7 +124,8 @@ export async function runAgentScan({ manual }: { manual: boolean }, context: Job
     throw error;
   }
 
-  const fresh = await newPostings(postings);
+  // A blocked company's postings are left out before scoring, so they cost nothing.
+  const fresh = (await newPostings(postings)).filter((posting) => !isBlocked(posting.company, settings.agentBlockedCompanies));
   const counts = { found: postings.length, fresh: fresh.length, skipped: postings.length - fresh.length, drafted: 0 };
   if (fresh.length === 0) return finish({ ...counts, scored: 0, message: postings.length === 0 ? "The search found no postings this time." : "No new postings this time." });
 

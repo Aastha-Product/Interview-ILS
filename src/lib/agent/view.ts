@@ -11,6 +11,7 @@ import { prisma } from "@/lib/prisma";
 import { loadSettings } from "@/lib/settings-data";
 import { lastKnownTimeZone } from "@/lib/time-zone";
 
+import { isBlocked } from "./blocklist";
 import { stringsOf } from "./candidates";
 import { AGENT_JOB_KEY } from "./jobs";
 import { agentSetupProblem } from "./run";
@@ -69,15 +70,16 @@ export type AgentView = {
 
 /** The Agent item's badge (E16-6): what's waiting for a look. */
 export async function countAgentQueue(): Promise<number> {
-  const { agentMinScore } = await loadSettings();
-  return prisma.agentCandidate.count({
-    where: {
-      OR: [
-        { status: AgentCandidateStatus.SCORED, score: { gte: actionableMinScore(agentMinScore) }, url: { not: "" } },
-        { status: AgentCandidateStatus.DRAFTED, applicationId: { not: null } },
-      ],
-    },
-  });
+  const { agentMinScore, agentBlockedCompanies } = await loadSettings();
+  const [scored, drafts] = await Promise.all([
+    prisma.agentCandidate.findMany({
+      where: { status: AgentCandidateStatus.SCORED, score: { gte: actionableMinScore(agentMinScore) }, url: { not: "" } },
+      select: { company: true },
+    }),
+    prisma.agentCandidate.count({ where: { status: AgentCandidateStatus.DRAFTED, applicationId: { not: null } } }),
+  ]);
+  // The blocklist matches names loosely, which a database filter can't, so it's applied here.
+  return drafts + scored.filter((candidate) => !isBlocked(candidate.company, agentBlockedCompanies)).length;
 }
 
 /** "Today" and "Yesterday" in a sentence; "2 days ago" or "15 Oct" as they are. */
@@ -160,8 +162,9 @@ export async function loadAgentView(now = new Date()): Promise<AgentView> {
     nextRun: settings.agentEnabled ? formatDateTime(nextAgentRun(now, settings.agentHour, timeZone, settings.agentRuns), timeZone, now) : null,
     runJobId: runJobs[0]?.id ?? null,
     drafts,
-    // Postings below the minimum, or with no link, are dropped rather than kept on a list.
-    scored: waiting.filter((candidate) => isActionable(candidate, minimum)).map(view),
+    // Postings below the minimum, or with no link, are dropped rather than kept on a list; so are a
+    // blocked company's, though a draft already made for one stays.
+    scored: waiting.filter((candidate) => isActionable(candidate, minimum) && !isBlocked(candidate.company, settings.agentBlockedCompanies)).map(view),
     belowMinimum: [],
   };
 }
