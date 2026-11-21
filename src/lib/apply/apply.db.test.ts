@@ -148,7 +148,22 @@ describe("auto-apply settings (auto-apply step 4)", () => {
       answers: EMPTY_ANSWERS,
       // Everything Set up job search stars is still to give.
       missing: expect.arrayContaining(["cities", "workAuthorized", "onsiteOk", "noticePeriod", "currentSalary", "expectedSalary", "graduationYear"]),
+      // An empty profile says nothing that would spare a question.
+      fromProfile: { adult: null, graduationYear: "" },
     });
+  });
+
+  it("doesn't ask what the profile already says: age from the date of birth, the latest degree's year (Phase 1)", async () => {
+    await prisma().profileField.create({ data: { key: "dob", value: "2002-05-17" } });
+    await prisma().education.create({ data: { school: "IIT Delhi", degree: "B.Tech", startYear: 2020, endYear: 2024, current: false } });
+    const view = await loadAutoApply();
+    expect(view.fromProfile).toEqual({ adult: true, graduationYear: "2024" });
+    expect(view.missing).not.toContain("adult");
+    expect(view.missing).not.toContain("graduationYear");
+    // Saving without them is fine, and auto-apply can start.
+    await giveConsent();
+    await saveAutoApply({ preferences, minTier: "GOOD", dailyLimit: 10, perCompanyLimit: 2, dryRun: true, answers: { ...answers, adult: null, graduationYear: "" } });
+    expect(await setAutoApplyEnabled(true)).toMatchObject({ enabled: true, missing: [] });
   });
 
   it("stays off until every required answer is given, and goes off again when one is taken away (the owner's rule)", async () => {

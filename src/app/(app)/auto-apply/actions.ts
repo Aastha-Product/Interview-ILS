@@ -12,7 +12,7 @@ import { planApplications, prepareAgain } from "@/lib/apply/prepare";
 import { answerQuestions } from "@/lib/apply/questions";
 import { createExtensionToken, revokeExtensionToken } from "@/lib/extension/tokens";
 import { missingAnswersMessage } from "@/lib/apply/answers";
-import { AutoApplyNotReady, giveConsent, loadAutoApply, missingIn, saveAutoApply, setAutoApplyEnabled, settingsInputSchema } from "@/lib/apply/settings";
+import { AutoApplyNotReady, giveConsent, loadAutoApply, loadProfileFacts, missingIn, saveAutoApply, setAutoApplyEnabled, settingsInputSchema } from "@/lib/apply/settings";
 import { startMatchRun } from "@/lib/match/jobs";
 import { prisma } from "@/lib/prisma";
 
@@ -25,8 +25,8 @@ const refresh = () => PATHS.forEach((path) => revalidatePath(path));
 /** Set up job search: what to look for, the answers forms ask for, and the limits. */
 export const saveJobSearch = toolAction(settingsInputSchema, async (input, { toast }) => {
   // Every starred answer is required (the page checks too): without them applications stop at
-  // questions nearly every form asks.
-  const missing = missingIn(input);
+  // questions nearly every form asks. What the profile already says counts (Phase 1).
+  const missing = missingIn(input, await loadProfileFacts());
   if (missing.length > 0) throw new ActionError(missingAnswersMessage(missing));
   await saveAutoApply(input);
   refresh();
