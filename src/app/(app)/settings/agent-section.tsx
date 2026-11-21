@@ -29,7 +29,8 @@ export type AgentSettings = {
 };
 
 const HOURS = Array.from({ length: 24 }, (_, hour) => hour);
-const MIN_SCORES = [50, 55, 60, 65, 70, 75, 80, 85, 90];
+// The job list only keeps postings at 80 or above (MVP rule, lib/agent/threshold.ts).
+const MIN_SCORES = [80, 85, 90];
 const SCORE_COUNTS = Array.from({ length: 30 }, (_, index) => index + 1);
 const DRAFT_COUNTS = Array.from({ length: 11 }, (_, index) => index);
 const clock = (hour: number) => `${String(hour).padStart(2, "0")}:00`;

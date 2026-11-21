@@ -21,6 +21,7 @@ import { loadSettings } from "@/lib/settings-data";
 import { agentDedupeKey, candidateData } from "./candidates";
 import { agentDraftJob, draftJobKey } from "./draft";
 import { recordRunEnd, recordRunStart, runLimitProblem } from "./runs";
+import { actionableMinScore } from "./threshold";
 
 // One run of the job agent (E16-3): one search, the postings seen before
 // dropped, and a score for the newest of the rest. It never sends anything.
@@ -129,6 +130,7 @@ export async function runAgentScan({ manual }: { manual: boolean }, context: Job
   const toScore = fresh.toSorted(newestFirst).slice(0, settings.agentMaxScores);
   await context.step(`Scoring ${toScore.length} ${toScore.length === 1 ? "posting" : "postings"}`);
   const [score, profile] = await Promise.all([loadPostingScorer(), loadProfile()]);
+  const minimum = actionableMinScore(settings.agentMinScore);
   let scored = 0;
   let queued = 0;
   const kept: string[] = [];
@@ -142,7 +144,7 @@ export async function runAgentScan({ manual }: { manual: boolean }, context: Job
       await saveScore(posting, data, scoredWith);
       kept.push(candidate.id);
       scored += 1;
-      if (data.score >= settings.agentMinScore) queued += 1;
+      if (data.score >= minimum && posting.url.trim() !== "") queued += 1;
     } catch (error) {
       // Another run kept it first: it's seen either way.
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") continue;
@@ -156,7 +158,7 @@ export async function runAgentScan({ manual }: { manual: boolean }, context: Job
   let drafted = 0;
   if (settings.agentAutoDraft && settings.agentMaxDrafts > 0 && !context.signal.aborted) {
     const best = await prisma.agentCandidate.findMany({
-      where: { id: { in: kept }, status: AgentCandidateStatus.SCORED, score: { gte: settings.agentMinScore } },
+      where: { id: { in: kept }, status: AgentCandidateStatus.SCORED, score: { gte: minimum }, url: { not: "" } },
       orderBy: { score: "desc" },
       take: settings.agentMaxDrafts,
       select: { id: true },
@@ -170,7 +172,7 @@ export async function runAgentScan({ manual }: { manual: boolean }, context: Job
     scored === 0
       ? (problem ?? "No postings could be scored this time.")
       : queued === 0
-        ? `Scored ${scored} new ${scored === 1 ? "posting" : "postings"}; none reached your minimum score of ${settings.agentMinScore}.`
+        ? `Scored ${scored} new ${scored === 1 ? "posting" : "postings"}; none reached your minimum score of ${minimum}.`
         : drafted > 0
           ? `${waiting} Preparing ${drafted === 1 ? "a draft for the best one" : `drafts for the best ${drafted}`}.`
           : waiting;

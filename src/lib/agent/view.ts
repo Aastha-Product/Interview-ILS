@@ -16,6 +16,7 @@ import { AGENT_JOB_KEY } from "./jobs";
 import { agentSetupProblem } from "./run";
 import { AGENT_MAX_RUNS_PER_DAY, runsInPastDay } from "./runs";
 import { nextAgentRun } from "./schedule";
+import { actionableMinScore, isActionable } from "./threshold";
 
 // What the Agent screen shows (E16-6).
 
@@ -60,9 +61,9 @@ export type AgentView = {
   /** A run queued or running, to follow. */
   runJobId: string | null;
   drafts: AgentCandidateView[];
-  /** At or above the minimum score, best first. */
+  /** At or above the minimum score, with a link, best first. */
   scored: AgentCandidateView[];
-  /** Below it: kept so they don't come back, shown on request. */
+  /** Always empty now: postings below the minimum are dropped, not listed (MVP rule). */
   belowMinimum: AgentCandidateView[];
 };
 
@@ -72,7 +73,7 @@ export async function countAgentQueue(): Promise<number> {
   return prisma.agentCandidate.count({
     where: {
       OR: [
-        { status: AgentCandidateStatus.SCORED, score: { gte: agentMinScore } },
+        { status: AgentCandidateStatus.SCORED, score: { gte: actionableMinScore(agentMinScore) }, url: { not: "" } },
         { status: AgentCandidateStatus.DRAFTED, applicationId: { not: null } },
       ],
     },
@@ -143,12 +144,13 @@ export async function loadAgentView(now = new Date()): Promise<AgentView> {
   });
   const drafts = candidates.filter((candidate) => candidate.status === AgentCandidateStatus.DRAFTED && candidate.applicationId).map(view);
   const waiting = candidates.filter((candidate) => candidate.status !== AgentCandidateStatus.DRAFTED);
+  const minimum = actionableMinScore(settings.agentMinScore);
   const last = settings.agentRuns[0];
 
   return {
     enabled: settings.agentEnabled,
     autoDraft: settings.agentAutoDraft,
-    minScore: settings.agentMinScore,
+    minScore: minimum,
     maxScores: settings.agentMaxScores,
     maxDrafts: settings.agentMaxDrafts,
     search,
@@ -158,7 +160,8 @@ export async function loadAgentView(now = new Date()): Promise<AgentView> {
     nextRun: settings.agentEnabled ? formatDateTime(nextAgentRun(now, settings.agentHour, timeZone, settings.agentRuns), timeZone, now) : null,
     runJobId: runJobs[0]?.id ?? null,
     drafts,
-    scored: waiting.filter((candidate) => candidate.score >= settings.agentMinScore).map(view),
-    belowMinimum: waiting.filter((candidate) => candidate.score < settings.agentMinScore).map(view),
+    // Postings below the minimum, or with no link, are dropped rather than kept on a list.
+    scored: waiting.filter((candidate) => isActionable(candidate, minimum)).map(view),
+    belowMinimum: [],
   };
 }
