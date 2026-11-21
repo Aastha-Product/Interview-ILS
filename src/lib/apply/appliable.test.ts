@@ -14,10 +14,15 @@ describe("which jobs the extension can apply to (auto-apply)", () => {
     expect(extensionCanApply({ system: "GREENHOUSE", url: "", applyUrl: "https://job-boards.greenhouse.io/acme/jobs/1" })).toBe(true);
   });
 
-  it("not a company's own site, which Greenhouse sends its page on to, nor SmartRecruiters", () => {
+  it("SmartRecruiters' own application pages too (Phase 2)", () => {
+    expect(extensionCanApply({ system: "SMARTRECRUITERS", url: "https://jobs.smartrecruiters.com/BoschGroup/744000162739838-adas", applyUrl: "https://jobs.smartrecruiters.com/BoschGroup/744000162739838-adas?oga=true" })).toBe(true);
+    // A company that sends SmartRecruiters' apply link to its own site isn't.
+    expect(extensionCanApply({ system: "SMARTRECRUITERS", url: "https://careers.acme.example/1", applyUrl: "https://careers.acme.example/apply/1" })).toBe(false);
+  });
+
+  it("not a company's own site, which Greenhouse sends its page on to", () => {
     expect(extensionCanApply({ system: "GREENHOUSE", url: "https://www.okta.com/company/careers/opportunity/1?gh_jid=1", applyUrl: "https://job-boards.greenhouse.io/okta/jobs/1" })).toBe(false);
     expect(extensionCanApply({ system: "GREENHOUSE", url: "https://greenhouse.io.evil.example/1", applyUrl: "https://job-boards.greenhouse.io/x/jobs/1" })).toBe(false);
-    expect(extensionCanApply({ system: "SMARTRECRUITERS", url: "https://jobs.smartrecruiters.com/Acme/1", applyUrl: "https://jobs.smartrecruiters.com/Acme/1" })).toBe(false);
     expect(extensionCanApply({ system: "LEVER", url: "", applyUrl: "not a url" })).toBe(false);
   });
 

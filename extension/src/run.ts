@@ -2,7 +2,7 @@
 // 1. find the form (else hand it to the student);
 // 2. fill the server's answers, then ask the server about any required question still empty;
 // 3. anything still unanswered, or a check only a person can do: stop, the student finishes it;
-// 4. a dry run stops here, filled in;
+// 4. a dry run stops here, filled in (on a form in pages, on the last one, Next pressed but never Submit);
 // 5. tell Pathfinder "submitting" and only if it agrees, press Submit, once;
 // 6. report only what the page shows: a confirmation is "applied"; silence is "uncertain".
 
@@ -55,18 +55,13 @@ async function documents(port: Port, task: LeasedTask, answers: Record<string, A
   return files;
 }
 
-/** Fills the form and, unless it's a dry run, submits it. Returns what to report. */
-export async function apply(port: Port, doc: Document, location: Location | { hostname: string; pathname: string; href: string }, { task, submitted }: TabTask): Promise<Finish> {
-  const board = boardFor(location.hostname);
-  if (!board) return needsStudent(REASONS.noForm, false);
-  // The page after Submit (Greenhouse and Lever load a new one): only see what it says.
-  if (submitted) return afterSubmit(board, doc, location);
+/** The most pages a form may have (SmartRecruiters: the details, then the company's questions). */
+export const MAX_PAGES = 4;
 
-  const form = await until(() => board.findForm(doc), { timeout: WAIT.form });
-  if (!form) return challengeShown(doc) ? needsStudent(REASONS.challenge) : needsStudent(REASONS.noForm, false);
-
+/** Fills one page: the answers (given, else asked for), the documents, then any required question still empty. */
+async function fillPage(port: Port, board: Board, form: HTMLElement, task: LeasedTask, given: FormAnswers | null, have: Files): Promise<{ missing: string[]; files: Files }> {
   // 2. The server's answers (it read Greenhouse's API), else the form as this page shows it.
-  const first: FormAnswers = task.answers ? { answers: task.answers, missing: [] } : await ask<FormAnswers>(port, { type: "answers", fields: await readFields(board, form) });
+  const first: FormAnswers = given ?? (await ask<FormAnswers>(port, { type: "answers", fields: await readFields(board, form) }));
   const answers: Record<string, Answer> = { ...first.answers };
   // The tailored resume (and letter) go in wherever the form takes them, asked for or not.
   for (const question of board.questions(form)) {
@@ -74,7 +69,7 @@ export async function apply(port: Port, doc: Document, location: Location | { ho
     if (/resume|\bcv\b/i.test(question.label) && task.documents.resume) answers[question.key] = { kind: "file", file: "resume" };
     else if (/cover/i.test(question.label) && task.documents.coverLetter) answers[question.key] = { kind: "file", file: "cover_letter" };
   }
-  const files = await documents(port, task, answers);
+  const files = await documents(port, task, answers, have);
   // What couldn't be filled shows up below as still empty, if it's required; optional ones don't matter.
   await fill(board, form, answers, files);
 
@@ -84,8 +79,47 @@ export async function apply(port: Port, doc: Document, location: Location | { ho
     const more = await ask<FormAnswers>(port, { type: "answers", fields: empty });
     await fill(board, form, more.answers, await documents(port, task, more.answers, files));
   }
-  const missing = [...new Set((await emptyRequired(board, form)).map((field) => field.label))];
-  if (missing.length > 0) return needsStudent(REASONS.unanswered(missing));
+  return { missing: [...new Set((await emptyRequired(board, form)).map((field) => field.label))], files };
+}
+
+const pageKey = (board: Board, form: HTMLElement) => board.questions(form).map((question) => question.key).join("|");
+
+/** Fills the form and, unless it's a dry run, submits it. Returns what to report. */
+export async function apply(port: Port, doc: Document, location: Location | { hostname: string; pathname: string; href: string }, { task, submitted }: TabTask): Promise<Finish> {
+  const board = boardFor(location.hostname);
+  if (!board) return needsStudent(REASONS.noForm, false);
+  // The page after Submit (Greenhouse and Lever load a new one): only see what it says.
+  if (submitted) return afterSubmit(board, doc, location);
+
+  let form = await until(() => board.findForm(doc), { timeout: WAIT.form });
+  if (!form) return challengeShown(doc) ? needsStudent(REASONS.challenge) : needsStudent(REASONS.noForm, false);
+
+  // Page by page where the form has several (SmartRecruiters): Next sends nothing, only Submit does.
+  let files: Files = {};
+  for (let page = 1; ; page++) {
+    const filled = await fillPage(port, board, form, task, page === 1 && task.answers ? { answers: task.answers, missing: [] } : null, files);
+    files = filled.files;
+    if (filled.missing.length > 0) return needsStudent(REASONS.unanswered(filled.missing));
+    const next = board.nextButton && !board.submitButton(form) ? board.nextButton(form) : null;
+    if (!next || page >= MAX_PAGES) break;
+    if (challengeShown(doc)) return needsStudent(REASONS.challenge);
+    const before = pageKey(board, form);
+    next.click();
+    const moved = await until(
+      () => {
+        const now = board.findForm(doc);
+        return now && (board.submitButton(now) || pageKey(board, now) !== before) ? now : null;
+      },
+      { timeout: WAIT.form },
+    );
+    if (!moved) {
+      // The page wouldn't go on: it says what it wants, or a check only a person can do appeared.
+      if (challengeShown(doc)) return needsStudent(REASONS.challenge);
+      const invalid = board.preSubmitInvalid?.(form) ?? [];
+      return needsStudent(REASONS.unanswered(invalid.length > 0 ? invalid : ["a required question on the form"]));
+    }
+    form = moved;
+  }
 
   // 3. and 4.
   if (challengeShown(doc)) return needsStudent(REASONS.challenge);

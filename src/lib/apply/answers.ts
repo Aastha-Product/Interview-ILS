@@ -615,6 +615,8 @@ const WORDINGS: [RegExp, string][] = [
   [/^(your )?first name$/, "first_name"],
   [/^(your )?(last|sur|family) ?name$/, "last_name"],
   [/^(your )?e ?mail( address| id)?$/, "email"],
+  // SmartRecruiters asks the email twice ("Confirm your email"): the same address both times.
+  [/^(please )?(confirm|re ?enter|repeat|retype)( your)? e ?mail( address| id)?$/, "email"],
   [/^(your )?(phone|mobile|contact|telephone|cell)( phone)?( number| no)?$/, "phone"],
   [/^(resume|cv|resume cv|cv resume)$/, "resume"],
 ];

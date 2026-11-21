@@ -26,7 +26,7 @@ export type Control =
 export type Question = { key: string; label: string; required: boolean; control: Control };
 
 export type Board = {
-  name: "greenhouse" | "lever" | "ashby";
+  name: "greenhouse" | "lever" | "ashby" | "smartrecruiters";
   isHost(hostname: string): boolean;
   /** The form, or (Ashby) the element holding its questions. */
   findForm(doc: Document): HTMLElement | null;
@@ -42,6 +42,13 @@ export type Board = {
   confirmationPath?: RegExp;
   /** How long to wait after attaching the resume: Lever reads it and fills fields in itself. */
   afterResumeMs?: number;
+  /**
+   * A form in several pages (SmartRecruiters): the button to the next page while there is one, or
+   * null once Submit shows. Pressing it sends nothing; only Submit does.
+   */
+  nextButton?(form: HTMLElement): HTMLElement | null;
+  /** The page's words where they're in shadow roots (SmartRecruiters), for reading what it says after Submit. */
+  pageText?(doc: Document): string;
 };
 
 /** Collapses spaces and drops a trailing required mark (*, ✱). */
@@ -222,8 +229,8 @@ export function outcome(board: Board, doc: Document, location: { pathname: strin
   const formShown = form !== null && isVisible(form);
   const confirmedPath = board.confirmationPath?.test(location.pathname) === true;
   if (challengeShown(doc)) return { kind: "challenge" };
-  if (!confirmedPath && (doc.querySelector('[id^="security-input"]') || EMAIL_CODE.test(textOf(doc.querySelector("main") ?? doc.body)))) return { kind: "email-code" };
-  const body = textOf(doc.body);
+  const body = board.pageText ? board.pageText(doc) : textOf(doc.body);
+  if (!confirmedPath && (doc.querySelector('[id^="security-input"]') || EMAIL_CODE.test(board.pageText ? body : textOf(doc.querySelector("main") ?? doc.body)))) return { kind: "email-code" };
   const thanks = body.match(THANKS);
   if (confirmedPath || (thanks && !formShown)) {
     const sentence = thanks ? body.slice(Math.max(0, (thanks.index ?? 0) - 60), (thanks.index ?? 0) + thanks[0].length + 120) : body.slice(0, 200);

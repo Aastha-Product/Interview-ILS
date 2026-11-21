@@ -1,8 +1,9 @@
 // Pathfinder extension: the job boards it fills, as their pages were read from real postings on
-// 10 November 2026 (Greenhouse: Zscaler; Lever: Meesho; Ashby: Tekion). Each says where its form
+// 10 November 2026 (Greenhouse: Zscaler; Lever: Meesho; Ashby: Tekion) and 21 November 2026
+// (SmartRecruiters: Bosch). Each says where its form
 // is and how a question looks; form.ts does the rest.
 
-import { isVisible, labelOf } from "./fill";
+import { ancestorsOf, deepQuery, deepQueryAll, deepText, isVisible, labelOf } from "./fill";
 import { cleanLabel, isTextInput, markedRequired, type Board, type Control, type Question } from "./form";
 
 type Field = HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement;
@@ -177,7 +178,113 @@ function ashbyControl(entry: HTMLElement): Control | null {
   return null;
 }
 
-export const BOARDS: readonly Board[] = [greenhouse, lever, ashby];
+// SmartRecruiters (jobs.smartrecruiters.com/oneclick-ui/…), as read from a real Bosch posting on 21
+// November 2026: an Angular app (oc-* components) built from web components (spl-*), so every
+// control sits in a shadow root and there's no <form>. Page 1 (oc-oneclick-form) asks the person's
+// details by id (first-name-input, email-input, confirm-email-input, linkedin-input…), each with a
+// <label for> in the same shadow root, "*" when required; the resume goes in oc-resume-upload's
+// drop zone. A second page, /screening, holds the company's questions, each in
+// [data-test="question-container"]. The footer's buttons are oc-button[data-test="footer-next"]
+// and [data-test="footer-submit"]; once sent, the page moves to /success.
+const SR_SKIP = new Set([
+  // "Apply with your resume" at the top reads a resume and rewrites the form: ours is filled in instead.
+  "oc-apply-with-resume",
+  // The phone field's country search; the number beside it is the question.
+  "spl-dropdown-search",
+]);
+
+/** A control's wording: its <label for> in its own shadow root, a host's label attribute, or aria-label. */
+function srWording(element: Element): string {
+  const root = element.getRootNode() as Document | ShadowRoot;
+  const own = element.id ? root.querySelector(`label[for="${CSS.escape(element.id)}"]`)?.textContent : null;
+  if (own?.trim()) return own;
+  for (let host = (root as ShadowRoot).host, depth = 0; host && depth < 4; host = (host.getRootNode() as ShadowRoot).host, depth++) {
+    const label = host.getAttribute("label");
+    if (label?.trim()) return label;
+  }
+  return element.getAttribute("aria-label") ?? "";
+}
+
+/** A screening question's wording: the first heading-like text in its container. */
+function srQuestionTitle(container: Element): string {
+  const title = deepQuery(container, 'legend, [data-test="question-title"], [class*="question-title"], [class*="title"], label');
+  return (title?.textContent ?? "").replace(/\s+/g, " ").trim();
+}
+
+/** The footer button with this data-test, as the native button inside it that takes the click. */
+function srFooterButton(doc: Document, test: string): HTMLElement | null {
+  const host = deepQuery(doc, `oc-button[data-test="${test}"]`);
+  if (!host || !isVisible(host)) return null;
+  const button = deepQuery<HTMLButtonElement>(host, "button") ?? (host as HTMLElement);
+  return (button as HTMLButtonElement).disabled || button.getAttribute("aria-disabled") === "true" ? null : button;
+}
+
+export const smartrecruiters: Board = {
+  name: "smartrecruiters",
+  isHost: (hostname) => hostname === "jobs.smartrecruiters.com",
+  // Page 1's form, else the screening page's questions.
+  findForm: (doc) => deepQuery(doc, "oc-oneclick-form") ?? deepQuery(doc, '[data-test="question-container"]')?.parentElement ?? null,
+  questions(form) {
+    const questions: Question[] = [];
+    const seen = new Set<string>();
+    const add = (question: Question) => {
+      if (seen.has(question.key)) return;
+      seen.add(question.key);
+      questions.push(question);
+    };
+    // The screening page: each container is one question, however many inputs it has.
+    const containers = deepQueryAll(form.ownerDocument, '[data-test="question-container"]');
+    const inContainer = new Set<Element>();
+    containers.forEach((container, index) => {
+      const fields = deepQueryAll<Field>(container, "input, textarea, select").filter((element) => element.type !== "hidden" && element.type !== "file");
+      fields.forEach((element) => inContainer.add(element));
+      if (fields.length === 0) return;
+      const raw = srQuestionTitle(container) || srWording(fields[0]);
+      const required = fields.some(isRequiredElement) || markedRequired(raw);
+      const choices = fields.filter((element): element is HTMLInputElement => element instanceof HTMLInputElement && (element.type === "radio" || element.type === "checkbox"));
+      const key = `question-${index}:${cleanLabel(raw).slice(0, 80)}`;
+      if (choices.length > 0) add({ key, label: cleanLabel(raw), required, control: { kind: "choices", elements: choices } });
+      else if (fields.length > 1) add({ key, label: cleanLabel(raw), required, control: { kind: "other", elements: fields } });
+      else if (fields[0] instanceof HTMLSelectElement) add({ key, label: cleanLabel(raw), required, control: { kind: "select", element: fields[0] } });
+      else if (isTextInput(fields[0])) add({ key, label: cleanLabel(raw), required, control: { kind: "text", element: fields[0] } });
+    });
+    // Page 1's own fields, by id.
+    for (const element of deepQueryAll<Field>(form, "input, textarea, select")) {
+      if (inContainer.has(element) || element.type === "hidden") continue;
+      const hosts = ancestorsOf(element);
+      if (hosts.some((host) => SR_SKIP.has(host))) continue;
+      const raw = srWording(element);
+      const required = isRequiredElement(element) || markedRequired(raw);
+      if (element instanceof HTMLInputElement && element.type === "file") {
+        // The drop zone's own words are "Choose a file or drop it here": the section says what it's for.
+        if (!hosts.includes("oc-resume-upload")) continue;
+        add({ key: "resume", label: "Resume", required, control: { kind: "file", element } });
+        continue;
+      }
+      const key = element.id || `${hosts[0] ?? element.tagName.toLowerCase()}:${cleanLabel(raw)}`;
+      // A place typed into the city autocomplete needs a suggestion picked: the student does it if it's required.
+      if (hosts.includes("spl-autocomplete")) {
+        if (required) add({ key, label: cleanLabel(raw), required, control: { kind: "other", elements: [element] } });
+        continue;
+      }
+      if (element instanceof HTMLSelectElement) add({ key, label: cleanLabel(raw), required, control: { kind: "select", element } });
+      else if (isTextInput(element)) add({ key, label: cleanLabel(raw), required, control: { kind: "text", element } });
+    }
+    return questions;
+  },
+  submitButton: (form) => srFooterButton(form.ownerDocument, "footer-submit"),
+  nextButton: (form) => srFooterButton(form.ownerDocument, "footer-next"),
+  preSubmitInvalid(form) {
+    const doc = form.ownerDocument;
+    const summary = deepQueryAll(doc, "oc-validation-summary").filter(isVisible).map((node) => deepText(node)).filter(Boolean);
+    const invalid = deepQueryAll<Field>(doc, 'input[aria-invalid="true"], textarea[aria-invalid="true"], select[aria-invalid="true"]').map((element) => cleanLabel(srWording(element))).filter(Boolean);
+    return [...new Set([...summary, ...invalid])];
+  },
+  confirmationPath: /\/success\b/,
+  pageText: (doc) => deepText(doc.body),
+};
+
+export const BOARDS: readonly Board[] = [greenhouse, lever, ashby, smartrecruiters];
 
 /** The board this page belongs to, or null (a company's own site). */
 export const boardFor = (hostname: string): Board | null => BOARDS.find((board) => board.isHost(hostname)) ?? null;
