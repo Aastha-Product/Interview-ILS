@@ -5,14 +5,16 @@ import { useState } from "react";
 
 import { useTrackSave } from "@/components/save-tracker";
 import { toastResult } from "@/components/toast";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Toggle } from "@/components/ui/toggle";
 import { useAutosave } from "@/hooks/use-autosave";
 import { BLOCKLIST_MAX_ENTRIES, parseBlocklist } from "@/lib/agent/blocklist";
+import { MAX_EXTRA_SEARCHES } from "@/lib/agent/profiles";
 import type { Country } from "@/lib/job-search/countries";
-import { searchHref, type JobSource, type SearchQuery } from "@/lib/job-search/search";
+import { EMPTY_QUERY, searchHref, type JobSource, type SearchQuery } from "@/lib/job-search/search";
 import type { Scorer } from "@/lib/scoring/scorers";
 
 import { saveAgentSettings } from "../agent/actions";
@@ -30,6 +32,8 @@ export type AgentSettings = {
   autoDraft: boolean;
   /** Companies never to show, as saved. */
   blockedCompanies: string[];
+  /** Job profiles: the searches besides the main one. */
+  extraQueries: SearchQuery[];
 };
 
 const HOURS = Array.from({ length: 24 }, (_, hour) => hour);
@@ -80,6 +84,19 @@ export function AgentSection({
     setSettings((current) => ({ ...current, query: { ...current.query, ...patch } }));
   };
 
+  // Job profiles (Phase 1): the searches besides the main one, saved once typing pauses; adding
+  // and removing one saves at once.
+  const [extra, setExtra] = useState<SearchQuery[]>(initial.extraQueries);
+  const { flush: flushExtra } = useAutosave(extra, (extraQueries) => track(saveAgentSettings({ extraQueries })));
+  const setExtraQuery = (index: number, patch: Partial<SearchQuery>) =>
+    setExtra((current) => current.map((query, at) => (at === index ? { ...query, ...patch } : query)));
+  const addExtra = () => setExtra((current) => [...current, { ...EMPTY_QUERY, country: settings.query.country }]);
+  const removeExtra = (index: number) => {
+    const next = extra.filter((_, at) => at !== index);
+    setExtra(next);
+    void track(saveAgentSettings({ extraQueries: next })).then(toastResult);
+  };
+
   const saveBlocklist = () => {
     const blockedCompanies = parseBlocklist(blockText);
     setBlockText(blockedCompanies.join("\n"));
@@ -110,7 +127,7 @@ export function AgentSection({
   return (
     <>
       <SettingsSectionIntro title="Job agent">
-        Once a day it runs one search, scores the new postings against your profile, and keeps the best on the Agent screen. It never sends or applies.
+        Once a day it runs your searches, scores the new postings against your profile, and keeps the best on the Agent screen. It never sends or applies.
       </SettingsSectionIntro>
 
       {source === "ARBEITSAGENTUR" ? (
@@ -166,6 +183,39 @@ export function AgentSection({
             <RemoteOnlyField value={settings.query} onChange={setQuery} source={source} />
           </div>
         </div>
+      </Card>
+
+      <Card padding="none" className="flex flex-col gap-4 px-7 py-[26px]">
+        <div className="flex flex-col gap-1">
+          <h3 className="text-field font-medium">More searches</h3>
+          <p className="text-meta text-muted">
+            Looking for more than one kind of role? Add up to {MAX_EXTRA_SEARCHES} more searches. Each run makes every search, and the postings they find are scored
+            together, within the same limit per run.
+          </p>
+        </div>
+        {extra.map((query, index) => (
+          <fieldset key={index} className="flex flex-col gap-4 rounded-card border border-line-card px-4 py-4" onBlur={flushExtra}>
+            <legend className="px-1 text-label font-medium text-ink">Search {index + 2}</legend>
+            <div className="grid grid-cols-1 items-start gap-x-4 gap-y-4 sm:grid-cols-2">
+              <SearchFields value={query} onChange={(patch) => setExtraQuery(index, patch)} source={source} countries={countries} />
+              <div className="sm:col-span-2">
+                <RemoteOnlyField value={query} onChange={(patch) => setExtraQuery(index, patch)} source={source} />
+              </div>
+            </div>
+            <div>
+              <Button type="button" variant="danger-text" size="sm" onClick={() => removeExtra(index)}>
+                Remove search {index + 2}
+              </Button>
+            </div>
+          </fieldset>
+        ))}
+        {extra.length < MAX_EXTRA_SEARCHES ? (
+          <div>
+            <Button type="button" variant="secondary" size="sm" onClick={addExtra}>
+              Add another search
+            </Button>
+          </div>
+        ) : null}
       </Card>
 
       <Card padding="none" className="flex flex-col gap-4 px-7 py-[26px]">

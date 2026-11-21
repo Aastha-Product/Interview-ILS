@@ -7,6 +7,7 @@ import { AgentCandidateStatus } from "@/generated/prisma/enums";
 import { BLOCKLIST_MAX_ENTRIES, BLOCKLIST_MAX_LENGTH, parseBlocklist } from "@/lib/agent/blocklist";
 import { agentDraftJob, approveCandidate, dismissCandidate, draftJobKey, restoreCandidate } from "@/lib/agent/draft";
 import { AGENT_JOB_KEY, agentScanJob } from "@/lib/agent/jobs";
+import { MAX_EXTRA_SEARCHES } from "@/lib/agent/profiles";
 import { agentQueryReady, agentSetupProblem } from "@/lib/agent/run";
 import { runLimitProblem } from "@/lib/agent/runs";
 import { ActionError, toolAction } from "@/lib/action";
@@ -32,6 +33,7 @@ export const saveAgentSettings = toolAction(
     maxDrafts: z.number().int().min(0).max(10).optional(),
     autoDraft: z.boolean().optional(),
     blockedCompanies: z.array(z.string().max(BLOCKLIST_MAX_LENGTH)).max(BLOCKLIST_MAX_ENTRIES * 2).optional(),
+    extraQueries: z.array(searchQuerySchema).max(MAX_EXTRA_SEARCHES).optional(),
   }),
   async (changes) => {
     const settings = await loadSettings();
@@ -49,6 +51,7 @@ export const saveAgentSettings = toolAction(
       agentAutoDraft: changes.autoDraft,
       // Cleaned the same way however it's sent: trimmed, each once, within the limit.
       agentBlockedCompanies: changes.blockedCompanies && parseBlocklist(changes.blockedCompanies.join("\n")),
+      agentExtraQueries: changes.extraQueries,
     });
     revalidatePath("/agent");
     return null;
