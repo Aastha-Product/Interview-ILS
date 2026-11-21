@@ -5,11 +5,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ProfilePhoto } from "@/lib/photo";
 import type { Basics } from "@/lib/profile";
 
-import { saveBasics } from "./actions";
+import { draftWorkSummary, saveBasics } from "./actions";
 import { BasicsSection } from "./basics-section";
 
-vi.mock("./actions", () => ({ saveBasics: vi.fn(async () => ({ ok: true, data: null })) }));
-vi.mock("@/components/toast", () => ({ toast: vi.fn() }));
+vi.mock("./actions", () => ({
+  saveBasics: vi.fn(async () => ({ ok: true, data: null })),
+  draftWorkSummary: vi.fn(async () => ({ ok: true, data: { summary: "Data analyst who builds SQL dashboards for finance teams." } })),
+}));
+vi.mock("@/components/toast", () => ({ toast: vi.fn(), toastResult: (result: { ok: boolean }) => result }));
 
 const empty: Basics = {
   name: "", headline: "", email: "", phone: "", dob: "", website: "",
@@ -94,5 +97,37 @@ describe("BasicsSection", () => {
     fireEvent.click(screen.getByRole("checkbox", { name: /Show my age/ }));
     await act(async () => vi.advanceTimersByTimeAsync(500));
     expect(saveBasics).toHaveBeenCalledWith({ ...empty, dob: "1992-04-18", showAge: true });
+  });
+
+  it("drafts the summary with AI and puts it in the field only when the student uses it (Phase 1)", async () => {
+    render(<Harness />);
+    const field = screen.getByLabelText("A few lines about you");
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Write with AI" })));
+    expect(draftWorkSummary).toHaveBeenCalledWith({});
+    const draft = screen.getByRole("region", { name: "AI draft of your summary" });
+    expect(draft).toHaveTextContent("Data analyst who builds SQL dashboards for finance teams.");
+    // Shown, not used yet.
+    expect(field).toHaveValue("");
+    fireEvent.click(screen.getByRole("button", { name: "Use this" }));
+    expect(field).toHaveValue("Data analyst who builds SQL dashboards for finance teams.");
+    expect(screen.queryByRole("region", { name: "AI draft of your summary" })).toBeNull();
+    // Then saved like any edit.
+    await act(async () => vi.advanceTimersByTimeAsync(500));
+    expect(saveBasics).toHaveBeenLastCalledWith({ ...empty, summary: "Data analyst who builds SQL dashboards for finance teams." });
+    // With a summary there, it offers a rewrite.
+    expect(screen.getByRole("button", { name: "Rewrite with AI" })).toBeInTheDocument();
+  });
+
+  it("keeps the student's summary when they discard the draft, or when there's no draft", async () => {
+    render(<Harness initial={{ ...empty, summary: "My own words." }} />);
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Rewrite with AI" })));
+    fireEvent.click(screen.getByRole("button", { name: "Discard" }));
+    expect(screen.getByLabelText("A few lines about you")).toHaveValue("My own words.");
+    expect(screen.queryByRole("region", { name: "AI draft of your summary" })).toBeNull();
+
+    vi.mocked(draftWorkSummary).mockResolvedValueOnce({ ok: false, error: "Add your experience, studies or skills first, so there's something to write about." });
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Rewrite with AI" })));
+    expect(screen.queryByRole("region", { name: "AI draft of your summary" })).toBeNull();
+    expect(screen.getByLabelText("A few lines about you")).toHaveValue("My own words.");
   });
 });
