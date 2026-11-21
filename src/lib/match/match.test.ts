@@ -87,9 +87,9 @@ describe("preferences from a profile (auto-apply step 3)", () => {
     expect(experienceMonths([{ startYear: null, startMonth: null, endYear: null, endMonth: null, current: false }, span(2025, 6, 2025, 1)], now)).toBe(0);
   });
 
-  it("takes roles, skills and country from the profile, and treats under two years as entry level", () => {
+  it("takes roles, skills, city and country from the profile, and treats under two years as entry level", () => {
     const profile = {
-      basics: { headline: "Aspiring Data Analyst", country: "India" },
+      basics: { headline: "Aspiring Data Analyst", country: "India", city: " Pune " },
       skills: [{ name: "SQL" }, { name: "Python" }, { name: "SQL " }],
       experience: [{ role: "Data Intern", ...span(2026, 1, 2026, 6) }],
     } as unknown as ProfileData;
@@ -97,7 +97,8 @@ describe("preferences from a profile (auto-apply step 3)", () => {
       titles: ["Aspiring Data Analyst", "Data Intern"],
       skills: ["SQL", "Python"],
       countries: ["in"],
-      cities: [],
+      // The profile's city, so Set up job search doesn't ask for it again (Phase 1).
+      cities: ["Pune"],
       remoteOk: true,
       level: "entry",
       employmentTypes: [],
@@ -107,6 +108,7 @@ describe("preferences from a profile (auto-apply step 3)", () => {
   it("looks in India when the profile doesn't say where", () => {
     const profile = { basics: { headline: "", country: "" }, skills: [], experience: [] } as unknown as ProfileData;
     expect(preferencesFromProfile(profile, now).countries).toEqual(["in"]);
+    expect(preferencesFromProfile(profile, now).cities).toEqual([]);
   });
 });
 

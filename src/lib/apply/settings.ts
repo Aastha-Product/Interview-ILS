@@ -8,7 +8,7 @@ import { EMPLOYMENT_TYPES, LEVELS, type MatchPreferences } from "@/lib/match/pre
 import { CURRENT_USER } from "@/lib/owner/scope";
 import { prisma } from "@/lib/prisma";
 
-import { missingAnswers, missingAnswersMessage, savedAnswersSchema, type RequiredAnswer, type SavedAnswers } from "./answers";
+import { missingAnswers, missingAnswersMessage, NO_PROFILE_FACTS, profileFacts, savedAnswersSchema, type ProfileFacts, type RequiredAnswer, type SavedAnswers } from "./answers";
 
 // Pathfinder (auto-apply step 4): what a student allowed auto-apply to do. Nothing is submitted
 // until they've agreed to the consent below and switched it on; it starts as a dry run that fills
@@ -59,15 +59,26 @@ export type AutoApplyView = {
    * submitted.
    */
   missing: RequiredAnswer[];
+  /** What the profile already says, so it isn't asked again (Phase 1). */
+  fromProfile: ProfileFacts;
 };
 
 const DEFAULTS = { minTier: MatchTier.GOOD, dailyLimit: 10, perCompanyLimit: 2, dryRun: true } as const;
 
-function view(row: AutoApplySettings | null): AutoApplyView {
+/** The current student's profile facts: their date of birth and their education's end years. */
+export async function loadProfileFacts(now = new Date()): Promise<ProfileFacts> {
+  const [dob, education] = await Promise.all([
+    prisma.profileField.findUnique({ where: { userId_key: { userId: CURRENT_USER, key: "dob" } }, select: { value: true } }),
+    prisma.education.findMany({ select: { current: true, endYear: true } }),
+  ]);
+  return profileFacts({ dob: dob?.value, education }, now);
+}
+
+function view(row: AutoApplySettings | null, fromProfile: ProfileFacts): AutoApplyView {
   const preferences = row?.preferences ? preferencesSchema.safeParse(row.preferences) : null;
   const consented = Boolean(row?.consentAt) && row?.consentVersion === CONSENT_VERSION;
   const answers = savedAnswersSchema.parse(row?.answers ?? {});
-  const missing = missingAnswers(answers, { cities: preferences?.success ? preferences.data.cities : [], level: preferences?.success ? preferences.data.level : "entry" });
+  const missing = missingAnswers(answers, { cities: preferences?.success ? preferences.data.cities : [], level: preferences?.success ? preferences.data.level : "entry" }, fromProfile);
   return {
     enabled: Boolean(row?.enabled) && consented && missing.length === 0,
     consented,
@@ -79,20 +90,22 @@ function view(row: AutoApplySettings | null): AutoApplyView {
     dryRun: row?.dryRun ?? DEFAULTS.dryRun,
     answers,
     missing,
+    fromProfile,
   };
 }
 
 /** The required answers `input` leaves out, checked before it's saved from Set up job search. */
-export function missingIn(input: AutoApplyInput): RequiredAnswer[] {
+export function missingIn(input: AutoApplyInput, fromProfile: ProfileFacts = NO_PROFILE_FACTS): RequiredAnswer[] {
   const data = settingsInputSchema.parse(input);
-  return missingAnswers(data.answers, data.preferences);
+  return missingAnswers(data.answers, data.preferences, fromProfile);
 }
 
 const own = { userId: CURRENT_USER };
 
 /** The current student's auto-apply settings, with defaults for what they haven't set. */
 export async function loadAutoApply(): Promise<AutoApplyView> {
-  return view(await prisma.autoApplySettings.findUnique({ where: own }));
+  const [row, fromProfile] = await Promise.all([prisma.autoApplySettings.findUnique({ where: own }), loadProfileFacts()]);
+  return view(row, fromProfile);
 }
 
 /** Saves what "Set up job search" asks; doesn't switch auto-apply on or off. */
@@ -103,13 +116,13 @@ export async function saveAutoApply(input: AutoApplyInput): Promise<AutoApplyVie
     create: { ...data, preferences: data.preferences, answers: data.answers },
     update: { ...data, preferences: data.preferences, answers: data.answers },
   });
-  return view(row);
+  return view(row, await loadProfileFacts());
 }
 
 /** Records the student's agreement to the current consent wording. */
 export async function giveConsent(): Promise<AutoApplyView> {
   const consent = { consentAt: new Date(), consentVersion: CONSENT_VERSION };
-  return view(await prisma.autoApplySettings.upsert({ where: own, create: consent, update: consent }));
+  return view(await prisma.autoApplySettings.upsert({ where: own, create: consent, update: consent }), await loadProfileFacts());
 }
 
 export class AutoApplyNotReady extends Error {
@@ -124,5 +137,5 @@ export async function setAutoApplyEnabled(enabled: boolean): Promise<AutoApplyVi
     if (!current.preferences) throw new AutoApplyNotReady("Set up your job search first: the roles and places you're looking for.");
     if (current.missing.length > 0) throw new AutoApplyNotReady(missingAnswersMessage(current.missing));
   }
-  return view(await prisma.autoApplySettings.upsert({ where: own, create: { enabled }, update: { enabled } }));
+  return view(await prisma.autoApplySettings.upsert({ where: own, create: { enabled }, update: { enabled } }), await loadProfileFacts());
 }

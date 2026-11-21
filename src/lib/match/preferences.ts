@@ -56,11 +56,13 @@ export function preferencesFromProfile(profile: ProfileData, now = new Date()): 
   const titles = [...new Set([profile.basics.headline.trim(), ...roles.slice(0, 2)].filter(Boolean))].slice(0, 5);
   const country = countryCode(profile.basics.country) || "in";
   const months = experienceMonths(profile.experience, now);
+  // The profile's city, so Set up job search doesn't ask for it again (Phase 1); the student adds more.
+  const city = (profile.basics.city ?? "").trim().slice(0, 100);
   return {
     titles,
     skills: [...new Set(profile.skills.map((skill) => skill.name.trim()).filter(Boolean))].slice(0, 40),
     countries: [country],
-    cities: [],
+    cities: city ? [city] : [],
     remoteOk: true,
     level: months >= 24 ? "experienced" : "entry",
     employmentTypes: [],

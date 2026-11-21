@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { adultBy, answerForm, askableHere, customKey, EMPTY_ANSWERS, missingAnswers, missingAnswersMessage, missingFields, splitName, type AnswerContext, type FieldOption, type FormField, type SavedAnswers } from "./answers";
+import { adultBy, answerForm, askableHere, customKey, EMPTY_ANSWERS, missingAnswers, missingAnswersMessage, missingFields, NO_PROFILE_FACTS, profileFacts, splitName, type AnswerContext, type FieldOption, type FormField, type SavedAnswers } from "./answers";
 
 const yesNo: FieldOption[] = [
   { label: "Yes", value: "1" },
@@ -470,6 +470,13 @@ describe("answering a form (auto-apply step 4)", () => {
     expect(missingAnswers({ ...complete, graduationYear: "24" }, search)).toEqual(["graduationYear"]);
     expect(missingAnswers(complete, { cities: ["Pune"], level: "experienced" })).toEqual(["reasonForChange"]);
     expect(missingAnswers({ ...complete, reasonForChange: "Growth." }, { cities: ["Pune"], level: "experienced" })).toEqual([]);
+    // What the profile already says isn't asked again (Phase 1): age from the date of birth, the graduation year.
+    const fromProfile = profileFacts({ dob: "2002-05-17", education: [{ current: false, endYear: 2023 }, { current: false, endYear: 2025 }, { current: true, endYear: 2027 }] }, new Date("2026-11-21T00:00:00Z"));
+    expect(fromProfile).toEqual({ adult: true, graduationYear: "2025" });
+    expect(missingAnswers({ ...complete, adult: null, graduationYear: "" }, search, fromProfile)).toEqual([]);
+    expect(missingAnswers({ ...complete, adult: null, graduationYear: "" }, search)).toEqual(["adult", "graduationYear"]);
+    // Without a date of birth or a finished degree, both are still asked.
+    expect(profileFacts({ dob: "", education: [{ current: true, endYear: null }] })).toEqual(NO_PROFILE_FACTS);
     expect(missingAnswersMessage(["cities", "currentSalary", "noCurrentSalary"])).toBe("Answer these in Set up job search first: Cities, Current salary.");
     expect(missingAnswersMessage(["expectedSalary"])).toBe("Answer this in Set up job search first: Expected salary.");
     expect(missingAnswersMessage(missingAnswers(EMPTY_ANSWERS, { cities: [], level: "entry" }))).toBe("Answer these in Set up job search first: Cities, Allowed to work, Visa sponsorship, Relatives at the company and 14 more.");

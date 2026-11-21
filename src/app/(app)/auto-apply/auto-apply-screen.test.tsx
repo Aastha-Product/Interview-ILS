@@ -2,7 +2,7 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { EMPTY_ANSWERS, missingAnswers } from "@/lib/apply/answers";
+import { EMPTY_ANSWERS, missingAnswers, NO_PROFILE_FACTS } from "@/lib/apply/answers";
 import type { AutoApplyScreenView } from "@/lib/apply/view";
 
 import { answerApplicationQuestions, draftApplicationAnswer, markApplied, prepareApplicationAgain, saveJobSearch, skipApplication, switchAutoApply } from "./actions";
@@ -27,7 +27,7 @@ vi.mock("./actions", () => ({
 }));
 
 const preferences = { titles: ["Data Analyst"], skills: ["SQL"], countries: ["in"], cities: ["Pune"], remoteOk: true, level: "entry" as const, employmentTypes: [] };
-const settings = { enabled: false, consented: true, consentOutdated: false, preferences, minTier: "GOOD" as const, dailyLimit: 10, perCompanyLimit: 2, dryRun: true, answers: COMPLETE_ANSWERS, missing: [] };
+const settings = { enabled: false, consented: true, consentOutdated: false, preferences, minTier: "GOOD" as const, dailyLimit: 10, perCompanyLimit: 2, dryRun: true, answers: COMPLETE_ANSWERS, missing: [], fromProfile: NO_PROFILE_FACTS };
 /** A student who has set nothing up yet. */
 const blank = { ...settings, answers: EMPTY_ANSWERS, missing: missingAnswers(EMPTY_ANSWERS, { cities: [], level: "entry" }) };
 const tasks = { PREPARING: 1, READY: 2, LEASED: 0, SUBMITTING: 0, APPLIED: 3, NEEDS_STUDENT: 1, UNCERTAIN: 0, FAILED: 0, SKIPPED: 0 };
@@ -246,6 +246,30 @@ describe("set up job search (auto-apply step 4)", () => {
         answers: expect.objectContaining({ noCurrentSalary: true, expectedSalary: "6 LPA", graduationYear: "2026", noticePeriod: "immediate", onsiteOk: false, willingToRelocate: false }),
       }),
     );
+  });
+
+  it("doesn't ask again what the profile already says: age from the date of birth, the graduation year (Phase 1)", async () => {
+    const fromProfile = { adult: true, graduationYear: "2024" };
+    const answers = { ...EMPTY_ANSWERS };
+    render(
+      <SetupScreen
+        settings={{ ...blank, fromProfile, missing: missingAnswers(answers, { cities: ["Pune"], level: "entry" }, fromProfile) }}
+        preferences={preferences}
+        consentText="I allow Pathfinder to apply."
+        countries={[{ code: "in", name: "India" }]}
+      />,
+    );
+    // The age question is gone, and the page says where it came from.
+    expect(screen.queryByRole("combobox", { name: /18 or older/ })).toBeNull();
+    expect(screen.getByText(/Not asked again: whether you're 18 or older \(yes\), from the date of birth on your/)).toBeInTheDocument();
+    // The graduation year is the profile's unless typed over, and no longer required.
+    const year = screen.getByRole("textbox", { name: "Graduation year" });
+    expect(year).not.toBeRequired();
+    expect(year).toHaveAttribute("placeholder", "2024");
+    expect(year).toHaveAccessibleDescription(/^From your profile: 2024/);
+    // Neither is among the starred answers still to give.
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(screen.getByText(/^Fill in the \d+ starred answers still empty to save:/)).not.toHaveTextContent(/18 or older|Graduation year/);
   });
 
   it("asks an experienced student why they're looking for a change", async () => {

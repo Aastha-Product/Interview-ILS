@@ -106,7 +106,11 @@ export function SetupScreen({ settings, preferences, consentText, countries }: S
 
   const answer = (patch: Partial<SavedAnswers>) => setAnswers((current) => ({ ...current, ...patch }));
   // Every starred answer is required before auto-apply starts; the server checks the same list.
-  const missing = missingAnswers(answers, { cities: listFrom(cities), level });
+  const { fromProfile } = settings;
+  const missing = missingAnswers(answers, { cities: listFrom(cities), level }, fromProfile);
+  // What the profile already says isn't asked again (Phase 1): an answer given here still wins.
+  const ageKnown = fromProfile.adult !== null && answers.adult === null;
+  const yearKnown = /^(19|20)\d{2}$/.test(fromProfile.graduationYear);
   const errorFor = (key: RequiredAnswer) => (checked && missing.includes(key) ? REQUIRED : undefined);
   const missingNames = [...new Set(missing.map((key) => ANSWER_NAMES[key]))];
 
@@ -198,9 +202,18 @@ export function SetupScreen({ settings, preferences, consentText, countries }: S
             Answered once here, used on every form that asks.
             {missingNames.length > 0 ? ` ${missingNames.length} required ${missingNames.length === 1 ? "answer" : "answers"} left: auto-apply starts once they're all given.` : " All required answers are given."}
           </p>
+          {ageKnown ? (
+            <p className="text-meta text-muted">
+              Not asked again: whether you&apos;re 18 or older ({fromProfile.adult ? "yes" : "no"}), from the date of birth on your{" "}
+              <Link href="/profile" className="font-medium underline underline-offset-2">
+                profile
+              </Link>
+              .
+            </p>
+          ) : null}
         </div>
         <div className="grid gap-x-[18px] gap-y-5 sm:grid-cols-2">
-          {YES_NO.map(({ key, label, hint }) => (
+          {YES_NO.filter(({ key }) => !(key === "adult" && ageKnown)).map(({ key, label, hint }) => (
             <Select key={key} label={starred(label)} required hint={hint} value={answerValue(answers[key])} onChange={(event) => answer({ [key]: fromAnswer(event.target.value) })} error={errorFor(key)}>
               <option value="">Choose…</option>
               <option value="yes">Yes</option>
@@ -247,9 +260,14 @@ export function SetupScreen({ settings, preferences, consentText, countries }: S
             error={errorFor("expectedSalary")}
           />
           <Input
-            label={starred("Graduation year")}
-            required
-            hint="The year you finished, or will finish, your latest degree, e.g. 2024."
+            label={yearKnown ? "Graduation year" : starred("Graduation year")}
+            required={!yearKnown}
+            hint={
+              yearKnown
+                ? `From your profile: ${fromProfile.graduationYear}, when your latest degree ended. Type a year only if that's wrong.`
+                : "The year you finished, or will finish, your latest degree, e.g. 2024."
+            }
+            placeholder={yearKnown ? fromProfile.graduationYear : undefined}
             inputMode="numeric"
             maxLength={4}
             value={answers.graduationYear}

@@ -120,18 +120,38 @@ const REQUIRED_YES_NO = [
 ] as const satisfies readonly (keyof SavedAnswers)[];
 
 /**
+ * What the profile already says that Set up job search would otherwise ask (Phase 1: stop
+ * re-asking): whether the student is 18 or older, from their date of birth, and the year their
+ * latest finished degree ended. Forms use the same when no answer was saved.
+ */
+export type ProfileFacts = { adult: boolean | null; graduationYear: string };
+export const NO_PROFILE_FACTS: ProfileFacts = { adult: null, graduationYear: "" };
+
+const YEAR = /^(19|20)\d{2}$/;
+
+/** The profile's facts, from its date of birth and its education. */
+export function profileFacts(profile: { dob?: string | null; education: readonly { current: boolean; endYear: number | null }[] }, now = new Date()): ProfileFacts {
+  const years = profile.education.flatMap((entry) => (entry.current || entry.endYear === null ? [] : [entry.endYear]));
+  const latest = years.length > 0 ? String(Math.max(...years)) : "";
+  return { adult: adultBy(profile.dob ?? undefined, now), graduationYear: YEAR.test(latest) ? latest : "" };
+}
+
+/**
  * The required answers still missing, in the page's order. The current salary isn't needed from
  * someone who has none, nor a reason for change from someone looking for their first job
- * (intern or entry level).
+ * (intern or entry level). What the profile already says (`fromProfile`) isn't asked again.
  */
-export function missingAnswers(saved: SavedAnswers, search: { cities: readonly string[]; level: string }): RequiredAnswer[] {
+export function missingAnswers(saved: SavedAnswers, search: { cities: readonly string[]; level: string }, fromProfile: ProfileFacts = NO_PROFILE_FACTS): RequiredAnswer[] {
   const missing: RequiredAnswer[] = [];
   if (search.cities.every((city) => !city.trim())) missing.push("cities");
-  for (const key of REQUIRED_YES_NO) if (saved[key] === null) missing.push(key);
+  for (const key of REQUIRED_YES_NO) {
+    if (key === "adult" && fromProfile.adult !== null) continue;
+    if (saved[key] === null) missing.push(key);
+  }
   if (saved.noticePeriod === null) missing.push("noticePeriod");
   if (!saved.noCurrentSalary && !saved.currentSalary.trim()) missing.push("currentSalary");
   if (!saved.expectedSalary.trim()) missing.push("expectedSalary");
-  if (!/^(19|20)\d{2}$/.test(saved.graduationYear)) missing.push("graduationYear");
+  if (!YEAR.test(saved.graduationYear) && !YEAR.test(fromProfile.graduationYear)) missing.push("graduationYear");
   if (search.level === "experienced" && !saved.reasonForChange.trim()) missing.push("reasonForChange");
   return missing;
 }
