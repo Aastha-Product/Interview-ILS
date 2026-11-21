@@ -203,6 +203,27 @@ describe("answering a form (auto-apply step 4)", () => {
     expect(missing).toEqual(["Name as per Aadhaar card"]);
   });
 
+  it("answers SmartRecruiters' details page by its wording, the email twice (Phase 2)", () => {
+    const form = [
+      field("first-name-input", "First name", "text"),
+      field("last-name-input", "Last name", "text"),
+      field("email-input", "Email", "text"),
+      field("confirm-email-input", "Confirm your email", "text"),
+      field("spl-form-element_5", "Phone number", "text"),
+    ];
+    const { answers, missing } = answerForm(form, context());
+    expect(answers).toEqual({
+      "first-name-input": { kind: "text", value: "Asha Rani" },
+      "last-name-input": { kind: "text", value: "Verma" },
+      "email-input": { kind: "text", value: "asha@example.com" },
+      "confirm-email-input": { kind: "text", value: "asha@example.com" },
+      "spl-form-element_5": { kind: "text", value: "+91 98765 43210" },
+    });
+    expect(missing).toEqual([]);
+    // Only a plain request for the same address counts: anything else stays the student's.
+    expect(answerForm([field("x", "Confirm your email preferences", "text")], context()).missing).toEqual(["Confirm your email preferences"]);
+  });
+
   it("reads Meesho's wording of how they heard of the job, and leaves it when no option is honest", () => {
     const meesho = (options: string[]) => [field("s", "How did you get to know about this role?", "single", true, options.map((label) => ({ label, value: label })))];
     expect(answerForm(meesho(["Linkedin", "Meesho Job Site", "Naukri"]), context()).answers).toEqual({ s: { kind: "option", value: "Meesho Job Site", label: "Meesho Job Site" } });

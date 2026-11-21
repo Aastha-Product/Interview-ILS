@@ -24,7 +24,54 @@ export const norm = (text: string | null | undefined) =>
     .replace(/[^\p{L}\p{N}]+/gu, " ")
     .trim();
 
-const fire = (element: Element, type: string) => element.dispatchEvent(new Event(type, { bubbles: true }));
+// Composed, so a field inside a web component's shadow root (SmartRecruiters) is heard by the
+// component around it too; for an ordinary field it makes no difference.
+const fire = (element: Element, type: string) => element.dispatchEvent(new Event(type, { bubbles: true, composed: true }));
+
+/** Where an element's label would be: its own shadow root, else its document. */
+const rootOf = (element: Element): Document | ShadowRoot => {
+  const root = element.getRootNode();
+  return root instanceof ShadowRoot ? root : element.ownerDocument;
+};
+
+/** Every element matching `selector` under `root`, inside open shadow roots too, in document order. */
+export function deepQueryAll<T extends Element = HTMLElement>(root: ParentNode, selector: string): T[] {
+  const found: T[] = [];
+  const walk = (node: ParentNode) => {
+    for (const element of Array.from(node.querySelectorAll<Element>("*"))) {
+      if (element.matches(selector)) found.push(element as T);
+      if (element.shadowRoot) walk(element.shadowRoot);
+    }
+  };
+  walk(root);
+  return found;
+}
+
+/** The first element matching `selector` under `root`, inside open shadow roots too. */
+export const deepQuery = <T extends Element = HTMLElement>(root: ParentNode, selector: string): T | null => deepQueryAll<T>(root, selector)[0] ?? null;
+
+/** The web components an element sits inside, innermost first ("spl-input", "oc-input", …). */
+export function hostsOf(element: Element): string[] {
+  const hosts: string[] = [];
+  for (let host = (element.getRootNode() as ShadowRoot).host; host; host = (host.getRootNode() as ShadowRoot).host) hosts.push(host.tagName.toLowerCase());
+  return hosts;
+}
+
+/** Every element an element sits in, innermost first, crossing out of shadow roots to their hosts. */
+export function ancestorsOf(element: Element): string[] {
+  const tags: string[] = [];
+  for (let node: Node | null = element.parentNode; node; node = node instanceof ShadowRoot ? node.host : node.parentNode) {
+    if (node instanceof Element) tags.push(node.tagName.toLowerCase());
+  }
+  return tags;
+}
+
+/** All the text under `root`, shadow roots included (innerText alone skips them). */
+export function deepText(root: Element): string {
+  const parts = [(root as HTMLElement).innerText ?? root.textContent ?? ""];
+  for (const element of [root, ...deepQueryAll(root, "*")]) if (element.shadowRoot) parts.push(element.shadowRoot.textContent ?? "");
+  return parts.join(" ").replace(/\s+/g, " ").trim();
+}
 
 /** Types `value` into a text box: the native setter, then the events typing sends. */
 export function setValue(element: HTMLInputElement | HTMLTextAreaElement, value: string): void {
@@ -68,8 +115,7 @@ export function chooseInputs(inputs: HTMLInputElement[], wanted: { values: strin
 /** A checkbox's or radio button's own words: its <label>, or the text right beside it. */
 export function choiceLabel(input: HTMLInputElement): string {
   const text = (element: Element) => (element.textContent ?? "").replace(/\s+/g, " ").trim();
-  const doc = input.ownerDocument;
-  const byFor = input.id ? doc.querySelectorAll(`label[for="${CSS.escape(input.id)}"]`) : [];
+  const byFor = input.id ? rootOf(input).querySelectorAll(`label[for="${CSS.escape(input.id)}"]`) : [];
   // Ashby gives every option of a question the same id, so a label for it is ambiguous.
   const own = byFor.length === 1 ? byFor[0] : input.closest("label");
   const words = own ? text(own) : text(input.nextElementSibling ?? input.parentElement ?? input);
@@ -79,7 +125,7 @@ export function choiceLabel(input: HTMLInputElement): string {
 /** The text of the label for an input: <label for>, a wrapping <label>, or aria-label. */
 export function labelOf(element: Element): string {
   const id = element.id;
-  const byFor = id ? element.ownerDocument.querySelector(`label[for="${CSS.escape(id)}"]`) : null;
+  const byFor = id ? rootOf(element).querySelector(`label[for="${CSS.escape(id)}"]`) : null;
   const text = byFor?.textContent ?? element.closest("label")?.textContent ?? element.getAttribute("aria-label") ?? "";
   return text.replace(/\*\s*$/, "").replace(/\s+/g, " ").trim();
 }

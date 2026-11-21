@@ -6,7 +6,7 @@ What to enter in the Chrome Web Store's developer dashboard for the Pathfinder e
 
 ## Status (checked 21 November 2026)
 
-The text below matches the extension as it is now: the manifest's permissions and hosts, the minute-by-minute check (`chrome.alarms`, `periodInMinutes: 1`), dry run on by default, the pause in the popup, stopping at a visible human check or an emailed code, and the privacy notice's section 7. The package builds (`extension/release/pathfinder-extension-0.1.0.zip`).
+The text below matches the extension as it is now: the manifest's permissions and hosts, the minute-by-minute check (`chrome.alarms`, `periodInMinutes: 1`), dry run on by default, the pause in the popup, stopping at a visible human check or an emailed code, and the privacy notice's section 7. The package builds (`extension/release/pathfinder-extension-0.2.0.zip`; 0.2.0 added SmartRecruiters).
 
 **Three things block the first upload, and each needs the owner:**
 
@@ -54,7 +54,7 @@ The text below matches the extension as it is now: the manifest's permissions an
 > • Pause it in this browser from its icon, switch auto-apply off in Pathfinder, or disconnect the browser at any time.
 >
 > Where it works
-> Pathfinder's own site, and the application pages of Greenhouse, Lever and Ashby. It can't read any other site, your other tabs or your browsing history.
+> Pathfinder's own site, and the application pages of Greenhouse, Lever, Ashby and SmartRecruiters. It can't read any other site, your other tabs or your browsing history.
 >
 > You need a Pathfinder account to use it.
 
@@ -79,6 +79,7 @@ The text below matches the extension as it is now: the manifest's permissions an
 | Host `job-boards.greenhouse.io`, `boards.greenhouse.io` | Greenhouse's application forms, which the extension fills in and submits. |
 | Host `jobs.lever.co`, `jobs.eu.lever.co` | Lever's application forms, likewise. |
 | Host `jobs.ashbyhq.com` | Ashby's application forms, likewise. |
+| Host `jobs.smartrecruiters.com` | SmartRecruiters' application forms, likewise. Its forms come in two pages: the extension presses Next between them, and Submit only on the last. |
 
 **Remote code:** No, I am not using remote code. All JavaScript is in the package. The extension only fetches data (JSON and PDF files) from Pathfinder.
 
