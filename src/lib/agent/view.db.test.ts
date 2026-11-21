@@ -66,6 +66,19 @@ describe("the Agent screen's data (E16-6)", () => {
     expect(await countAgentQueue()).toBe(3);
   });
 
+  it("hides a blocked company's postings from the list and the badge, but keeps a draft made for one", async () => {
+    await saveSettings({ agentBlockedCompanies: ["Infosys"] });
+    const application = await prisma().application.create({ data: { origin: "AGENT", awaitingReview: true } });
+    await candidate("drafted", 90, { company: "Infosys", status: "DRAFTED", applicationId: application.id });
+    await candidate("blocked", 92, { company: "Infosys BPM Limited" });
+    await candidate("kept", 85);
+
+    const view = await loadAgentView(now);
+    expect(view.drafts.map((entry) => entry.title)).toEqual(["Posting drafted"]);
+    expect(view.scored.map((entry) => entry.title)).toEqual(["Posting kept"]);
+    expect(await countAgentQueue()).toBe(2);
+  });
+
   it("says what's missing, and when the day's runs are used up", async () => {
     await saveSettings({
       agentEnabled: false,

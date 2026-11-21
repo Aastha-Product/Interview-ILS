@@ -18,6 +18,7 @@ const initial: AgentSettings = {
   maxScores: 15,
   maxDrafts: 3,
   autoDraft: false,
+  blockedCompanies: [],
 };
 const countries = [
   { code: "de", name: "Germany" },
@@ -87,6 +88,22 @@ describe("Settings → Job agent (E16-7)", () => {
     await user.selectOptions(screen.getByLabelText("Drafts per run, at most"), "5");
     expect(saveAgentSettings).toHaveBeenLastCalledWith({ maxDrafts: 5 });
     expect(toggle).toHaveAccessibleDescription(/up to 5 drafts/);
+  });
+
+  it("saves the companies to skip when the field is left, cleaned up, and only when they changed", async () => {
+    const user = userEvent.setup();
+    open({ initial: { ...initial, blockedCompanies: ["Wipro"] } });
+    const field = screen.getByLabelText("Companies to skip");
+    expect(field).toHaveValue("Wipro");
+    // Leaving it unchanged saves nothing.
+    await user.click(field);
+    await user.tab();
+    expect(saveAgentSettings).not.toHaveBeenCalled();
+
+    await user.type(field, "\n  Infosys ,TCS\nwipro{Enter}");
+    await user.tab();
+    expect(saveAgentSettings).toHaveBeenLastCalledWith({ blockedCompanies: ["Wipro", "Infosys", "TCS"] });
+    expect(field).toHaveValue("Wipro\nInfosys\nTCS");
   });
 
   it("explains the limits in plain words", () => {
