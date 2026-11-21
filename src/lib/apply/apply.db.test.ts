@@ -248,9 +248,10 @@ describe("planning applications (auto-apply step 4)", () => {
 
   it("skips jobs the extension can't apply to, without using up the day's room or any AI", async () => {
     await switchedOn({ dailyLimit: 1 });
-    // The company moved Greenhouse's form to its own site; and a board the extension doesn't fill yet.
+    // The company moved Greenhouse's form to its own site; and a SmartRecruiters job whose apply
+    // link goes to the company's own site, which the extension doesn't fill.
     await job("okta", "acme", { score: 95, url: "https://www.okta.com/company/careers/opportunity/1?gh_jid=1" });
-    await job("sr", "zeta", { score: 94, system: "SMARTRECRUITERS", applyUrl: "https://jobs.smartrecruiters.com/Zeta/1" });
+    await job("sr", "zeta", { score: 94, system: "SMARTRECRUITERS", url: "https://careers.zeta.example/1", applyUrl: "https://careers.zeta.example/apply/1" });
     await job("ok", "zeta", { score: 80 });
     expect(await planApplications()).toBe(1);
     const tasks = await prisma().applyTask.findMany({ include: { sharedPosting: { select: { externalId: true } } } });
