@@ -150,6 +150,8 @@ export const settingsSchema = z.object({
   dashboardPeriod: z.enum(["30d", "90d", "all"]).catch("all"),
   /** Days without news before "Worth a look" suggests a follow-up (E9-9). */
   quietDays: z.coerce.number().int().min(1).max(60).catch(7),
+  /** "Hide this" on the dashboard's Get started guide (Pathfinder, Phase 1). */
+  onboardingHidden: flag(false),
   /** Experience, projects and education: newest first by date, or the order set by hand (E4-9). */
   experienceOrder: z.enum(["date", "manual"]).catch("date"),
   projectOrder: z.enum(["date", "manual"]).catch("date"),

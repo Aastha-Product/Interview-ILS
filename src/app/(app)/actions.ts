@@ -21,6 +21,13 @@ export const rememberQuietDays = action(z.object({ days: z.number().int().min(1)
   return null;
 });
 
+/** "Hide this" on the Get started guide (Phase 1): the dashboard stops showing it. */
+export const hideOnboarding = action(z.object({}), async () => {
+  await saveSettings({ onboardingHidden: true });
+  revalidatePath("/");
+  return null;
+});
+
 /**
  * The answer to the usage ping question (#172), from the dialog after
  * sign-in or the switch in Settings → About. Closing the dialog is a no.

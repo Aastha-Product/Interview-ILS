@@ -54,6 +54,7 @@ describe("stored settings", () => {
       applicationsSort: "updated",
       dashboardPeriod: "all",
       quietDays: 7,
+      onboardingHidden: false,
       experienceOrder: "date",
       projectOrder: "date",
       educationOrder: "date",
