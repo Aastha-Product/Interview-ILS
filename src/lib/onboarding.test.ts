@@ -19,6 +19,14 @@ describe("the onboarding guide (Phase 1)", () => {
     expect(nextOnboardingStep(steps)?.id).toBe("search");
   });
 
+  it("asks to connect Gmail after the resume, only once the server has Google set up (Phase 1)", () => {
+    expect(onboardingSteps({ ...nothing, gmailConnected: null }).map((step) => step.id)).not.toContain("gmail");
+    const steps = onboardingSteps({ ...nothing, profileReady: true, gmailConnected: false });
+    expect(steps.map((step) => step.id)).toEqual(["profile", "gmail", "search", "answers", "agent", "extension"]);
+    expect(nextOnboardingStep(steps)).toMatchObject({ id: "gmail", href: "/settings?section=google" });
+    expect(nextOnboardingStep(onboardingSteps({ ...nothing, profileReady: true, gmailConnected: true }))?.id).toBe("search");
+  });
+
   it("shows until every step is done, unless the student hid it", () => {
     expect(showOnboarding(onboardingSteps(nothing), false)).toBe(true);
     expect(showOnboarding(onboardingSteps(nothing), true)).toBe(false);

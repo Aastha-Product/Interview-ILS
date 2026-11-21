@@ -221,7 +221,7 @@ export function AgentSection({
       <Card padding="none" className="flex flex-col gap-4 px-7 py-[26px]">
         <Textarea
           label="Companies to skip"
-          hint={`One per line, up to ${BLOCKLIST_MAX_ENTRIES}. Their postings are left out before scoring and hidden from the Agent screen. "Infosys" also skips "Infosys BPM Limited".`}
+          hint={`One per line, up to ${BLOCKLIST_MAX_ENTRIES}. Their postings are left out before scoring, hidden from the Agent screen, and never applied to by Auto-apply. "Infosys" also skips "Infosys BPM Limited".`}
           rows={4}
           value={blockText}
           onChange={(event) => setBlockText(event.target.value)}

@@ -17,6 +17,8 @@ import { studentMessage } from "@/lib/managed";
 import { prisma, systemPrisma } from "@/lib/prisma";
 import { loadSettings } from "@/lib/settings-data";
 
+import { isBlocked } from "@/lib/agent/blocklist";
+
 import { extensionCanApply } from "./appliable";
 import { type FormAnswers, type FormField } from "./answers";
 import { greenhouseAnswers } from "./greenhouse-answers";
@@ -43,7 +45,7 @@ export const prepareJobKey = (taskId: string) => `apply:${taskId}`;
  * many it started.
  */
 export async function planApplications(now = new Date()): Promise<number> {
-  const settings = await loadAutoApply();
+  const [settings, { agentBlockedCompanies }] = await Promise.all([loadAutoApply(), loadSettings()]);
   if (!settings.enabled) return 0;
 
   const today = await prisma.applyTask.count({ where: { state: { in: COUNTED }, createdAt: { gte: new Date(now.getTime() - DAY_MS) } } });
@@ -63,7 +65,7 @@ export async function planApplications(now = new Date()): Promise<number> {
     (
       await systemPrisma.sharedPosting.findMany({
         where: { id: { in: matches.map((match) => match.sharedPostingId) } },
-        select: { id: true, companyId: true, closedAt: true, system: true, url: true, applyUrl: true },
+        select: { id: true, companyId: true, companyName: true, closedAt: true, system: true, url: true, applyUrl: true },
       })
     ).map((posting) => [posting.id, posting]),
   );
@@ -82,6 +84,8 @@ export async function planApplications(now = new Date()): Promise<number> {
     const posting = postings.get(match.sharedPostingId);
     // Only forms the extension can fill: no AI spent on documents for one it would hand back.
     if (!posting || posting.closedAt || !extensionCanApply(posting)) continue;
+    // Companies the student said to skip (Settings → Job agent) aren't applied to either (Phase 1).
+    if (isBlocked(posting.companyName, agentBlockedCompanies)) continue;
     if ((recentCompanies.get(posting.companyId) ?? 0) >= settings.perCompanyLimit) continue;
     // One task per student and job, ever (a unique key); another run may have made it meanwhile.
     const task = await prisma.applyTask
