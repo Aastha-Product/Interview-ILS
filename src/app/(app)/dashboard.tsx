@@ -7,10 +7,12 @@ import { StatusDot } from "@/components/ui/status-dot";
 import type { ApplicationStatus } from "@/generated/prisma/enums";
 import { DASHBOARD_PERIODS, DEFAULT_QUIET_DAYS, type DashboardFigures, type DashboardPeriod } from "@/lib/dashboard";
 import type { DayPeriod } from "@/lib/greeting";
+import type { OnboardingStep } from "@/lib/onboarding";
 import { STATUSES } from "@/lib/status";
 
 import { ActivityChart } from "./activity-chart";
 import { FunnelChart } from "./funnel-chart";
+import { GetStarted } from "./get-started";
 import { Greeting } from "./greeting";
 import { PeriodFilter, PeriodScoped } from "./period-filter";
 import { QuietDays } from "./quiet-days";
@@ -27,6 +29,7 @@ export function Dashboard({
   quietDays = DEFAULT_QUIET_DAYS,
   empty,
   calendar,
+  onboarding = null,
 }: {
   figures: DashboardFigures;
   firstName: string;
@@ -39,6 +42,8 @@ export function Dashboard({
   empty: boolean;
   /** The calendar (E15-6), which the time filter doesn't scope. */
   calendar?: ReactNode;
+  /** The Get started guide's steps while it shows (Phase 1); null once it's done or hidden. */
+  onboarding?: OnboardingStep[] | null;
 }) {
   const { sent, heardBack } = figures;
   // The summary follows the time filter, so it says which period it covers.
@@ -60,6 +65,8 @@ export function Dashboard({
           </Link>
         }
       />
+
+      {onboarding ? <GetStarted steps={onboarding} /> : null}
 
       {empty ? (
         <Columns calendar={calendar}>

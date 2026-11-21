@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { DashboardFigures } from "@/lib/dashboard";
+import { onboardingSteps } from "@/lib/onboarding";
 
 import { rememberQuietDays } from "./actions";
 import { Dashboard } from "./dashboard";
@@ -44,6 +45,14 @@ describe("the dashboard (E9-7)", () => {
     expect(screen.getByText("You've sent 7 applications and heard back from 5. That's a solid run. Keep it going.")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "+ New application" })).toHaveAttribute("href", "/new?fresh=1");
     expect(document.cookie).toMatch(/dossier-tz=/);
+  });
+
+  it("shows the Get started guide above the rest while there is one (Phase 1)", () => {
+    const { unmount } = render(<Dashboard {...props} />);
+    expect(screen.queryByRole("region", { name: "Get started" })).toBeNull();
+    unmount();
+    render(<Dashboard {...props} onboarding={onboardingSteps({ profileReady: true, searchReady: false, answersReady: false, agentOn: false, browserConnected: false })} />);
+    expect(screen.getByRole("link", { name: "Continue: Say what you're looking for" })).toHaveAttribute("href", "/settings?section=agent");
   });
 
   it("encourages before anything was sent", () => {
