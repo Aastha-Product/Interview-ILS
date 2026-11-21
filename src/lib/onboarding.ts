@@ -13,9 +13,14 @@ export type OnboardingFacts = {
   agentOn: boolean;
   /** A browser's Pathfinder extension is connected. */
   browserConnected: boolean;
+  /**
+   * The student's Gmail is connected, for replies and interview invites; null while this server
+   * has no Google client set up, and then the step isn't shown.
+   */
+  gmailConnected?: boolean | null;
 };
 
-export type OnboardingStepId = "profile" | "search" | "answers" | "agent" | "extension";
+export type OnboardingStepId = "profile" | "gmail" | "search" | "answers" | "agent" | "extension";
 
 export type OnboardingStep = {
   id: OnboardingStepId;
@@ -32,6 +37,13 @@ const STEPS: readonly (Omit<OnboardingStep, "done"> & { fact: keyof OnboardingFa
     title: "Add your resume",
     description: "Upload it and we fill in your profile: your roles, studies and skills. Every tailored resume is built from it.",
     href: "/profile/import",
+  },
+  {
+    id: "gmail",
+    fact: "gmailConnected",
+    title: "Connect your Gmail",
+    description: "So replies from recruiters and interview invites show up in Pathfinder. Nothing is sent from it without you.",
+    href: "/settings?section=google",
   },
   {
     id: "search",
@@ -65,7 +77,11 @@ const STEPS: readonly (Omit<OnboardingStep, "done"> & { fact: keyof OnboardingFa
 
 /** The steps in order, each marked done or not. */
 export function onboardingSteps(facts: OnboardingFacts): OnboardingStep[] {
-  return STEPS.map(({ fact, ...step }) => ({ ...step, done: facts[fact] }));
+  // A step whose fact is unknown (Gmail on a server without Google set up) isn't shown.
+  return STEPS.flatMap(({ fact, ...step }) => {
+    const done = facts[fact];
+    return done === null || done === undefined ? [] : [{ ...step, done }];
+  });
 }
 
 /** The first step not done yet; null once every one is. */

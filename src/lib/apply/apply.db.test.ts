@@ -256,6 +256,17 @@ describe("planning applications (auto-apply step 4)", () => {
     const tasks = await prisma().applyTask.findMany({ include: { sharedPosting: { select: { externalId: true } } } });
     expect(tasks.map((task) => task.sharedPosting.externalId)).toEqual(["ok"]);
   });
+
+  it("never applies to a company the student said to skip (Phase 1)", async () => {
+    await switchedOn();
+    // "Acme Ltd" skips Acme's jobs too, as on the Agent screen.
+    await saveSettings({ agentBlockedCompanies: ["Acme Ltd"] });
+    await job("a1", "acme", { score: 95 });
+    await job("z1", "zeta", { score: 80 });
+    expect(await planApplications()).toBe(1);
+    const tasks = await prisma().applyTask.findMany({ include: { sharedPosting: { select: { externalId: true } } } });
+    expect(tasks.map((task) => task.sharedPosting.externalId)).toEqual(["z1"]);
+  });
 });
 
 describe("the auto-apply schedule (auto-apply step 4)", () => {
