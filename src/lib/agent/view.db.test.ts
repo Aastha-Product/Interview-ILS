@@ -22,8 +22,11 @@ vi.mock("@/lib/job-search/config", () => ({
 
 const prisma = () => db.client!;
 const now = new Date("2026-10-20T10:00:00Z");
+// Each with a link to apply through, which the queue needs (Phase 1); pass url: "" for one without.
 const candidate = (externalId: string, score: number, data: Record<string, unknown> = {}) =>
-  prisma().agentCandidate.create({ data: { source: "JSEARCH", externalId, dedupeKey: externalId, title: `Posting ${externalId}`, company: "Ledgerly", place: "Berlin", remote: true, score, via: "LinkedIn", postedAt: new Date("2026-10-18T00:00:00Z"), ...data } });
+  prisma().agentCandidate.create({
+    data: { source: "JSEARCH", externalId, dedupeKey: externalId, title: `Posting ${externalId}`, company: "Ledgerly", place: "Berlin", remote: true, score, url: `https://jobs.example/${externalId}`, via: "LinkedIn", postedAt: new Date("2026-10-18T00:00:00Z"), ...data },
+  });
 
 beforeEach(async () => {
   await resetDatabase(prisma());

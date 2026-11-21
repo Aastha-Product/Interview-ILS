@@ -80,14 +80,14 @@ const answers: Record<string, (messages: Message[]) => unknown> = {
   },
 
   // The job agent's score (E16): by the posting's title, so a spec knows
-  // which postings make the queue (70 is the default minimum) and which don't.
+  // which postings make the queue (80 is the minimum a posting needs) and which don't.
   posting_score: (messages) => {
     const { title } = section(messages[1].content, "The posting's facts:\n") as { title: string };
-    const score = /senior product designer/i.test(title) ? 91 : /product designer/i.test(title) ? 78 : 45;
+    const score = /senior product designer/i.test(title) ? 91 : /product designer/i.test(title) ? 84 : 45;
     return {
       score,
-      reasons: [score >= 70 ? `The profile's product design roles match "${title}".` : `"${title}" is further from the profile's roles.`],
-      redFlags: score >= 70 ? [] : ["The profile shows no UX research lead role."],
+      reasons: [score >= 80 ? `The profile's product design roles match "${title}".` : `"${title}" is further from the profile's roles.`],
+      redFlags: score >= 80 ? [] : ["The profile shows no UX research lead role."],
     };
   },
 
