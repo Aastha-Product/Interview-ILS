@@ -10,7 +10,9 @@ import { signInMode } from "@/lib/auth/google-sign-in";
 import { HOME_PATH } from "@/lib/auth/next-path";
 import { getSession } from "@/lib/auth/session";
 import { cn } from "@/lib/cn";
-import { PLANS, priceText } from "@/lib/plans";
+import { pricedPlans } from "@/lib/billing";
+import { env } from "@/lib/env";
+import { priceText } from "@/lib/plans";
 
 export const metadata: Metadata = {
   title: "Resume analysis for students and graduates",
@@ -33,6 +35,8 @@ export default async function WelcomePage() {
   const signedIn = (await getSession()) !== null;
   const canSignUp = signInMode() === "firebase";
   const perDay = analysesPerDay();
+  // The paid plans with the prices set on the server (Phase 4).
+  const priced = pricedPlans(env);
   const start = signedIn
     ? { href: HOME_PATH, label: "Go to your dashboard" }
     : { href: canSignUp ? "/signup" : "/login", label: "Get started free" };
@@ -194,7 +198,7 @@ export default async function WelcomePage() {
               <h3 className="text-2xl">Paid plans</h3>
               <p className="text-on-brand-muted">More analyses and more applications a day, for a week, a month or three. Paying online opens soon; the free plan stays free.</p>
               <ul className="flex flex-col gap-3">
-                {PAID_PLANS.map((plan) => (
+                {[priced.WEEKLY, priced.MONTHLY, priced.QUARTERLY].map((plan) => (
                   <li key={plan.id} className="flex flex-col">
                     <span className="font-semibold text-white">
                       {plan.name} · {priceText(plan)}
@@ -254,8 +258,6 @@ export default async function WelcomePage() {
   );
 }
 
-/** The paid plans, as the homepage lists them (Phase 4). */
-const PAID_PLANS = [PLANS.WEEKLY, PLANS.MONTHLY, PLANS.QUARTERLY];
 
 const COVERS = [
   { icon: <Sparkles className="size-6" aria-hidden="true" />, title: "An overview", text: "How your resume comes across, in plain words." },

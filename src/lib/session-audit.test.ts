@@ -24,6 +24,10 @@ const OPEN_ROUTES = new Set([
   // the browser to Google; the callback checks its encrypted cookie against Google's state.
   "src/app/api/auth/google/route.ts",
   "src/app/api/auth/google/callback/route.ts",
+  // Pathfinder (Phase 4): Razorpay sends the student back from its own site (the signature and
+  // the session are checked there), and calls the webhook itself (its signature is checked there).
+  "src/app/api/billing/callback/route.ts",
+  "src/app/api/billing/webhook/route.ts",
   // The Claude connector (#221) is called by Claude, not the browser: it
   // checks its OAuth token instead, and answers 404 while it's off.
   "src/app/api/mcp/route.ts",

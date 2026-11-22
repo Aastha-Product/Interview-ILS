@@ -282,6 +282,39 @@ const schema = z.object({
       .transform(Number)
       .pipe(z.number().min(1, { error: "PATHFINDER_AI_DAILY_LIMIT must be at least 1." })),
   ),
+  // Pathfinder (Phase 4): paid plans' prices in whole rupees for their whole period (src/lib/plans.ts).
+  // A plan without a price shows "Price coming soon" and can't be bought.
+  PATHFINDER_PRICE_WEEKLY: optional(
+    z
+      .string()
+      .trim()
+      .regex(/^\d+$/, { error: (issue) => `PATHFINDER_PRICE_WEEKLY must be a whole number of rupees (got "${String(issue.input)}").` })
+      .transform(Number)
+      .pipe(z.number().min(1, { error: "PATHFINDER_PRICE_WEEKLY must be at least 1 rupee." })),
+  ),
+  PATHFINDER_PRICE_MONTHLY: optional(
+    z
+      .string()
+      .trim()
+      .regex(/^\d+$/, { error: (issue) => `PATHFINDER_PRICE_MONTHLY must be a whole number of rupees (got "${String(issue.input)}").` })
+      .transform(Number)
+      .pipe(z.number().min(1, { error: "PATHFINDER_PRICE_MONTHLY must be at least 1 rupee." })),
+  ),
+  PATHFINDER_PRICE_QUARTERLY: optional(
+    z
+      .string()
+      .trim()
+      .regex(/^\d+$/, { error: (issue) => `PATHFINDER_PRICE_QUARTERLY must be a whole number of rupees (got "${String(issue.input)}").` })
+      .transform(Number)
+      .pipe(z.number().min(1, { error: "PATHFINDER_PRICE_QUARTERLY must be at least 1 rupee." })),
+  ),
+  // Pathfinder (Phase 4): Razorpay, for buying a plan (Settings → Plan). Payments are on only once the
+  // key id and secret are both set, and a plan has a price. The webhook secret, set on Razorpay's
+  // dashboard for /api/billing/webhook, confirms payments even when the student's browser doesn't
+  // come back.
+  RAZORPAY_KEY_ID: optional(z.string().trim()),
+  RAZORPAY_KEY_SECRET: optional(z.string().trim()),
+  RAZORPAY_WEBHOOK_SECRET: optional(z.string().trim()),
   // Pathfinder: who may open the admin console (/admin), as a comma-separated list of the email
   // addresses they sign in with, e.g. "owner@example.com, ops@example.com". Unset means nobody.
   PATHFINDER_ADMIN_EMAILS: optional(z.string().trim()),
