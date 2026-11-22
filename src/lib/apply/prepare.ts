@@ -18,6 +18,8 @@ import { prisma, systemPrisma } from "@/lib/prisma";
 import { loadSettings } from "@/lib/settings-data";
 
 import { isBlocked } from "@/lib/agent/blocklist";
+import { applicationsAllowed } from "@/lib/plans";
+import { loadStudentPlan } from "@/lib/plans-data";
 
 import { extensionCanApply } from "./appliable";
 import { type FormAnswers, type FormField } from "./answers";
@@ -45,11 +47,12 @@ export const prepareJobKey = (taskId: string) => `apply:${taskId}`;
  * many it started.
  */
 export async function planApplications(now = new Date()): Promise<number> {
-  const [settings, { agentBlockedCompanies }] = await Promise.all([loadAutoApply(), loadSettings()]);
+  const [settings, { agentBlockedCompanies }, { plan }] = await Promise.all([loadAutoApply(), loadSettings(), loadStudentPlan(now)]);
   if (!settings.enabled) return 0;
 
   const today = await prisma.applyTask.count({ where: { state: { in: COUNTED }, createdAt: { gte: new Date(now.getTime() - DAY_MS) } } });
-  let room = settings.dailyLimit - today;
+  // The student's own limit, within their plan's (Phase 4).
+  let room = applicationsAllowed(settings.dailyLimit, plan) - today;
   if (room <= 0) return 0;
 
   const tiers = settings.minTier === MatchTier.STRONG ? [MatchTier.STRONG] : [MatchTier.STRONG, MatchTier.GOOD];

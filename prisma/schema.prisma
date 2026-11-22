@@ -38,6 +38,10 @@ model User {
   sessionVersion Int      @default(0)
   /// AI requests a day on the server's shared key, set by an admin for this student; null means the server's PATHFINDER_AI_DAILY_LIMIT.
   aiDailyLimit   Int?
+  /// Pathfinder (Phase 4): the student's plan (src/lib/plans.ts: FREE, WEEKLY, MONTHLY, QUARTERLY), set by an admin or, later, checkout.
+  plan           String   @default("FREE")
+  /// When a paid plan ends; null for one that doesn't (Free, or given by an admin without an end).
+  planUntil      DateTime?
   name           String   @default("")
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt

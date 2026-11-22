@@ -3,8 +3,9 @@ import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { JobContext } from "@/lib/jobs/runner";
 import { runAsUser } from "@/lib/owner/context";
 import { rawClientOf } from "@/lib/owner/scope";
+import { PLANS } from "@/lib/plans";
 import { saveSettings } from "@/lib/settings-data";
-import { createTestClient, resetDatabase } from "@/test/db";
+import { createTestClient, resetDatabase, TEST_USER_ID } from "@/test/db";
 
 import { seedBuiltIns } from "../../../prisma/seed/built-ins";
 import { MockProvider } from "../ai/providers/mock";
@@ -231,6 +232,21 @@ describe("planning applications (auto-apply step 4)", () => {
     // Planning again changes nothing.
     expect(await planApplications()).toBe(0);
     expect(await prisma().applyTask.count()).toBe(3);
+  });
+
+  it("keeps auto-apply within the student's plan, whatever limit they set (Phase 4)", async () => {
+    await switchedOn({ dailyLimit: 15, perCompanyLimit: 5 });
+    const ids = Array.from({ length: 13 }, (_, index) => String(index + 1));
+    for (const [index, id] of ids.entries()) await job(id, index < 5 ? "acme" : index < 10 ? "zeta" : "lever");
+    // Free allows fewer applications a day than the student asked for.
+    expect(await planApplications()).toBe(PLANS.FREE.applicationsPerDay);
+    await prisma().applyTask.deleteMany();
+    await raw().user.update({ where: { id: TEST_USER_ID }, data: { plan: "MONTHLY", planUntil: new Date(Date.now() + 86_400_000) } });
+    try {
+      expect(await planApplications()).toBe(13);
+    } finally {
+      await raw().user.update({ where: { id: TEST_USER_ID }, data: { plan: "FREE", planUntil: null } });
+    }
   });
 
   it("keeps to the daily limit and the tier chosen", async () => {
