@@ -1,9 +1,18 @@
 import { render, screen, within } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import userEvent from "@testing-library/user-event";
+import { describe, expect, it, vi } from "vitest";
 
 import type { RunLogView } from "@/lib/run-log-data";
 
+import { pauseEverything, resumeEverything } from "./actions";
 import { RunsScreen } from "./runs-screen";
+
+vi.mock("./actions", () => ({
+  pauseEverything: vi.fn(async () => ({ ok: true, data: null, toast: "Paused." })),
+  resumeEverything: vi.fn(async () => ({ ok: true, data: null, toast: "Resumed." })),
+}));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }), usePathname: () => "/runs" }));
+vi.mock("@/components/toast", () => ({ toastResult: (result: unknown) => result, toast: vi.fn() }));
 
 const view = (overrides: Partial<RunLogView> = {}): RunLogView => ({
   agent: {
@@ -66,5 +75,24 @@ describe("Runs & schedule (Phase 3)", () => {
     render(<RunsScreen view={view({ agent: null })} timeZone="Asia/Kolkata" />);
     expect(screen.queryByRole("heading", { name: "Job agent" })).toBeNull();
     expect(screen.getByRole("heading", { name: "Auto-apply" })).toBeInTheDocument();
+  });
+
+  it("pauses everything that runs, and resumes it (Phase 3)", async () => {
+    const user = userEvent.setup();
+    const { rerender } = render(<RunsScreen view={view()} timeZone="Asia/Kolkata" pause={{ paused: null, running: { autoApply: true, agent: false } }} />);
+    const card = within(screen.getByRole("region", { name: "Pause everything" }));
+    expect(card.getByText(/stops auto-apply and the job agent at once/)).toBeInTheDocument();
+    await user.click(card.getByRole("button", { name: "Pause everything" }));
+    expect(pauseEverything).toHaveBeenCalledWith({});
+
+    rerender(<RunsScreen view={view()} timeZone="Asia/Kolkata" pause={{ paused: { since: new Date("2026-11-22T04:30:00Z") }, running: { autoApply: false, agent: false } }} />);
+    expect(screen.getByText("Everything is paused").closest("p")).toHaveTextContent(/since 22 Nov, 10:00.?am/i);
+    await user.click(screen.getByRole("button", { name: "Resume" }));
+    expect(resumeEverything).toHaveBeenCalledWith({});
+  });
+
+  it("offers no pause while nothing runs", () => {
+    render(<RunsScreen view={view()} timeZone="Asia/Kolkata" pause={{ paused: null, running: { autoApply: false, agent: false } }} />);
+    expect(screen.queryByRole("region", { name: "Pause everything" })).toBeNull();
   });
 });

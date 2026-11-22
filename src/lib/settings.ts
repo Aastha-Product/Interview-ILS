@@ -177,6 +177,8 @@ export const settingsSchema = z.object({
   // Job agent (E16): one search, run once a day. Off until it's turned on.
   // It asks the source in Settings → Job search, with its key.
   agentEnabled: flag(false),
+  /** Pause everything (Phase 3): what was on when the student paused, to switch back on with Resume; null while not paused. */
+  pausedAll: json(z.object({ autoApply: z.boolean(), agent: z.boolean(), at: z.iso.datetime() }).nullable()).catch(null),
   /** The search it runs, as Find jobs asks it; it needs keywords and a country to run. */
   agentQuery: json(searchQuerySchema).catch(EMPTY_QUERY),
   /** Job profiles (Phase 1): the searches it runs besides agentQuery, at most MAX_EXTRA_SEARCHES (lib/agent/profiles.ts). */
