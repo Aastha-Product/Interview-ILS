@@ -84,6 +84,7 @@ model User {
   applyTasks       ApplyTask[]
   extensionTokens  ExtensionToken[]
   payments         Payment[]
+  outreach         Outreach[]
 }
 
 model ProfileField {
@@ -576,6 +577,8 @@ model Application {
   startup             Startup?
   /// Pathfinder: the auto-apply task that prepared it, if any.
   applyTask           ApplyTask?
+  /// Pathfinder (Phase 3): the email to its recruiter, if the student wrote one.
+  outreach            Outreach?
   /// Mail sent and received about it through Gmail (E15-3).
   emails              EmailMessage[]
   events              StatusEvent[]
@@ -1483,6 +1486,32 @@ model Payment {
   paymentId   String?   @unique
   createdAt   DateTime  @default(now())
   paidAt      DateTime?
+
+  @@index([userId])
+}
+
+/// Pathfinder (Phase 3): an email to the recruiter or hiring manager about one application. The AI
+/// drafts it; it goes out from the student's own Gmail only when they send it, and replies are
+/// tracked in its thread like the application's own mail. One per application, with one follow-up.
+model Outreach {
+  userId         String      @default(dbgenerated("current_setting('app.user_id')"))
+  user           User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id             String      @id @default(cuid())
+  applicationId  String      @unique
+  application    Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  contactName    String      @default("")
+  contactEmail   String      @default("")
+  subject        String      @default("")
+  body           String      @default("")
+  /// A short note the student can send on LinkedIn themself; Pathfinder never sends it.
+  linkedinNote   String      @default("")
+  followUpBody   String      @default("")
+  /// The Gmail thread, once sent: replies in it count as the recruiter's answer.
+  threadId       String?
+  sentAt         DateTime?
+  followUpSentAt DateTime?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
 
   @@index([userId])
 }

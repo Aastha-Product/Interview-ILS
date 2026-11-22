@@ -242,6 +242,10 @@ export default function PrivacyPage() {
                 "When auto-apply applies for you, the employer's form (on Greenhouse, Lever or Ashby) receives what any application gives it: your answers, your resume and your cover letter. The employer and the job site then handle it under their own privacy notices.",
               ],
               [
+                "Recruiters, only when you send them an email",
+                "Recruiter outreach sends only the emails you approve, from your own Gmail, to the address you enter or pick from the posting. Pathfinder keeps that name and address, the email and its follow-up with the application, and never sends anything on LinkedIn.",
+              ],
+              [
                 "Gmail and Google Calendar, only if you connect them",
                 <>
                   In <strong>Settings → Google</strong> you can let Pathfinder send the emails you approve, read your

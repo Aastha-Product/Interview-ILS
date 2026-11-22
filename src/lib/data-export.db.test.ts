@@ -135,6 +135,13 @@ describe("buildExport (E10-4)", () => {
     expect(JSON.stringify(data)).not.toContain("userId");
   });
 
+  it("has the student's recruiter emails (Phase 3)", async () => {
+    await prisma().application.create({ data: { id: "out-1", company: "Groww", role: "Analyst", status: "SENT" } });
+    await prisma().outreach.create({ data: { applicationId: "out-1", contactEmail: "priya@groww.in", subject: "Applied", body: "Hi" } });
+    const data = await buildExport(prisma(), { now });
+    expect(data.outreach).toEqual([expect.objectContaining({ applicationId: "out-1", contactEmail: "priya@groww.in", subject: "Applied" })]);
+  });
+
   it("names the file after the day", () => {
     expect(exportFileName(new Date(2026, 8, 7, 23))).toBe("dossier-export-2026-09-07.json");
   });

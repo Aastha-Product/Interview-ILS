@@ -1,4 +1,4 @@
-import { Bot, BriefcaseBusiness, FileText, History, House, Inbox, LayoutDashboard, Rocket, Search, Settings, ShieldCheck, UserRound, Zap, type LucideIcon } from "lucide-react";
+import { Bot, BriefcaseBusiness, FileText, History, House, Inbox, LayoutDashboard, Rocket, Search, Send, Settings, ShieldCheck, UserRound, Zap, type LucideIcon } from "lucide-react";
 
 // The app's sections, shared by the sidebar and the page bar so they always agree.
 
@@ -46,6 +46,7 @@ export const NAV: { label?: string; items: NavItem[] }[] = [
         isActive: (pathname) => within(pathname, "/applications") || within(pathname, "/new"),
       },
       { href: "/inbox", label: "Inbox", icon: Inbox },
+      { href: "/outreach", label: "Recruiter outreach", icon: Send },
     ],
   },
   // Pathfinder: Admin shows only to the people in PATHFINDER_ADMIN_EMAILS (the layout hides it for everyone else).

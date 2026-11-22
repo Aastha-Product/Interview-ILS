@@ -363,6 +363,8 @@ export const exportSchema = z.object({
   /** Auto-apply's record (version 8), for reading: imports don't restore it. */
   autoApply: z.unknown().optional(),
   payments: z.unknown().optional(),
+  /** Recruiter emails (Phase 3), for reading: imports don't restore them. */
+  outreach: z.unknown().optional(),
 });
 export type DossierExport = z.infer<typeof exportSchema>;
 
@@ -426,6 +428,8 @@ export async function buildExport(
       tx.extensionToken.findMany({ select: { id: true, label: true, createdAt: true, lastUsedAt: true, expiresAt: true, revokedAt: true }, orderBy: { createdAt: "asc" } }),
       // Plans bought (Phase 4): what, when and for how much.
       tx.payment.findMany({ omit: { userId: true }, orderBy: { createdAt: "asc" } }),
+      // Recruiter emails (Phase 3).
+      tx.outreach.findMany({ omit: { userId: true }, orderBy: { createdAt: "asc" } }),
     ]);
 
     // Keys only when asked for, decrypted; one that's unreadable here too (DOSSIER_SECRET changed) has nothing to export.
@@ -476,7 +480,7 @@ export async function buildExport(
   });
 
   // The jobs are shared rows, not the student's: only the ones their matches point at, named.
-  const [settings, matches, tasks, browsers, payments] = data.autoApply;
+  const [settings, matches, tasks, browsers, payments, outreach] = data.autoApply;
   const ids = [...new Set(matches.map((match) => match.sharedPostingId))];
   const jobs = new Map(
     ids.length === 0
@@ -497,5 +501,6 @@ export async function buildExport(
       browsers,
     },
     payments,
+    outreach,
   };
 }
