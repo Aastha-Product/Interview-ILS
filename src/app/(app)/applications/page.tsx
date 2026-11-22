@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 
 import { listSummary, resolveListParams, statusesIn } from "@/lib/applications-list";
 import { loadApplicationRows } from "@/lib/applications-data";
+import { waitingByApplication } from "@/lib/google/inbox-data";
 import { prisma } from "@/lib/prisma";
 import { loadSettings } from "@/lib/settings-data";
 
@@ -14,8 +15,10 @@ export default async function ApplicationsPage({ searchParams }: PageProps<"/app
   // The URL wins; without it, the view, filter and sort last used (LST-7).
   const params = resolveListParams(await searchParams, await loadSettings());
 
+  // Replies waiting and follow-ups due show on the cards (Phase 3).
+  const [settings, replies] = await Promise.all([loadSettings(), waitingByApplication().catch(() => undefined)]);
   const [all, archived] = await Promise.all([
-    loadApplicationRows({ archived: params.archived, sort: params.sort }),
+    loadApplicationRows({ archived: params.archived, sort: params.sort }, new Date(), { quietDays: settings.quietDays, replies }),
     prisma.application.count({ where: { archivedAt: { not: null }, awaitingReview: false } }),
   ]);
   const q = params.q.toLocaleLowerCase();

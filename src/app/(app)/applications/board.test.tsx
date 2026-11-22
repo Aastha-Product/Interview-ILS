@@ -41,6 +41,34 @@ const column = (name: string) => screen.getByRole("region", { name: new RegExp(`
 
 beforeEach(() => vi.mocked(changeStatus).mockClear());
 
+describe("the board's badges (Phase 3)", () => {
+  it("shows a reply waiting, a follow-up due, and how an application was made", () => {
+    render(
+      <ApplicationsScreen
+        params={params}
+        rows={[
+          row("auto", { company: "Groww", source: "AUTO_APPLY", replies: 1 }),
+          row("agent", { company: "Zeta", source: "AGENT", followUp: true }),
+          row("plain", { company: "Paytm", replies: 2 }),
+          row("manual", { company: "Meesho" }),
+        ]}
+        counts={{ all: 4, active: 4, closed: 0 }}
+        summary="4 applications"
+        empty={false}
+        archivedCount={0}
+      />,
+    );
+    const card = (company: string) => screen.getByText(company).closest("div")!;
+    expect(within(card("Groww")).getByText("Reply waiting")).toBeInTheDocument();
+    expect(within(card("Groww")).getByText("Auto-applied")).toBeInTheDocument();
+    expect(within(card("Zeta")).getByText("Follow up")).toBeInTheDocument();
+    expect(within(card("Zeta")).getByText("From the agent")).toBeInTheDocument();
+    expect(within(card("Paytm")).getByText("2 replies waiting")).toBeInTheDocument();
+    // An application made by hand, with nothing to say, has no badges.
+    expect(within(card("Meesho")).queryByText(/waiting|Follow up|Auto-applied|agent/)).toBeNull();
+  });
+});
+
 describe("the board (E9-2)", () => {
   it("has a column per status in the filter, with counts", () => {
     open();
