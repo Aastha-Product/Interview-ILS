@@ -10,6 +10,8 @@ vi.mock("next/link", () => ({ default: ({ href, ...props }: ComponentProps<"a">)
 vi.mock("@/lib/auth/session", () => ({ getSession: async () => null }));
 vi.mock("@/lib/auth/google-sign-in", () => ({ signInMode: () => "firebase" }));
 vi.mock("@/lib/ai/daily-limit", () => ({ analysesPerDay: () => 5 }));
+// No prices set on the server: the paid plans say "Price coming soon" (Phase 4).
+vi.mock("@/lib/env", () => ({ env: {} }));
 
 describe("the welcome page", () => {
   it("says what auto-apply does, that it's in pilot, and what it needs (the owner's decision)", async () => {

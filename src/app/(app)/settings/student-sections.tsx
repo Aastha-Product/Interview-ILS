@@ -4,8 +4,9 @@ import type { ReactNode } from "react";
 import { Button, buttonClassName } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { signOut } from "@/lib/auth/actions";
-import { PLAN_IDS, PLANS, priceText, type PlanId } from "@/lib/plans";
+import { PLAN_IDS, PLANS, priceText, type Plan, type PlanId } from "@/lib/plans";
 
+import { BuyPlanButton } from "./buy-plan-button";
 import { DangerZone } from "./data-section";
 import { DeleteAccount } from "./delete-account";
 import { SettingsSectionIntro } from "./settings-screen";
@@ -68,11 +69,39 @@ const planUntil = new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "lon
  * The student's plan (Phase 4): the one they're on and until when, what it gives them today, and
  * what each plan includes. Checkout isn't open yet, so the paid plans say how to get one.
  */
-export function PlanSection({ perDay, left, plan = "FREE", until = null }: { perDay: number | null; left: number | null; plan?: PlanId; until?: Date | null }) {
-  const current = PLANS[plan];
+export function PlanSection({
+  perDay,
+  left,
+  plan = "FREE",
+  until = null,
+  plans = PLANS,
+  buyable = [],
+  notice = null,
+}: {
+  perDay: number | null;
+  left: number | null;
+  plan?: PlanId;
+  until?: Date | null;
+  /** The plans with the server's prices (src/lib/billing.ts). */
+  plans?: Record<PlanId, Plan>;
+  /** The plans that can be bought online right now. */
+  buyable?: readonly PlanId[];
+  /** How a payment just went, back from Razorpay. */
+  notice?: "paid" | "pending" | "failed" | null;
+}) {
+  const current = plans[plan];
   return (
     <>
       <SettingsSectionIntro title="Plan">What your account includes.</SettingsSectionIntro>
+      {notice ? (
+        <p role="status" className={notice === "failed" ? "rounded-card bg-danger-surface px-4 py-3 text-sm text-error-strong" : "rounded-card bg-surface px-4 py-3 text-sm"}>
+          {notice === "paid"
+            ? "Payment received: your plan is on. Thank you!"
+            : notice === "pending"
+              ? "Razorpay is still confirming your payment. Your plan switches on as soon as it does; this page shows it."
+              : "The payment didn't go through, and nothing was charged by Pathfinder. You can try again."}
+        </p>
+      ) : null}
       <Rows
         rows={[
           { label: "Plan", value: `${current.name}${plan !== "FREE" ? (until ? ` · until ${planUntil.format(until)}` : " · no end date") : ""}` },
@@ -85,7 +114,7 @@ export function PlanSection({ perDay, left, plan = "FREE", until = null }: { per
       />
       <ul aria-label="Plans" className="grid gap-3 sm:grid-cols-2">
         {PLAN_IDS.map((id) => {
-          const entry = PLANS[id];
+          const entry = plans[id];
           return (
             <li key={id} aria-current={id === plan ? "true" : undefined} className={id === plan ? "flex flex-col gap-1 rounded-card border-2 border-primary px-4 py-3" : "flex flex-col gap-1 rounded-card border border-line-card px-4 py-3"}>
               <span className="flex items-baseline justify-between gap-2">
@@ -97,14 +126,21 @@ export function PlanSection({ perDay, left, plan = "FREE", until = null }: { per
                 {entry.analysesPerDay === null ? (perDay && plan === "FREE" ? `${perDay} analyses a day` : "Free analyses") : `${entry.analysesPerDay} analyses a day`} · up to{" "}
                 {entry.applicationsPerDay} applications a day
               </span>
+              {id !== "FREE" && buyable.includes(id) ? (
+                <span className="pt-1">
+                  <BuyPlanButton plan={id} name={entry.name} />
+                </span>
+              ) : null}
             </li>
           );
         })}
       </ul>
       <p className="text-sm text-muted">
-        {plan === "FREE"
-          ? "Paying online opens soon. Until then the Pathfinder team can move you to a paid plan. Your free plan stays free."
-          : "When your plan ends you go back to Free, and nothing you've made is lost."}
+        {buyable.length > 0
+          ? "Pay securely on Razorpay; your plan switches on as soon as the payment is confirmed. Buying your current plan again adds to the time you have left."
+          : plan === "FREE"
+            ? "Paying online opens soon. Until then the Pathfinder team can move you to a paid plan. Your free plan stays free."
+            : "When your plan ends you go back to Free, and nothing you've made is lost."}
       </p>
     </>
   );

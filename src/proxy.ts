@@ -24,6 +24,9 @@ const CONNECTOR_PATHS = /^\/(?:api\/(?:mcp|oauth)(?:\/|$)|\.well-known\/oauth-(?
 /** Pathfinder: the extension's API, which checks the extension's own token (src/lib/extension/route.ts). */
 const EXTENSION_PATHS = /^\/api\/ext(?:\/|$)/;
 
+/** Pathfinder (Phase 4): Razorpay's webhook, which checks Razorpay's signature itself. */
+const BILLING_WEBHOOK = /^\/api\/billing\/webhook$/;
+
 /** Startups' screen (#222); Pathfinder answers 404 for it unless PATHFINDER_STARTUPS=on. */
 const STARTUPS_PATHS = /^\/startups(?:\/|$)/;
 
@@ -42,6 +45,8 @@ export async function proxy(request: NextRequest) {
   if (CONNECTOR_PATHS.test(pathname)) return NextResponse.next();
   // Pathfinder: so does the extension, with its token; its routes answer 401 without a valid one.
   if (EXTENSION_PATHS.test(pathname)) return NextResponse.next();
+  // Pathfinder: Razorpay calls its webhook with no session; the route checks Razorpay's signature.
+  if (BILLING_WEBHOOK.test(pathname)) return NextResponse.next();
   // Pathfinder: Startups is off unless PATHFINDER_STARTUPS=on. Its layout answers 404 too, but
   // only after the loading screen has started streaming, with a 200; this is a real 404.
   if (STARTUPS_PATHS.test(pathname) && env.PATHFINDER_STARTUPS !== "on") return pass(request, new URL("/_not-found", request.url));

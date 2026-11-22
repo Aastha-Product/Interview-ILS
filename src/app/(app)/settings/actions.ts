@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 
@@ -14,6 +15,8 @@ import { keyStateOf, loadAiConfig, resolveAiConfig } from "@/lib/ai/config";
 import type { KeyState } from "@/lib/ai/provider-options";
 import { DOCUMENT_LANGUAGES } from "@/lib/document-language";
 import { deleteAllBackups } from "@/lib/backups";
+import { PAID_PLAN_IDS, type PaidPlanId } from "@/lib/billing";
+import { BillingError, startCheckout } from "@/lib/billing-data";
 import { env } from "@/lib/env";
 import { JobSearchError, testSource } from "@/lib/job-search";
 import { credentialsFor, jobSearchView, loadJobSearchConfig, requestContext } from "@/lib/job-search/config";
@@ -403,4 +406,22 @@ export const removeConnectorRedirect = action(z.object({ uri: z.string().max(200
   const redirects = (await loadSettings()).connectorRedirects.filter((entry) => entry !== uri);
   await saveSettings({ connectorRedirects: redirects });
   return { redirects };
+});
+
+/**
+ * Buy a plan (Phase 4): starts a Razorpay payment for it and gives back the page to pay on. The
+ * plan is set only once Razorpay confirms the payment (/api/billing/callback or the webhook).
+ */
+export const buyPlan = action(z.object({ plan: z.enum(PAID_PLAN_IDS as unknown as [PaidPlanId, ...PaidPlanId[]]) }), async ({ plan }) => {
+  const headerList = await headers();
+  const host = headerList.get("x-forwarded-host")?.split(",")[0]?.trim() || headerList.get("host");
+  const protocol = headerList.get("x-forwarded-proto")?.split(",")[0]?.trim() || "https";
+  const origin = env.DOSSIER_PUBLIC_URL ?? (host ? `${protocol}://${host}` : null);
+  if (!origin) throw new ActionError("Couldn't start the payment just now. Try again in a minute.");
+  try {
+    return await startCheckout(plan, origin);
+  } catch (error) {
+    if (error instanceof BillingError) throw new ActionError(error.message);
+    throw error;
+  }
 });
