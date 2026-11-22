@@ -44,6 +44,10 @@ ARG BUILD_MEMORY_MB=3072
 ENV NODE_OPTIONS=--max-old-space-size=${BUILD_MEMORY_MB}
 COPY . .
 RUN yarn generate && yarn build
+# Pathfinder: the extension's package, for students to install it themselves until it's in the
+# Chrome Web Store (Auto-apply → Connect the extension). The store build: live sites only.
+RUN node extension/build.mjs --store \
+  && cp "extension/release/pathfinder-extension-$(node -p "require('./extension/manifest.json').version").zip" public/pathfinder-extension.zip
 # Prisma's CLI for `migrate deploy`, at the version in yarn.lock, with the
 # same resolutions as package.json; not the rest of the dev dependencies.
 RUN mkdir /tools && node -e ' \

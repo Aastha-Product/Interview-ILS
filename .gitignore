@@ -67,3 +67,4 @@ next-env.d.ts
 # The Web Store build and its zip (node extension/build.mjs --store)
 /extension/dist-store/
 /extension/release/
+/public/pathfinder-extension.zip
