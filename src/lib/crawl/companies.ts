@@ -66,4 +66,32 @@ export const STARTER_COMPANIES: readonly StarterCompany[] = [
   // SmartRecruiters (company ids are case-sensitive)
   { name: "Experian", system: "SMARTRECRUITERS", boardToken: "Experian" }, // 25
   { name: "NielsenIQ", system: "SMARTRECRUITERS", boardToken: "NielsenIQ" }, // 17
+
+  // ── Added 22 November 2026 (Phase 2: more companies). Each board checked live against its public
+  //    API the same day, and the company behind it confirmed; kept only with 3 or more open jobs in
+  //    an Indian city then (in the comment). Added by the worker the next time it starts. ──
+  // Greenhouse
+  { name: "Everpure (Pure Storage)", system: "GREENHOUSE", boardToken: "purestorage" }, // 65
+  { name: "Toast", system: "GREENHOUSE", boardToken: "toast" }, // 25
+  { name: "Agoda", system: "GREENHOUSE", boardToken: "agoda" }, // 15
+  { name: "Commvault", system: "GREENHOUSE", boardToken: "commvault" }, // 9
+  { name: "Anthropic", system: "GREENHOUSE", boardToken: "anthropic" }, // 6
+  { name: "Turing", system: "GREENHOUSE", boardToken: "turing" }, // 6
+  { name: "YugabyteDB", system: "GREENHOUSE", boardToken: "yugabyte" }, // 5
+  { name: "Observe.AI", system: "GREENHOUSE", boardToken: "observeai" }, // 5
+  { name: "Flexport", system: "GREENHOUSE", boardToken: "flexport" }, // 4
+  // Ashby
+  { name: "Sarvam AI", system: "ASHBY", boardToken: "sarvam" }, // 42
+  { name: "Airwallex", system: "ASHBY", boardToken: "airwallex" }, // 11
+  { name: "SpotDraft", system: "ASHBY", boardToken: "spotdraft" }, // 10
+  { name: "ElevenLabs", system: "ASHBY", boardToken: "elevenlabs" }, // 10
+  { name: "Harvey", system: "ASHBY", boardToken: "harvey" }, // 8
+  { name: "Anyscale", system: "ASHBY", boardToken: "anyscale" }, // 5
+  { name: "Cursor", system: "ASHBY", boardToken: "cursor" }, // 5
+  { name: "Cognition", system: "ASHBY", boardToken: "cognition" }, // 3
+  // SmartRecruiters (company ids are case-sensitive)
+  { name: "Swiggy", system: "SMARTRECRUITERS", boardToken: "Swiggy" }, // 174
+  { name: "AbbVie", system: "SMARTRECRUITERS", boardToken: "Abbvie" }, // 40
+  { name: "LinkedIn", system: "SMARTRECRUITERS", boardToken: "LinkedIn3" }, // 37
+  { name: "Continental", system: "SMARTRECRUITERS", boardToken: "Continental" }, // 13
 ];
