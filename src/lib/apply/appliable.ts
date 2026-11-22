@@ -18,8 +18,13 @@ const hostOf = (url: string) => {
  * site. Greenhouse then sends its page on to the company's (Okta, Stripe, Airbnb, Databricks),
  * and the job's own address in Greenhouse's API (`url`) says so.
  */
+/** Boards on each company's own subdomain (Phase 2: BambooHR's <company>.bamboohr.com). */
+export const EXTENSION_HOST_PATTERNS: readonly RegExp[] = [/^[a-z0-9][a-z0-9-]*\.bamboohr\.com$/];
+
+const fillable = (host: string) => EXTENSION_HOSTS.includes(host) || EXTENSION_HOST_PATTERNS.some((pattern) => pattern.test(host));
+
 export function extensionCanApply(posting: { system: string; url: string; applyUrl: string }): boolean {
-  if (!EXTENSION_HOSTS.includes(hostOf(posting.applyUrl))) return false;
+  if (!fillable(hostOf(posting.applyUrl))) return false;
   if (posting.system === "GREENHOUSE" && posting.url && !/(^|\.)greenhouse\.io$/.test(hostOf(posting.url))) return false;
   return true;
 }

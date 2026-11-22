@@ -26,7 +26,7 @@ export type Control =
 export type Question = { key: string; label: string; required: boolean; control: Control };
 
 export type Board = {
-  name: "greenhouse" | "lever" | "ashby" | "smartrecruiters";
+  name: "greenhouse" | "lever" | "ashby" | "smartrecruiters" | "bamboohr";
   isHost(hostname: string): boolean;
   /** The form, or (Ashby) the element holding its questions. */
   findForm(doc: Document): HTMLElement | null;
@@ -47,6 +47,11 @@ export type Board = {
    * null once Submit shows. Pressing it sends nothing; only Submit does.
    */
   nextButton?(form: HTMLElement): HTMLElement | null;
+  /**
+   * A board whose form shows only once a button is pressed (BambooHR's "Apply for This Job"): the
+   * button, while the form isn't showing yet. Pressing it opens the form and sends nothing.
+   */
+  openButton?(doc: Document): HTMLElement | null;
   /** The page's words where they're in shadow roots (SmartRecruiters), for reading what it says after Submit. */
   pageText?(doc: Document): string;
 };

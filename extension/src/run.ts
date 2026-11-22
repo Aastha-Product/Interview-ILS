@@ -91,6 +91,9 @@ export async function apply(port: Port, doc: Document, location: Location | { ho
   // The page after Submit (Greenhouse and Lever load a new one): only see what it says.
   if (submitted) return afterSubmit(board, doc, location);
 
+  // A form behind a button (BambooHR): pressed once, if the form isn't there yet.
+  const opener = board.openButton && !board.findForm(doc) ? await until(() => board.openButton!(doc), { timeout: WAIT.form }) : null;
+  opener?.click();
   let form = await until(() => board.findForm(doc), { timeout: WAIT.form });
   if (!form) return challengeShown(doc) ? needsStudent(REASONS.challenge) : needsStudent(REASONS.noForm, false);
 

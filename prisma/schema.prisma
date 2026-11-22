@@ -1070,6 +1070,8 @@ enum BoardSystem {
   LEVER
   ASHBY
   SMARTRECRUITERS
+  /// Phase 2: <company>.bamboohr.com/careers.
+  BAMBOOHR
 }
 
 /// A company whose public job board the crawler reads. Shared by everyone: no owner.

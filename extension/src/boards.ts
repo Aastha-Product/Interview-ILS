@@ -284,7 +284,51 @@ export const smartrecruiters: Board = {
   pageText: (doc) => deepText(doc.body),
 };
 
-export const BOARDS: readonly Board[] = [greenhouse, lever, ashby, smartrecruiters];
+// BambooHR (<company>.bamboohr.com/careers/<id>), as read from a live posting on 22 November 2026:
+// the job page shows "Apply for This Job", which opens an ordinary <form id="job-application-form">.
+// Controls are named (firstName, lastName, email, phone, streetAddress.value, city.value,
+// state.value, countryId.value, linkedinUrl, customQuestionAnswers.long_73), each with a <label>
+// ending in "*" when required; state and country are <select>s; the resume is the form's file
+// input. A hidden-from-people field (name nickname_…, "Please leave this field blank") traps bots
+// and is never touched; reCAPTCHA's response box isn't a question either.
+const BAMBOO_SKIP = /^(nickname_|g-recaptcha-response$|resumeFileId$)/;
+
+export const bamboohr: Board = {
+  name: "bamboohr",
+  isHost: (hostname) => /^[a-z0-9][a-z0-9-]*\.bamboohr\.com$/.test(hostname),
+  findForm: (doc) => doc.querySelector<HTMLFormElement>("form#job-application-form"),
+  openButton: (doc) =>
+    Array.from(doc.querySelectorAll<HTMLElement>("button, a")).find((element) => isVisible(element) && /^apply for this job$/i.test((element.textContent ?? "").trim())) ?? null,
+  questions(form) {
+    return controlsIn(
+      form,
+      (element) => {
+        if (element.type === "hidden" || BAMBOO_SKIP.test(element.name)) return "";
+        if (element instanceof HTMLInputElement && element.type === "file") return "resume";
+        return element.name || element.id;
+      },
+      (element) => (BAMBOO_SKIP.test(element.name) ? "" : element.name),
+    ).map(({ key, control, elements }): Question => {
+      const raw = control.kind === "file" ? "Resume" : labelOf(elements[0]) || wordingAbove(elements[0]) || key;
+      // labelOf drops a trailing "*": the label's own text says whether it's required.
+      const own = elements[0].labels?.[0]?.textContent ?? raw;
+      const required = elements.some(isRequiredElement) || markedRequired(own) || (control.kind === "file" && elements.some((element) => (element as HTMLInputElement).required));
+      return { key, label: cleanLabel(raw), required, control };
+    });
+  },
+  submitButton: (form) => submitLike(form, 'button[type="submit"], input[type="submit"]'),
+  // The form is novalidate (BambooHR checks it itself), so the browser's check can't run: anything
+  // BambooHR already marks as an error, or a required field still empty, is the student's to finish.
+  preSubmitInvalid(form) {
+    const errors = Array.from(form.querySelectorAll('[role="alert"], [class*="error" i], [aria-invalid="true"]'))
+      .filter((node) => isVisible(node))
+      .map((node) => (node instanceof HTMLInputElement || node instanceof HTMLSelectElement || node instanceof HTMLTextAreaElement ? labelOf(node) : (node.textContent ?? "").replace(/\s+/g, " ").trim()))
+      .filter(Boolean);
+    return [...new Set(errors)];
+  },
+};
+
+export const BOARDS: readonly Board[] = [greenhouse, lever, ashby, smartrecruiters, bamboohr];
 
 /** The board this page belongs to, or null (a company's own site). */
 export const boardFor = (hostname: string): Board | null => BOARDS.find((board) => board.isHost(hostname)) ?? null;

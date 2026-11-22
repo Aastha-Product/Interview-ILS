@@ -10,6 +10,10 @@ describe("reading pasted careers links (Phase 2: Admin → Job boards)", () => {
     expect(parseBoardLink("https://jobs.ashbyhq.com/atlan?departmentId=1")).toMatchObject({ system: "ASHBY", boardToken: "atlan" });
     // SmartRecruiters ids keep their case.
     expect(parseBoardLink("https://careers.smartrecruiters.com/BoschGroup")).toMatchObject({ system: "SMARTRECRUITERS", boardToken: "BoschGroup" });
+    // BambooHR: the company is the subdomain (Phase 2).
+    expect(parseBoardLink("https://Knack.bamboohr.com/careers")).toEqual({ system: "BAMBOOHR", boardToken: "knack", name: "Knack" });
+    expect(parseBoardLink("Knack Tutoring, knack.bamboohr.com/careers/56")).toMatchObject({ system: "BAMBOOHR", boardToken: "knack", name: "Knack Tutoring" });
+    expect(parseBoardLink("https://knack.bamboohr.com/login")).toBeNull();
   });
 
   it("takes a name given before a comma, else makes one from the board's", () => {

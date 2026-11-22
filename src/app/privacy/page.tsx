@@ -280,7 +280,7 @@ export default function PrivacyPage() {
             <li>
               <strong>Where it works:</strong> only on Pathfinder&apos;s own site and on the application pages of
               Greenhouse (job-boards.greenhouse.io, boards.greenhouse.io), Lever (jobs.lever.co, jobs.eu.lever.co),
-              Ashby (jobs.ashbyhq.com) and SmartRecruiters (jobs.smartrecruiters.com), and only in the tab it opened for
+              Ashby (jobs.ashbyhq.com), SmartRecruiters (jobs.smartrecruiters.com) and BambooHR (each company&apos;s own &lt;name&gt;.bamboohr.com), and only in the tab it opened for
               the application. It can&apos;t read other
               sites, your other tabs, your browsing history, cookies or saved passwords.
             </li>

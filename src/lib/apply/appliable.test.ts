@@ -20,6 +20,12 @@ describe("which jobs the extension can apply to (auto-apply)", () => {
     expect(extensionCanApply({ system: "SMARTRECRUITERS", url: "https://careers.acme.example/1", applyUrl: "https://careers.acme.example/apply/1" })).toBe(false);
   });
 
+  it("BambooHR's boards on each company's own subdomain (Phase 2)", () => {
+    expect(extensionCanApply({ system: "BAMBOOHR", url: "https://knack.bamboohr.com/careers/56", applyUrl: "https://knack.bamboohr.com/careers/56" })).toBe(true);
+    expect(extensionCanApply({ system: "BAMBOOHR", url: "", applyUrl: "https://bamboohr.com.evil.example/careers/1" })).toBe(false);
+    expect(extensionCanApply({ system: "BAMBOOHR", url: "", applyUrl: "https://evil.example/knack.bamboohr.com" })).toBe(false);
+  });
+
   it("not a company's own site, which Greenhouse sends its page on to", () => {
     expect(extensionCanApply({ system: "GREENHOUSE", url: "https://www.okta.com/company/careers/opportunity/1?gh_jid=1", applyUrl: "https://job-boards.greenhouse.io/okta/jobs/1" })).toBe(false);
     expect(extensionCanApply({ system: "GREENHOUSE", url: "https://greenhouse.io.evil.example/1", applyUrl: "https://job-boards.greenhouse.io/x/jobs/1" })).toBe(false);
@@ -29,5 +35,6 @@ describe("which jobs the extension can apply to (auto-apply)", () => {
   it("matches what the extension may open", () => {
     const manifest = JSON.parse(readFileSync("extension/manifest.json", "utf8")) as { host_permissions: string[] };
     for (const host of EXTENSION_HOSTS) expect(manifest.host_permissions, host).toContain(`https://${host}/*`);
+    expect(manifest.host_permissions).toContain("https://*.bamboohr.com/*");
   });
 });

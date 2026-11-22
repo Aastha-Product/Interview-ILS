@@ -73,7 +73,7 @@ export function AddJobBoards() {
     >
       <Textarea
         label="Careers links"
-        hint={`One per line, up to ${MAX_LINKS_PER_PASTE} at a time, optionally with the company's name first: "Razorpay, https://jobs.lever.co/razorpay". Greenhouse, Lever, Ashby and SmartRecruiters boards only.`}
+        hint={`One per line, up to ${MAX_LINKS_PER_PASTE} at a time, optionally with the company's name first: "Razorpay, https://jobs.lever.co/razorpay". Greenhouse, Lever, Ashby, SmartRecruiters and BambooHR boards only.`}
         rows={5}
         value={links}
         onChange={(event) => setLinks(event.target.value)}

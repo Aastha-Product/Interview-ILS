@@ -3,6 +3,7 @@ import "server-only";
 import type { BoardSystem } from "@/generated/prisma/enums";
 
 import { ashby } from "./ashby";
+import { bamboohr } from "./bamboohr";
 import { greenhouse } from "./greenhouse";
 import { lever } from "./lever";
 import { smartrecruiters } from "./smartrecruiters";
@@ -13,4 +14,5 @@ export const ADAPTERS: Record<BoardSystem, BoardAdapter> = {
   LEVER: lever,
   ASHBY: ashby,
   SMARTRECRUITERS: smartrecruiters,
+  BAMBOOHR: bamboohr,
 };
