@@ -3,12 +3,12 @@ import type { BoardSystem } from "@/generated/prisma/enums";
 // Phase 2 (reach): adding job boards from Admin → Job boards. An admin pastes a company's
 // careers-page links, one per line, optionally with the company's name before a comma
 // ("Razorpay, https://jobs.lever.co/razorpay"); each is read here into the board the crawler
-// asks. Only the four boards the crawler reads, through their public APIs.
+// asks. Only the boards the crawler reads, through their public APIs.
 
 export type BoardLink = { system: BoardSystem; boardToken: string; name: string };
 
 /** Each system as the admin console names it. */
-export const SYSTEM_NAMES: Record<BoardSystem, string> = { GREENHOUSE: "Greenhouse", LEVER: "Lever", ASHBY: "Ashby", SMARTRECRUITERS: "SmartRecruiters" };
+export const SYSTEM_NAMES: Record<BoardSystem, string> = { GREENHOUSE: "Greenhouse", LEVER: "Lever", ASHBY: "Ashby", SMARTRECRUITERS: "SmartRecruiters", BAMBOOHR: "BambooHR" };
 
 /** The most boards one paste adds: each is checked live first, so a paste stays quick. */
 export const MAX_LINKS_PER_PASTE = 25;
@@ -25,6 +25,8 @@ const PATTERNS: readonly { system: BoardSystem; host: RegExp; token: (url: URL) 
   { system: "LEVER", host: /^jobs\.lever\.co$/, token: (url) => firstSegment(url) },
   { system: "ASHBY", host: /^jobs\.ashbyhq\.com$/, token: (url) => firstSegment(url) },
   { system: "SMARTRECRUITERS", host: /^(jobs|careers)\.smartrecruiters\.com$/, token: (url) => firstSegment(url) },
+  // <company>.bamboohr.com/careers: the company is the subdomain.
+  { system: "BAMBOOHR", host: /^[a-z0-9][a-z0-9-]*\.bamboohr\.com$/, token: (url) => (url.pathname.startsWith("/careers") || url.pathname === "/" ? url.hostname.split(".")[0] : null) },
 ];
 
 function firstSegment(url: URL, skip: readonly string[] = []): string | null {

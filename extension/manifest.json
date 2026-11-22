@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Pathfinder",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Applies to the jobs Pathfinder prepared for you, from your own browser, within the limits you set.",
   "minimum_chrome_version": "116",
   "background": { "service_worker": "worker.js" },
@@ -15,7 +15,8 @@
     "https://jobs.lever.co/*",
     "https://jobs.eu.lever.co/*",
     "https://jobs.ashbyhq.com/*",
-    "https://jobs.smartrecruiters.com/*"
+    "https://jobs.smartrecruiters.com/*",
+    "https://*.bamboohr.com/*"
   ],
   "content_scripts": [
     {

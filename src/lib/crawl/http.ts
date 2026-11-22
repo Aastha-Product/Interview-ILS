@@ -19,6 +19,8 @@ export const BOARD_LIMITS: Record<BoardSystem, RateLimit> = {
   ASHBY: { perMinute: 30, burst: 5 },
   // A job's description is a request of its own there.
   SMARTRECRUITERS: { perMinute: 60, burst: 10 },
+  // So is BambooHR's.
+  BAMBOOHR: { perMinute: 30, burst: 5 },
 };
 
 export type CrawlProblem = "gone" | "blocked" | "unavailable" | "changed";

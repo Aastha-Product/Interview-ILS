@@ -21,6 +21,7 @@ const { ashby } = await import("./ashby");
 const { greenhouse } = await import("./greenhouse");
 const { lever } = await import("./lever");
 const { smartrecruiters } = await import("./smartrecruiters");
+const { bamboohr } = await import("./bamboohr");
 
 const company: BoardCompany = { name: "Acme", boardToken: "acme", countries: ["in"] };
 const signal = new AbortController().signal;
@@ -194,5 +195,59 @@ describe("SmartRecruiters", () => {
       description: "Job Description\nDesign boards.\n\nQualifications\n- B.E.",
       applyUrl: "https://jobs.smartrecruiters.com/Acme/7-engineer?oga=true",
     });
+  });
+});
+
+describe("BambooHR (Phase 2)", () => {
+  it("lists from the careers list, places each job, and loads its description from its own page", async () => {
+    // Read from live boards on 21 November 2026: the list, then /careers/<id>/detail.
+    answers.set("https://acme.bamboohr.com/careers/list", {
+      meta: { totalCount: 2 },
+      result: [
+        { id: "12", jobOpeningName: "Data Analyst", departmentLabel: "Analytics", employmentStatusLabel: "Full-Time", location: { city: "Pune", state: "Maharashtra" }, atsLocation: { country: "India", state: null, province: null, city: null }, isRemote: false },
+        { id: 13, jobOpeningName: "Support", location: { city: "Tampa", state: "Florida" }, atsLocation: { country: null }, isRemote: null },
+        { notAJob: true },
+      ],
+    });
+    answers.set("https://acme.bamboohr.com/careers/12/detail", {
+      result: {
+        jobOpening: {
+          jobOpeningShareUrl: "https://acme.bamboohr.com/careers/12",
+          jobOpeningName: "Data Analyst",
+          description: "<p>Turn data into <b>decisions</b>.</p><ul><li>SQL</li></ul>",
+          datePosted: "2026-11-18",
+          location: { city: "Pune", state: "Maharashtra", addressCountry: "India" },
+          compensation: "INR 8–12 LPA",
+        },
+      },
+    });
+    const jobs = await bamboohr.list(company, signal);
+    expect(jobs.map((job) => [job.externalId, job.countries, job.remote, job.location])).toEqual([
+      ["12", ["in"], false, "Pune, Maharashtra, India"],
+      // A US city alone names no country here: kept only if it were remote and open to anywhere.
+      ["13", [], null, "Tampa, Florida"],
+    ]);
+    expect(await jobs[0].load()).toMatchObject({
+      title: "Data Analyst",
+      companyName: "Acme",
+      country: "in",
+      employmentType: "Full-Time",
+      department: "Analytics",
+      salary: "INR 8–12 LPA",
+      description: expect.stringContaining("Turn data into decisions."),
+      url: "https://acme.bamboohr.com/careers/12",
+      applyUrl: "https://acme.bamboohr.com/careers/12",
+      postedAt: new Date("2026-11-18"),
+    });
+    expect(asked).toContain("https://acme.bamboohr.com/careers/12/detail");
+  });
+
+  it("says so when the board answers in another shape", async () => {
+    answers.set("https://acme.bamboohr.com/careers/list", { result: [{ id: "1" }] });
+    answers.set("https://acme.bamboohr.com/careers/1/detail", { unexpected: true });
+    const [job] = await bamboohr.list(company, signal);
+    await expect(job.load()).rejects.toBeInstanceOf(CrawlError);
+    answers.set("https://acme.bamboohr.com/careers/list", "not json");
+    await expect(bamboohr.list(company, signal)).rejects.toBeInstanceOf(CrawlError);
   });
 });
