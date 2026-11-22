@@ -30,4 +30,14 @@ describe("the welcome page", () => {
     expect(privacy.getByText(/to analyse it and, if you switch auto-apply on, to apply for jobs for you\. We never\s+sell it\./)).toBeInTheDocument();
     expect(screen.getAllByRole("link", { name: "Get started free" })[0]).toHaveAttribute("href", "/signup");
   });
+
+  it("answers what students ask, linked from the top bar (Phase 5)", async () => {
+    render(await WelcomePage());
+    expect(screen.getByRole("link", { name: "FAQ" })).toHaveAttribute("href", "#faq");
+    const faq = within(screen.getByRole("region", { name: "Questions" }));
+    expect(faq.getByText("Is it free?")).toBeInTheDocument();
+    expect(faq.getByText(/doesn't automate LinkedIn, Naukri or Indeed/)).toBeInTheDocument();
+    expect(faq.getByText(/never invents experience/)).toBeInTheDocument();
+    expect(faq.getAllByRole("group")).toHaveLength(9);
+  });
 });
