@@ -50,6 +50,7 @@ describe("the welcome page", () => {
     const plans = within(screen.getByRole("list", { name: "Plans" }));
     const cards = plans.getAllByRole("listitem").filter((item) => item.parentElement?.getAttribute("aria-label") === "Plans");
     expect(cards.map((card) => within(card).getByRole("heading", { level: 3 }).textContent)).toEqual(["Free", "Weekly", "Monthly", "3 months"]);
+    expect(cards[0]).toHaveTextContent("₹0");
     expect(cards[0]).toHaveTextContent("5 resume analyses a day");
     expect(cards[0]).toHaveTextContent("Up to 10 auto-applications a day");
     expect(within(cards[0]).getByRole("link", { name: "Get started free" })).toHaveAttribute("href", "/signup");

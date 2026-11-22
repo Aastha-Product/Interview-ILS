@@ -10,6 +10,9 @@ export const PUBLIC_MAX_PAGE = 40;
 /** Longest search a visitor may type. */
 const MAX_TERM = 80;
 
+/** The words of a search, each to be found somewhere in the job (at most 6). */
+export const searchWords = (q: string) => [...new Set(q.toLowerCase().split(/[\s,/]+/).map((word) => word.trim()).filter(Boolean))].slice(0, 6);
+
 export type PublicJobsQuery = { q: string; city: string; remote: boolean; page: number };
 
 const one = (value: string | string[] | undefined) => (Array.isArray(value) ? value[0] : value) ?? "";

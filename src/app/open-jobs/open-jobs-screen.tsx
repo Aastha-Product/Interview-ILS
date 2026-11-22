@@ -42,8 +42,14 @@ export function OpenJobsScreen({ view, query, signedIn, canSignUp }: { view: Pub
           <div className="mx-auto flex max-w-5xl flex-col gap-4">
             <h1 className="text-3xl leading-tight font-bold text-balance text-white md:text-4xl">Open jobs in India</h1>
             <p className="max-w-2xl text-on-brand-muted">
-              {count.format(view.total)} open {view.total === 1 ? "role" : "roles"} from {count.format(view.companies)} {view.companies === 1 ? "company's" : "companies'"} own job boards
-              {searching ? " match your search" : ""}, updated every few hours.
+              {view.total === 0 && searching ? (
+                "No open roles match your search yet. New ones come in every few hours."
+              ) : (
+                <>
+                  {count.format(view.total)} open {view.total === 1 ? "role" : "roles"} from {count.format(view.companies)} {view.companies === 1 ? "company's" : "companies'"} own job boards
+                  {searching ? " match your search" : ""}, updated every few hours.
+                </>
+              )}
             </p>
             <form action="/open-jobs" method="get" role="search" aria-label="Search open jobs" className="flex flex-col gap-3 rounded-card bg-white p-4 sm:flex-row sm:items-end">
               <label className="flex flex-1 flex-col gap-1 text-sm font-medium">

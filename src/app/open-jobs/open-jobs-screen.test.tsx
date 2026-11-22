@@ -57,6 +57,9 @@ describe("the open jobs board (Phase 5)", () => {
   it("says when nothing matches, with a way back to every job", () => {
     render(<OpenJobsScreen view={view({ jobs: [], total: 0, pages: 0 })} query={{ ...query, q: "zzz", page: 1 }} signedIn={false} canSignUp />);
     expect(screen.getByText(/No open jobs match that/)).toBeInTheDocument();
+    // No "0 open roles from 0 companies".
+    expect(screen.getByText("No open roles match your search yet. New ones come in every few hours.")).toBeInTheDocument();
+    expect(screen.queryByText(/0 open roles/)).toBeNull();
     expect(screen.getByRole("link", { name: "See every open job" })).toHaveAttribute("href", "/open-jobs");
     expect(screen.queryByRole("navigation", { name: "Pages" })).toBeNull();
   });

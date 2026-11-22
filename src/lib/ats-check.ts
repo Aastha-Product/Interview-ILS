@@ -63,7 +63,10 @@ const STOPWORDS = new Set(
     "to too under until up us use using very via was we were what when where which while who whom why will with within without would you your " +
     "able ability candidate candidates experience experienced role roles work working team teams job jobs year years strong good great excellent " +
     "required requirements preferred plus including include includes responsibilities responsible looking join company opportunity skills skill " +
-    "knowledge understanding etc new well across ensure help make based level related least minimum degree bachelor bachelors master masters"
+    "knowledge understanding etc new well across ensure help make based level related least minimum degree bachelor bachelors master masters " +
+    // Words every posting uses that no recruiter searches for (from testing, 22 November 2026).
+    "nice want need love get keep take give find write writes writing build builds building present presenting provide providing deliver " +
+    "drive own apply grow day days environment fast paced range wide various multiple world best partner partners ideal ideally bonus shall"
   ).split(" "),
 );
 
@@ -73,16 +76,41 @@ const lines = (text: string) =>
     .map((line) => line.trim())
     .filter(Boolean);
 
-/** A line that reads as a bullet: marked with one, or a short line starting with a word. */
-const BULLET = /^([•·▪◦\-–—*>]|\d+[.)])\s*/;
-const bulletLines = (all: string[]) => all.filter((line) => BULLET.test(line)).map((line) => line.replace(BULLET, ""));
-
 const wordsOf = (text: string) => text.toLowerCase().match(/[a-z][a-z0-9+#.]*[a-z0-9+#]|[a-z]/g) ?? [];
 
-/** The job description's most-used meaningful words, the way a recruiter's search would pick them. */
+/**
+ * A line that reads as a bullet: marked with one, or, where a PDF lost the marks, a line of a few
+ * words that starts with an action verb ("Built SQL dashboards…").
+ */
+const BULLET = /^([•·▪◦\-–—*>]|\d+[.)])\s*/;
+const bulletLines = (all: string[]) =>
+  all.flatMap((line) => {
+    if (BULLET.test(line)) return [line.replace(BULLET, "")];
+    const words = wordsOf(line);
+    return words.length >= 4 && VERBS.has(words[0] ?? "") ? [line] : [];
+  });
+
+/** Skills written as more than one word, kept together as one keyword. */
+const PHRASES = [
+  "power bi", "a/b testing", "machine learning", "deep learning", "data analysis", "data science", "data engineering", "google analytics",
+  "google sheets", "microsoft excel", "computer vision", "natural language processing", "product management", "project management",
+  "unit testing", "spring boot", "react native", "ruby on rails", "ci/cd", "rest api", "system design", "user research", "customer success",
+  "business development", "financial modelling", "financial modeling", "supply chain", "digital marketing",
+];
+const escaped = (phrase: string) => phrase.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&").replace(/ /g, "\\s+");
+const phraseIn = (text: string, phrase: string) => new RegExp(`(^|[^a-z0-9])${escaped(phrase)}($|[^a-z0-9])`, "i").test(text);
+
+/** The job description's most-used meaningful words and skill phrases, the way a recruiter's search would pick them. */
 export function jobKeywords(job: string, limit = 20): string[] {
   const counts = new Map<string, number>();
-  for (const word of wordsOf(job)) {
+  let rest = job;
+  for (const phrase of PHRASES) {
+    if (!phraseIn(rest, phrase)) continue;
+    // A phrase counts as one keyword, and its words aren't counted again on their own ("power" of Power BI).
+    counts.set(phrase, 2);
+    rest = rest.replace(new RegExp(escaped(phrase), "gi"), " ");
+  }
+  for (const word of wordsOf(rest)) {
     if (word.length < 3 || STOPWORDS.has(word) || /^\d/.test(word)) continue;
     counts.set(word, (counts.get(word) ?? 0) + 1);
   }
@@ -179,14 +207,15 @@ export function checkResume(resume: string, job = ""): AtsResult {
   );
 
   // Dates: when each role and degree was, which an ATS reads to work out experience.
-  const years = new Set(text.match(/\b(19[89]\d|20[0-4]\d)\b/g) ?? []);
+  // Every mention counts: "Jan 2025 – Jun 2025" gives one role two dates.
+  const dates = (text.match(/\b(19[89]\d|20[0-4]\d)\b|\b(present|current)\b/gi) ?? []).length;
   checks.push(
     check(
       "dates",
       "Dates",
-      years.size >= 2 ? 5 : years.size === 1 ? 2 : 0,
+      dates >= 3 ? 5 : dates >= 1 ? 2 : 0,
       5,
-      years.size === 0 ? "No years found." : `${years.size} different ${years.size === 1 ? "year" : "years"} mentioned.`,
+      dates === 0 ? "No dates found." : `${dates} ${dates === 1 ? "date" : "dates"} found.`,
       "Give each role, project and degree its dates, e.g. \"Jun 2024 – Present\".",
     ),
   );
@@ -210,8 +239,9 @@ export function checkResume(resume: string, job = ""): AtsResult {
   const wanted = job.trim() ? jobKeywords(job) : [];
   if (wanted.length > 0) {
     const have = new Set(wordsOf(text));
-    const hit = wanted.filter((word) => have.has(word));
-    keywords = { found: hit, missing: wanted.filter((word) => !have.has(word)) };
+    const has = (keyword: string) => (/[\s/]/.test(keyword) ? phraseIn(text, keyword) : have.has(keyword));
+    const hit = wanted.filter(has);
+    keywords = { found: hit, missing: wanted.filter((keyword) => !has(keyword)) };
     checks.push(
       check(
         "keywords",

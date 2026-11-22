@@ -185,7 +185,7 @@ export default async function WelcomePage() {
                 <li key={plan.id} className={cn("flex flex-col gap-5 rounded-panel p-6 shadow-page", plan.id === "MONTHLY" ? "on-navy" : "border border-line bg-white")}>
                   <div className="flex flex-col gap-1">
                     <h3 className="text-xl">{plan.name}</h3>
-                    <p className={cn("text-2xl font-semibold", plan.id === "MONTHLY" ? "text-white" : "text-ink")}>{priceText(plan)}</p>
+                    <p className={cn("text-2xl font-semibold", plan.id === "MONTHLY" ? "text-white" : "text-ink")}>{free ? "₹0" : priceText(plan)}</p>
                     <p className={cn("text-sm", plan.id === "MONTHLY" ? "text-on-brand-muted" : "text-muted")}>{plan.summary}</p>
                   </div>
                   <ul className="flex flex-col gap-3 text-sm">

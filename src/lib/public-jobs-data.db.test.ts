@@ -65,6 +65,10 @@ describe("the open jobs board's jobs (Phase 5)", () => {
 
     expect((await loadPublicJobs({ ...all, q: "analyst" }, now)).jobs.map((job) => job.title)).toEqual(["Business Analyst", "Data Analyst"]);
     expect((await loadPublicJobs({ ...all, q: "atlan" }, now)).total).toBe(2);
+    // Every word, anywhere and in any order: the company's name counts too.
+    expect((await loadPublicJobs({ ...all, q: "analyst data" }, now)).jobs.map((job) => job.title)).toEqual(["Data Analyst"]);
+    expect((await loadPublicJobs({ ...all, q: "groww business" }, now)).jobs.map((job) => job.title)).toEqual(["Business Analyst"]);
+    expect((await loadPublicJobs({ ...all, q: "analyst atlan" }, now)).total).toBe(0);
     expect((await loadPublicJobs({ ...all, city: "bengaluru" }, now)).total).toBe(2);
     expect((await loadPublicJobs({ ...all, remote: true }, now)).jobs.map((job) => job.title)).toEqual(["Backend Engineer"]);
   });
