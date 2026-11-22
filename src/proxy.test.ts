@@ -170,6 +170,12 @@ describe("proxy", () => {
     expect((await proxy(request("/api/auth/googlex"))).status).toBe(401);
   });
 
+  it("lets signed-out visitors use the ATS checker (Phase 5)", async () => {
+    const response = await proxy(request("/ats-checker"));
+    expect(response.headers.get("x-middleware-next")).toBe("1");
+    expect(getRedirectUrl(await proxy(request("/ats-checker/x")))).toBe("http://localhost:3000/login?next=%2Fats-checker%2Fx");
+  });
+
   it("lets signed-out visitors browse the open jobs board, and nothing beside it (Phase 5)", async () => {
     const response = await proxy(request("/open-jobs"));
     expect(response.headers.get("x-middleware-next")).toBe("1");
