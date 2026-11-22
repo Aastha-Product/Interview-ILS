@@ -49,6 +49,9 @@ export default async function WelcomePage() {
             <Link href="/open-jobs" className="hidden rounded-md px-3 py-2 text-on-brand-muted hover:text-white md:inline">
               Open jobs
             </Link>
+            <Link href="/ats-checker" className="hidden rounded-md px-3 py-2 text-on-brand-muted hover:text-white md:inline">
+              ATS checker
+            </Link>
             <a href="#how" className="hidden rounded-md px-3 py-2 text-on-brand-muted hover:text-white md:inline">
               How it works
             </a>
