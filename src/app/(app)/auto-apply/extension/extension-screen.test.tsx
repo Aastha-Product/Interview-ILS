@@ -30,6 +30,18 @@ describe("connecting the extension (auto-apply step 5)", () => {
     posted.mockRestore();
   });
 
+  it("shows how to install it by hand while it isn't in the Chrome Web Store (Phase 2)", () => {
+    render(<ExtensionScreen tokens={[]} download={{ href: "/pathfinder-extension.zip", version: "0.3.0" }} />);
+    expect(screen.getByRole("heading", { name: "Install it in Chrome" })).toBeInTheDocument();
+    const link = screen.getByRole("link", { name: "Download the extension" });
+    expect(link).toHaveAttribute("href", "/pathfinder-extension.zip");
+    expect(link).toHaveAttribute("download");
+    expect(screen.getByText(/version 0\.3\.0/)).toBeInTheDocument();
+    expect(screen.getAllByText("chrome://extensions")[0]).toBeInTheDocument();
+    expect(screen.getByText("Load unpacked")).toBeInTheDocument();
+    expect(screen.queryByText(/Install the Pathfinder extension in Chrome first/)).toBeNull();
+  });
+
   it("ignores messages from other windows or origins", () => {
     render(<ExtensionScreen tokens={[]} />);
     act(() => window.dispatchEvent(new MessageEvent("message", { data: { type: BRIDGE.hello }, origin: "https://evil.example", source: window })));
