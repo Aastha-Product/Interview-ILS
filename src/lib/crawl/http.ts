@@ -21,6 +21,8 @@ export const BOARD_LIMITS: Record<BoardSystem, RateLimit> = {
   SMARTRECRUITERS: { perMinute: 60, burst: 10 },
   // So is BambooHR's.
   BAMBOOHR: { perMinute: 30, burst: 5 },
+  // Workday: a page of 20 jobs, or one job's description, is a request each; gently.
+  WORKDAY: { perMinute: 30, burst: 5 },
 };
 
 export type CrawlProblem = "gone" | "blocked" | "unavailable" | "changed";
@@ -42,12 +44,18 @@ export async function getJson(system: BoardSystem, url: URL, signal: AbortSignal
   return withRateLimit(`board:${system.toLowerCase()}`, BOARD_LIMITS[system], () => fetchJson(url, signal), { maxWaitMs: 30_000, signal });
 }
 
-async function fetchJson(url: URL, signal: AbortSignal): Promise<unknown> {
+/** POSTs a JSON search to a board and reads its JSON answer (Workday's job list is a search), within its rate limit. */
+export async function postJson(system: BoardSystem, url: URL, body: unknown, signal: AbortSignal): Promise<unknown> {
+  return withRateLimit(`board:${system.toLowerCase()}`, BOARD_LIMITS[system], () => fetchJson(url, signal, body), { maxWaitMs: 30_000, signal });
+}
+
+async function fetchJson(url: URL, signal: AbortSignal, body?: unknown): Promise<unknown> {
   const timeout = AbortSignal.timeout(TIMEOUT_MS);
   let response: Response;
   try {
     response = await fetch(url, {
-      headers: { accept: "application/json", "user-agent": USER_AGENT },
+      ...(body === undefined ? {} : { method: "POST", body: JSON.stringify(body) }),
+      headers: { accept: "application/json", "user-agent": USER_AGENT, ...(body === undefined ? {} : { "content-type": "application/json" }) },
       signal: AbortSignal.any([signal, timeout]),
       cache: "no-store",
     });

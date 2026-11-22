@@ -14,6 +14,13 @@ vi.mock("./http", async (importOriginal) => ({
     if (!key) throw new Error(`No answer for ${url}`);
     return answers.get(key);
   }),
+  // Workday's job list is a POSTed search: answered by its offset and filter.
+  postJson: vi.fn(async (_system: string, url: URL, body: { offset: number; appliedFacets: Record<string, string[]> }) => {
+    asked.push(`${url.toString()} offset=${body.offset} facets=${JSON.stringify(body.appliedFacets)}`);
+    const pages = answers.get(`POST ${url.toString()}`) as ((body: { offset: number; appliedFacets: Record<string, string[]> }) => unknown) | undefined;
+    if (!pages) throw new Error(`No answer for POST ${url}`);
+    return pages(body);
+  }),
 }));
 vi.mock("@/lib/jobs/rate-limit", () => ({ withRateLimit: (_p: string, _l: unknown, work: () => unknown) => work() }));
 
@@ -22,6 +29,7 @@ const { greenhouse } = await import("./greenhouse");
 const { lever } = await import("./lever");
 const { smartrecruiters } = await import("./smartrecruiters");
 const { bamboohr } = await import("./bamboohr");
+const { MAX_JOBS, workday, workdaySite } = await import("./workday");
 
 const company: BoardCompany = { name: "Acme", boardToken: "acme", countries: ["in"] };
 const signal = new AbortController().signal;
@@ -249,5 +257,71 @@ describe("BambooHR (Phase 2)", () => {
     await expect(job.load()).rejects.toBeInstanceOf(CrawlError);
     answers.set("https://acme.bamboohr.com/careers/list", "not json");
     await expect(bamboohr.list(company, signal)).rejects.toBeInstanceOf(CrawlError);
+  });
+});
+
+describe("Workday (Phase 2)", () => {
+  const site: BoardCompany = { name: "NVIDIA", boardToken: "nvidia.wd5/NVIDIAExternalCareerSite", countries: ["in"] };
+  const jobsUrl = "https://nvidia.wd5.myworkdayjobs.com/wday/cxs/nvidia/NVIDIAExternalCareerSite/jobs";
+  const posting = (n: number, locationsText = "India, Bengaluru") => ({ title: `Engineer ${n}`, externalPath: `/job/India-Bengaluru/Engineer_JR${n}`, locationsText, postedOn: "Posted Today", bulletFields: [`JR${n}`] });
+  const facets = [{ facetParameter: "locationCountry", values: [{ descriptor: "India", id: "c4f7" }, { descriptor: "Taiwan", id: "aa11" }] }];
+
+  it("reads a tenant's site from its board, and refuses anything else", () => {
+    expect(workdaySite("nvidia.wd5/NVIDIAExternalCareerSite")).toEqual({ host: "nvidia.wd5.myworkdayjobs.com", base: "/wday/cxs/nvidia/NVIDIAExternalCareerSite", site: "NVIDIAExternalCareerSite" });
+    expect(workdaySite("nvidia")).toBeNull();
+    expect(workdaySite("evil.example/x")).toBeNull();
+  });
+
+  it("filters by the company's country where the site can, pages through, and loads each job", async () => {
+    // As read from NVIDIA's site on 22 November 2026: 22 jobs in India over two pages.
+    answers.set(`POST ${jobsUrl}`, ({ offset, appliedFacets }: { offset: number; appliedFacets: Record<string, string[]> }) =>
+      Object.keys(appliedFacets).length === 0
+        ? { total: 500, jobPostings: [posting(0, "Taiwan, Taipei")], facets }
+        : { total: 22, jobPostings: offset === 0 ? Array.from({ length: 20 }, (_, n) => posting(n + 1, n === 0 ? "3 Locations" : "India, Bengaluru")) : [posting(21), posting(22)], facets },
+    );
+    answers.set("https://nvidia.wd5.myworkdayjobs.com/wday/cxs/nvidia/NVIDIAExternalCareerSite/job/India-Bengaluru/Engineer_JR1", {
+      jobPostingInfo: {
+        title: "Engineer 1",
+        jobDescription: "<p>Build <b>GPUs</b>.</p>",
+        location: "India, Bengaluru",
+        additionalLocations: ["India, Pune"],
+        startDate: "2026-11-19",
+        timeType: "Full time",
+        jobReqId: "JR1",
+        externalUrl: "https://nvidia.wd5.myworkdayjobs.com/NVIDIAExternalCareerSite/job/India-Bengaluru/Engineer_JR1",
+        country: { descriptor: "India" },
+      },
+    });
+    const jobs = await workday.list(site, signal);
+    expect(jobs).toHaveLength(22);
+    expect(asked.filter((url) => url.startsWith(jobsUrl)).map((url) => url.replace(jobsUrl, ""))).toEqual([' offset=0 facets={}', ' offset=0 facets={"locationCountry":["c4f7"]}', ' offset=20 facets={"locationCountry":["c4f7"]}']);
+    // "3 Locations" names no country, but the filter says it's in India.
+    expect(jobs[0]).toMatchObject({ externalId: "/job/India-Bengaluru/Engineer_JR1", countries: ["in"], location: "3 Locations" });
+    expect(await jobs[0].load()).toMatchObject({
+      title: "Engineer 1",
+      companyName: "NVIDIA",
+      location: "India, Bengaluru · India, Pune",
+      country: "in",
+      employmentType: "Full time",
+      description: expect.stringContaining("Build GPUs."),
+      applyUrl: "https://nvidia.wd5.myworkdayjobs.com/NVIDIAExternalCareerSite/job/India-Bengaluru/Engineer_JR1",
+      postedAt: new Date("2026-11-19"),
+    });
+  });
+
+  it("keeps the version when only 'Posted N days ago' changes, and reads at most MAX_JOBS", async () => {
+    answers.set(`POST ${jobsUrl}`, ({ offset }: { offset: number }) => ({ total: 10_000, jobPostings: Array.from({ length: 20 }, (_, n) => ({ ...posting(offset + n), postedOn: `Posted ${offset} Days Ago` })) }));
+    const jobs = await workday.list(site, signal);
+    expect(jobs).toHaveLength(MAX_JOBS);
+    // Without a country filter, only what the place names.
+    expect(jobs[0].countries).toEqual(["in"]);
+    answers.set(`POST ${jobsUrl}`, ({ offset }: { offset: number }) => ({ total: 20, jobPostings: Array.from({ length: 20 }, (_, n) => ({ ...posting(offset + n), postedOn: "Posted 30+ Days Ago" })) }));
+    expect((await workday.list(site, signal))[0].version).toBe(jobs[0].version);
+  });
+
+  it("says so for a board that isn't a Workday site, or an answer in another shape", async () => {
+    await expect(workday.list({ ...site, boardToken: "nvidia" }, signal)).rejects.toBeInstanceOf(CrawlError);
+    answers.set(`POST ${jobsUrl}`, () => "not json");
+    await expect(workday.list(site, signal)).rejects.toBeInstanceOf(CrawlError);
   });
 });

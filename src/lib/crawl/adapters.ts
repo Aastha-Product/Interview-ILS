@@ -7,6 +7,7 @@ import { bamboohr } from "./bamboohr";
 import { greenhouse } from "./greenhouse";
 import { lever } from "./lever";
 import { smartrecruiters } from "./smartrecruiters";
+import { workday } from "./workday";
 import type { BoardAdapter } from "./types";
 
 export const ADAPTERS: Record<BoardSystem, BoardAdapter> = {
@@ -15,4 +16,5 @@ export const ADAPTERS: Record<BoardSystem, BoardAdapter> = {
   ASHBY: ashby,
   SMARTRECRUITERS: smartrecruiters,
   BAMBOOHR: bamboohr,
+  WORKDAY: workday,
 };

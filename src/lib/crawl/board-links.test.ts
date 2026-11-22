@@ -14,6 +14,10 @@ describe("reading pasted careers links (Phase 2: Admin → Job boards)", () => {
     expect(parseBoardLink("https://Knack.bamboohr.com/careers")).toEqual({ system: "BAMBOOHR", boardToken: "knack", name: "Knack" });
     expect(parseBoardLink("Knack Tutoring, knack.bamboohr.com/careers/56")).toMatchObject({ system: "BAMBOOHR", boardToken: "knack", name: "Knack Tutoring" });
     expect(parseBoardLink("https://knack.bamboohr.com/login")).toBeNull();
+    // Workday: tenant, data centre and site, with or without the locale (Phase 2).
+    expect(parseBoardLink("https://nvidia.wd5.myworkdayjobs.com/NVIDIAExternalCareerSite")).toEqual({ system: "WORKDAY", boardToken: "nvidia.wd5/NVIDIAExternalCareerSite", name: "Nvidia" });
+    expect(parseBoardLink("NVIDIA, https://nvidia.wd5.myworkdayjobs.com/en-US/NVIDIAExternalCareerSite/job/India-Bengaluru/x_JR1")).toMatchObject({ boardToken: "nvidia.wd5/NVIDIAExternalCareerSite", name: "NVIDIA" });
+    expect(parseBoardLink("https://nvidia.wd5.myworkdayjobs.com/")).toBeNull();
   });
 
   it("takes a name given before a comma, else makes one from the board's", () => {

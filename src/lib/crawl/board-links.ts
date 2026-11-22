@@ -3,12 +3,12 @@ import type { BoardSystem } from "@/generated/prisma/enums";
 // Phase 2 (reach): adding job boards from Admin → Job boards. An admin pastes a company's
 // careers-page links, one per line, optionally with the company's name before a comma
 // ("Razorpay, https://jobs.lever.co/razorpay"); each is read here into the board the crawler
-// asks. Only the boards the crawler reads, through their public APIs.
+// asks. Only the boards the crawler reads, through their public data.
 
 export type BoardLink = { system: BoardSystem; boardToken: string; name: string };
 
 /** Each system as the admin console names it. */
-export const SYSTEM_NAMES: Record<BoardSystem, string> = { GREENHOUSE: "Greenhouse", LEVER: "Lever", ASHBY: "Ashby", SMARTRECRUITERS: "SmartRecruiters", BAMBOOHR: "BambooHR" };
+export const SYSTEM_NAMES: Record<BoardSystem, string> = { GREENHOUSE: "Greenhouse", LEVER: "Lever", ASHBY: "Ashby", SMARTRECRUITERS: "SmartRecruiters", BAMBOOHR: "BambooHR", WORKDAY: "Workday" };
 
 /** The most boards one paste adds: each is checked live first, so a paste stays quick. */
 export const MAX_LINKS_PER_PASTE = 25;
@@ -27,7 +27,17 @@ const PATTERNS: readonly { system: BoardSystem; host: RegExp; token: (url: URL) 
   { system: "SMARTRECRUITERS", host: /^(jobs|careers)\.smartrecruiters\.com$/, token: (url) => firstSegment(url) },
   // <company>.bamboohr.com/careers: the company is the subdomain.
   { system: "BAMBOOHR", host: /^[a-z0-9][a-z0-9-]*\.bamboohr\.com$/, token: (url) => (url.pathname.startsWith("/careers") || url.pathname === "/" ? url.hostname.split(".")[0] : null) },
+  // <tenant>.wd<N>.myworkdayjobs.com/[en-US/]<site>/…: the board is "<tenant>.wd<N>/<site>".
+  { system: "WORKDAY", host: /^[a-z0-9][a-z0-9-]*\.wd\d{1,3}\.myworkdayjobs\.com$/, token: workdayToken },
 ];
+
+function workdayToken(url: URL): string | null {
+  const [tenant, wd] = url.hostname.toLowerCase().split(".");
+  const segments = url.pathname.split("/").filter(Boolean);
+  // A locale may come first ("en-US").
+  const site = /^[a-z]{2}-[A-Z]{2}$/.test(segments[0] ?? "") ? segments[1] : segments[0];
+  return site && /^[A-Za-z0-9_-]{1,100}$/.test(site) ? `${tenant}.${wd}/${site}` : null;
+}
 
 function firstSegment(url: URL, skip: readonly string[] = []): string | null {
   const segment = url.pathname.split("/").filter(Boolean)[0];
@@ -60,10 +70,11 @@ export function parseBoardLink(line: string): BoardLink | null {
   for (const pattern of PATTERNS) {
     if (!pattern.host.test(host)) continue;
     const raw = pattern.token(url);
-    if (!raw || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/.test(raw)) return null;
-    // SmartRecruiters company ids are case-sensitive; the others aren't.
-    const boardToken = pattern.system === "SMARTRECRUITERS" ? raw : raw.toLowerCase();
-    return { system: pattern.system, boardToken, name: givenName?.trim().slice(0, 100) || nameFromToken(boardToken) };
+    if (!raw || !/^[A-Za-z0-9][A-Za-z0-9._/-]{0,199}$/.test(raw)) return null;
+    // SmartRecruiters company ids and Workday sites are case-sensitive; the others aren't.
+    const boardToken = pattern.system === "SMARTRECRUITERS" || pattern.system === "WORKDAY" ? raw : raw.toLowerCase();
+    const fallbackName = pattern.system === "WORKDAY" ? nameFromToken(boardToken.split(".")[0]) : nameFromToken(boardToken);
+    return { system: pattern.system, boardToken, name: givenName?.trim().slice(0, 100) || fallbackName };
   }
   return null;
 }
