@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { parsePublicJobsQuery, PUBLIC_MAX_PAGE, publicJobsHref } from "./public-jobs";
+import { parsePublicJobsQuery, PUBLIC_MAX_PAGE, publicJobsHref, searchWords } from "./public-jobs";
 
 describe("the open jobs board's search (Phase 5)", () => {
   it("reads the search from the address, cleaned and within limits", () => {
@@ -18,5 +18,11 @@ describe("the open jobs board's search (Phase 5)", () => {
     expect(publicJobsHref(query)).toBe("/open-jobs?q=SQL+%26+Python&remote=1");
     expect(publicJobsHref(query, 2)).toBe("/open-jobs?q=SQL+%26+Python&remote=1&page=2");
     expect(publicJobsHref({ q: "", city: "", remote: false, page: 1 })).toBe("/open-jobs");
+  });
+
+  it("splits a search into its words, once each", () => {
+    expect(searchWords(" Data  Analyst, data/SQL ")).toEqual(["data", "analyst", "sql"]);
+    expect(searchWords("a b c d e f g h")).toHaveLength(6);
+    expect(searchWords("   ")).toEqual([]);
   });
 });

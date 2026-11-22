@@ -4,7 +4,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { postedAgo, safeLink } from "@/lib/job-search/search";
 import { systemPrisma } from "@/lib/prisma";
 
-import { PUBLIC_MAX_PAGE, PUBLIC_PAGE_SIZE, type PublicJobsQuery } from "./public-jobs";
+import { PUBLIC_MAX_PAGE, PUBLIC_PAGE_SIZE, searchWords, type PublicJobsQuery } from "./public-jobs";
 
 export type PublicJob = { id: string; title: string; company: string; location: string; remote: boolean; posted: string; url: string };
 export type PublicJobsView = { jobs: PublicJob[]; total: number; pages: number; companies: number };
@@ -17,8 +17,13 @@ export async function loadPublicJobs(query: PublicJobsQuery, now = new Date()): 
     country: { in: ["in", ""] },
     ...(query.remote ? { remote: true } : {}),
     ...(query.city ? { location: { contains: query.city, mode: "insensitive" } } : {}),
+    // Every word somewhere in the title, company or department: "data analyst" finds "Analyst, Data & Insights".
     ...(query.q
-      ? { OR: [{ title: { contains: query.q, mode: "insensitive" } }, { companyName: { contains: query.q, mode: "insensitive" } }, { department: { contains: query.q, mode: "insensitive" } }] }
+      ? {
+          AND: searchWords(query.q).map((word) => ({
+            OR: [{ title: { contains: word, mode: "insensitive" as const } }, { companyName: { contains: word, mode: "insensitive" as const } }, { department: { contains: word, mode: "insensitive" as const } }],
+          })),
+        }
       : {}),
   };
   // Shared postings belong to no student, so they're read outside a student's scope.

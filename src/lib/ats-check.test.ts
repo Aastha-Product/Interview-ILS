@@ -58,6 +58,35 @@ describe("the ATS checker (Phase 5)", () => {
     expect(jobKeywords(job)[0]).toBe("python");
   });
 
+  it("finds the bullets of a PDF that lost its bullet marks, and counts every date (testing, 22 November)", () => {
+    const pdfText = [
+      "Asha Verma",
+      "Experience",
+      "Data Analyst Intern, Groww, Jan 2025 - Jun 2025",
+      "Built SQL dashboards in Tableau used by 3 teams",
+      "Automated weekly reports with Python, saving 6 hours a week",
+      "Skills",
+      "SQL, Python",
+    ].join("\n");
+    const result = checkResume(pdfText);
+    const detail = (id: string) => result.checks.find((check) => check.id === id)!.detail;
+    expect(detail("impact")).toBe("2 of 2 bullet points have a number in them.");
+    expect(detail("verbs")).toBe("2 of 2 bullet points start with an action verb.");
+    expect(detail("dates")).toBe("2 dates found.");
+    // A short line or one not led by a verb isn't taken for a bullet.
+    expect(detail("readability")).toMatch(/^2 bullet points/);
+  });
+
+  it("keeps skills of more than one word together, and leaves out words every posting uses (testing, 22 November)", () => {
+    const job = "Data Analyst, Pune. You will write SQL, build dashboards in Power BI or Tableau, use Python and Excel, and present insights to stakeholders. Nice to have: A/B testing, statistics, dbt.";
+    const keywords = jobKeywords(job);
+    expect(keywords).toEqual(expect.arrayContaining(["power bi", "a/b testing", "sql", "tableau", "python"]));
+    for (const filler of ["nice", "write", "build", "present", "power", "testing"]) expect(keywords).not.toContain(filler);
+    const result = checkResume("Skills\nSQL, Power  BI, Python, A/B testing", job);
+    expect(result.keywords!.found).toEqual(expect.arrayContaining(["power bi", "a/b testing", "sql", "python"]));
+    expect(result.keywords!.missing).toEqual(expect.arrayContaining(["tableau", "dbt"]));
+  });
+
   it("reads the email apart from the phone, and caps how much it reads", () => {
     const result = checkResume(`a@b.co\n${"word ".repeat(40_000)}`);
     expect(result.checks.find((check) => check.id === "contact")!.detail).toBe("Missing a phone number, a LinkedIn or portfolio link.");
