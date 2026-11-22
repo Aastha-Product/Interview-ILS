@@ -83,6 +83,7 @@ model User {
   autoApply        AutoApplySettings?
   applyTasks       ApplyTask[]
   extensionTokens  ExtensionToken[]
+  payments         Payment[]
 }
 
 model ProfileField {
@@ -1461,4 +1462,27 @@ model ResumeAnalysis {
   createdAt     DateTime @default(now())
 
   @@index([userId, createdAt])
+}
+
+/// Pathfinder (Phase 4): a plan bought through Razorpay. Made when the student starts paying (a
+/// Razorpay Payment Link, whose reference is this row's id); marked paid once Razorpay's signed
+/// return or webhook confirms it, which also sets the student's plan. Kept when the student deletes
+/// everything (a payment is a record of money paid); deleted with the account.
+model Payment {
+  userId      String    @default(dbgenerated("current_setting('app.user_id')"))
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id          String    @id @default(cuid())
+  /// The plan bought (src/lib/plans.ts).
+  plan        String
+  amountPaise Int
+  /// Razorpay's Payment Link id (plink_…), once made.
+  linkId      String?   @unique
+  /// CREATED, then PAID; FAILED when Razorpay says so.
+  status      String    @default("CREATED")
+  /// Razorpay's payment id (pay_…), once paid.
+  paymentId   String?   @unique
+  createdAt   DateTime  @default(now())
+  paidAt      DateTime?
+
+  @@index([userId])
 }

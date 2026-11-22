@@ -50,6 +50,14 @@ services:
       PATHFINDER_FIREBASE_PROJECT_ID: ${PATHFINDER_FIREBASE_PROJECT_ID:-}
       DOSSIER_GOOGLE_CLIENT_ID: ${DOSSIER_GOOGLE_CLIENT_ID:-}
       DOSSIER_GOOGLE_CLIENT_SECRET: ${DOSSIER_GOOGLE_CLIENT_SECRET:-}
+      # Paid plans (Phase 4): their prices in rupees, and Razorpay's keys. Buying a plan stays off
+      # until the keys and a price are set in .env.
+      PATHFINDER_PRICE_WEEKLY: ${PATHFINDER_PRICE_WEEKLY:-}
+      PATHFINDER_PRICE_MONTHLY: ${PATHFINDER_PRICE_MONTHLY:-}
+      PATHFINDER_PRICE_QUARTERLY: ${PATHFINDER_PRICE_QUARTERLY:-}
+      RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID:-}
+      RAZORPAY_KEY_SECRET: ${RAZORPAY_KEY_SECRET:-}
+      RAZORPAY_WEBHOOK_SECRET: ${RAZORPAY_WEBHOOK_SECRET:-}
       # Startups reads company websites, so it's off unless set to on in .env.
       PATHFINDER_STARTUPS: ${PATHFINDER_STARTUPS:-off}
       # Dossier's job-search tools (Find jobs, the agent, applications, Inbox), on unless set to

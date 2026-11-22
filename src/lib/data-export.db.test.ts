@@ -126,6 +126,15 @@ describe("buildExport (E10-4)", () => {
     expect(exportSchema.safeParse(JSON.parse(text)).success).toBe(true);
   });
 
+  it("has the plans the student bought, and not other students' (Phase 4)", async () => {
+    await prisma().payment.create({ data: { plan: "MONTHLY", amountPaise: 49900, linkId: "plink_1", status: "PAID", paymentId: "pay_1", paidAt: now } });
+    await rawClientOf(prisma()).user.create({ data: { id: "other-student", email: "other@example.test" } });
+    await runAsUser("other-student", () => prisma().payment.create({ data: { plan: "WEEKLY", amountPaise: 19900 } }));
+    const data = await buildExport(prisma(), { now });
+    expect(data.payments).toEqual([expect.objectContaining({ plan: "MONTHLY", amountPaise: 49900, status: "PAID", paymentId: "pay_1" })]);
+    expect(JSON.stringify(data)).not.toContain("userId");
+  });
+
   it("names the file after the day", () => {
     expect(exportFileName(new Date(2026, 8, 7, 23))).toBe("dossier-export-2026-09-07.json");
   });

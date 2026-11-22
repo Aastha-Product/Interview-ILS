@@ -16,6 +16,7 @@ import { lastNightlyBackup } from "@/lib/backup-schedule";
 import { backupsDir } from "@/lib/backups";
 import { exportFileName } from "@/lib/data-export";
 import { formatShortDate } from "@/lib/dates";
+import { buyablePlans, pricedPlans } from "@/lib/billing";
 import { env } from "@/lib/env";
 import { googleConnection } from "@/lib/google/account";
 import { loadGoogleClientConfig, redirectUri } from "@/lib/google/oauth";
@@ -50,7 +51,9 @@ export const metadata: Metadata = { title: "Settings" };
 export default async function SettingsPage({ searchParams }: PageProps<"/settings">) {
   const params = await searchParams;
   // Pathfinder: without the job-search tools, students get a short Settings with nothing technical.
-  if (!toolsEnabled()) return <StudentSettings param={params.section} />;
+  // Back from paying on Razorpay (Phase 4): how it went, for Settings → Plan.
+  const billing = billingNotice(params.billing);
+  if (!toolsEnabled()) return <StudentSettings param={params.section} billing={billing} />;
   // Pathfinder, managed mode: no AI provider, job source, scoring or OAuth client to set up.
   const managed = managedMode();
   const sections = managed ? managedSettingsSections((await loadGoogleClientConfig()).client !== null) : SETTINGS_SECTIONS;
@@ -60,7 +63,7 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
   if (isStudentSection(section)) {
     return (
       <SettingsScreen section={section} sections={sections} description={description}>
-        {await studentSection(section)}
+        {await studentSection(section, billing)}
       </SettingsScreen>
     );
   }
@@ -255,7 +258,7 @@ function isStudentSection(id: string): id is StudentSectionId {
 }
 
 /** Settings for students (Pathfinder, PATHFINDER_TOOLS off): account, plan, privacy and help. */
-async function StudentSettings({ param }: { param: string | string[] | undefined }) {
+async function StudentSettings({ param, billing }: { param: string | string[] | undefined; billing: BillingNotice }) {
   const section = settingsSectionFromParam(param, STUDENT_SETTINGS_SECTIONS) as StudentSectionId;
   return (
     <SettingsScreen
@@ -263,16 +266,33 @@ async function StudentSettings({ param }: { param: string | string[] | undefined
       sections={STUDENT_SETTINGS_SECTIONS}
       description="Your account, your plan, and your data."
     >
-      {await studentSection(section)}
+      {await studentSection(section, billing)}
     </SettingsScreen>
   );
 }
 
 /** One of the student's own sections: account, plan, privacy and help (Pathfinder). */
-async function studentSection(section: StudentSectionId) {
+type BillingNotice = "paid" | "pending" | "failed" | null;
+
+/** ?billing= from the payment callback, or null. */
+function billingNotice(value: string | string[] | undefined): BillingNotice {
+  return value === "paid" || value === "pending" || value === "failed" ? value : null;
+}
+
+async function studentSection(section: StudentSectionId, billing: BillingNotice = null) {
   if (section === "plan") {
     const [ai, limit, plan] = await Promise.all([loadAiConfig(), studentDailyLimit(), loadStudentPlan()]);
-    return <PlanSection perDay={analysesPerDay(limit)} left={await analysesLeftToday(ai.sharedKey, limit)} plan={plan.plan} until={plan.until} />;
+    return (
+      <PlanSection
+        perDay={analysesPerDay(limit)}
+        left={await analysesLeftToday(ai.sharedKey, limit)}
+        plan={plan.plan}
+        until={plan.until}
+        plans={pricedPlans(env)}
+        buyable={buyablePlans(env)}
+        notice={billing}
+      />
+    );
   }
   if (section === "privacy") return <PrivacySection analyses={(await listResumeAnalyses()).length} tools={toolsEnabled()} />;
   if (section === "help") return <HelpSection />;

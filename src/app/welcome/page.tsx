@@ -10,7 +10,9 @@ import { signInMode } from "@/lib/auth/google-sign-in";
 import { HOME_PATH } from "@/lib/auth/next-path";
 import { getSession } from "@/lib/auth/session";
 import { cn } from "@/lib/cn";
-import { PLANS, priceText } from "@/lib/plans";
+import { pricedPlans } from "@/lib/billing";
+import { env } from "@/lib/env";
+import { priceText } from "@/lib/plans";
 
 export const metadata: Metadata = {
   title: "Resume analysis for students and graduates",
@@ -33,6 +35,8 @@ export default async function WelcomePage() {
   const signedIn = (await getSession()) !== null;
   const canSignUp = signInMode() === "firebase";
   const perDay = analysesPerDay();
+  // The paid plans with the prices set on the server (Phase 4).
+  const priced = pricedPlans(env);
   const start = signedIn
     ? { href: HOME_PATH, label: "Go to your dashboard" }
     : { href: canSignUp ? "/signup" : "/login", label: "Get started free" };
@@ -64,6 +68,9 @@ export default async function WelcomePage() {
             </a>
             <a href="#privacy" className="hidden rounded-md px-3 py-2 text-on-brand-muted hover:text-white md:inline">
               Privacy
+            </a>
+            <a href="#faq" className="hidden rounded-md px-3 py-2 text-on-brand-muted hover:text-white lg:inline">
+              FAQ
             </a>
             <div className="flex items-center gap-2 sm:gap-3">
               {!signedIn && (
@@ -194,7 +201,7 @@ export default async function WelcomePage() {
               <h3 className="text-2xl">Paid plans</h3>
               <p className="text-on-brand-muted">More analyses and more applications a day, for a week, a month or three. Paying online opens soon; the free plan stays free.</p>
               <ul className="flex flex-col gap-3">
-                {PAID_PLANS.map((plan) => (
+                {[priced.WEEKLY, priced.MONTHLY, priced.QUARTERLY].map((plan) => (
                   <li key={plan.id} className="flex flex-col">
                     <span className="font-semibold text-white">
                       {plan.name} · {priceText(plan)}
@@ -231,6 +238,24 @@ export default async function WelcomePage() {
           </p>
         </Section>
 
+        <Section id="faq" title="Questions" intro="What students ask before they start." tone="gray">
+          <div className="mx-auto flex w-full max-w-3xl flex-col gap-3">
+            {FAQ.map((entry) => (
+              <details key={entry.q} className="group rounded-panel border border-line bg-white px-6 py-4 shadow-control">
+                <summary className="cursor-pointer list-none text-lg font-semibold marker:hidden">
+                  <span className="flex items-center justify-between gap-4">
+                    {entry.q}
+                    <span aria-hidden="true" className="text-muted group-open:rotate-45 motion-safe:transition-transform">
+                      +
+                    </span>
+                  </span>
+                </summary>
+                <p className="mt-3 text-muted">{entry.a}</p>
+              </details>
+            ))}
+          </div>
+        </Section>
+
         <section className="on-navy px-4 py-16 text-center">
           <div className="mx-auto flex max-w-2xl flex-col items-center gap-4">
             <h2 className="text-2xl md:text-3xl">Ready to see your resume the way an employer will?</h2>
@@ -254,8 +279,6 @@ export default async function WelcomePage() {
   );
 }
 
-/** The paid plans, as the homepage lists them (Phase 4). */
-const PAID_PLANS = [PLANS.WEEKLY, PLANS.MONTHLY, PLANS.QUARTERLY];
 
 const COVERS = [
   { icon: <Sparkles className="size-6" aria-hidden="true" />, title: "An overview", text: "How your resume comes across, in plain words." },
@@ -273,6 +296,46 @@ const COVERS = [
     icon: <FileUp className="size-6" aria-hidden="true" />,
     title: "What we found",
     text: "Your skills, experience and education as we read them, so you can check nothing got lost.",
+  },
+];
+
+/** The homepage's questions (Phase 5): only what the product does today, in plain words. */
+const FAQ: { q: string; a: string }[] = [
+  {
+    q: "What does Pathfinder do?",
+    a: "It reads your resume and tells you what works and what to improve. If you want, it also finds jobs that fit you, tailors your resume and cover letter to each one, and applies for you from your own browser.",
+  },
+  {
+    q: "Is it free?",
+    a: "Yes, the Free plan is free and needs no card: resume analyses every day, and auto-apply up to 10 applications a day. Paid plans with more analyses and applications are coming; the free plan stays free.",
+  },
+  {
+    q: "How does auto-apply work?",
+    a: "You tell it the roles and cities you want and answer the questions most forms ask, once. It picks your strongest matches from companies' own job boards, prepares a tailored resume for each, and the Pathfinder extension fills the form in your Chrome. It starts in dry run: it fills forms but stops before Submit until you switch that off.",
+  },
+  {
+    q: "Will it apply to jobs I don't want?",
+    a: "Only to your strong matches, within the limits you set per day and per company. You can skip companies, pause it from the extension or switch it off at any time, and every application shows on your dashboard.",
+  },
+  {
+    q: "Does it make up answers or experience?",
+    a: "No. It uses only your profile and the answers you gave. A question it can't answer from them comes back to you, and it never invents experience, skills or numbers.",
+  },
+  {
+    q: "Which job sites does it work with?",
+    a: "Companies' own career pages on Greenhouse, Lever, Ashby and SmartRecruiters. It doesn't automate LinkedIn, Naukri or Indeed, whose terms forbid it, so your accounts there are never at risk.",
+  },
+  {
+    q: "What if a form asks for a captcha, a code or a sign-in?",
+    a: "It never gets round those. It leaves the form open in Chrome for you to finish, and tells you on your dashboard.",
+  },
+  {
+    q: "Do I need to install anything?",
+    a: "Not for the resume analysis. For auto-apply you add the Pathfinder extension to Chrome, which submits applications from your own browser rather than from our servers.",
+  },
+  {
+    q: "Is my resume safe?",
+    a: "Your resume and analyses are private to your account and never sold. You can delete one analysis, or everything we hold about you, from Settings at any time.",
   },
 ];
 
