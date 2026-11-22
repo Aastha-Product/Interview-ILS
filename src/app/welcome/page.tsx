@@ -10,6 +10,7 @@ import { signInMode } from "@/lib/auth/google-sign-in";
 import { HOME_PATH } from "@/lib/auth/next-path";
 import { getSession } from "@/lib/auth/session";
 import { cn } from "@/lib/cn";
+import { PLANS, priceText } from "@/lib/plans";
 
 export const metadata: Metadata = {
   title: "Resume analysis for students and graduates",
@@ -191,7 +192,19 @@ export default async function WelcomePage() {
             </div>
             <div className="on-navy flex flex-col gap-4 rounded-panel p-8 shadow-page">
               <h3 className="text-2xl">Paid plans</h3>
-              <p className="text-on-brand-muted">Coming soon: more analyses and extra tools. The free plan stays free.</p>
+              <p className="text-on-brand-muted">More analyses and more applications a day, for a week, a month or three. Paying online opens soon; the free plan stays free.</p>
+              <ul className="flex flex-col gap-3">
+                {PAID_PLANS.map((plan) => (
+                  <li key={plan.id} className="flex flex-col">
+                    <span className="font-semibold text-white">
+                      {plan.name} · {priceText(plan)}
+                    </span>
+                    <span className="text-sm text-on-brand-muted">
+                      {plan.analysesPerDay} analyses and up to {plan.applicationsPerDay} auto-applications a day
+                    </span>
+                  </li>
+                ))}
+              </ul>
             </div>
           </div>
         </Section>
@@ -240,6 +253,9 @@ export default async function WelcomePage() {
     </div>
   );
 }
+
+/** The paid plans, as the homepage lists them (Phase 4). */
+const PAID_PLANS = [PLANS.WEEKLY, PLANS.MONTHLY, PLANS.QUARTERLY];
 
 const COVERS = [
   { icon: <Sparkles className="size-6" aria-hidden="true" />, title: "An overview", text: "How your resume comes across, in plain words." },

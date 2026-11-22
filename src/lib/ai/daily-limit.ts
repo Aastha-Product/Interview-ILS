@@ -6,6 +6,7 @@ import { env } from "@/lib/env";
 import { currentUserId } from "@/lib/owner/current";
 import { prisma, systemPrisma } from "@/lib/prisma";
 import { CURRENT_USER } from "@/lib/owner/scope";
+import { dailyRequestLimit, effectivePlan } from "@/lib/plans";
 
 import { AiError } from "./errors";
 import type { AIProvider, CompletionRequest, JsonCompletionRequest } from "./provider";
@@ -61,14 +62,16 @@ export async function sharedAiUsedToday(now: Date = new Date()): Promise<number>
 
 /**
  * The current student's daily limit on the shared key, in requests: the allowance an admin set
- * for them, else PATHFINDER_AI_DAILY_LIMIT; null when neither is set (no limit).
+ * for them, else their plan's (Phase 4, src/lib/plans.ts), else PATHFINDER_AI_DAILY_LIMIT; null
+ * when none of them sets one (no limit).
  */
-export async function studentDailyLimit(): Promise<number | null> {
+export async function studentDailyLimit(now: Date = new Date()): Promise<number | null> {
   const fallback = env.PATHFINDER_AI_DAILY_LIMIT ?? null;
   const userId = await currentUserId().catch(() => null);
   if (!userId) return fallback;
-  const user = await systemPrisma.user.findUnique({ where: { id: userId }, select: { aiDailyLimit: true } });
-  return user?.aiDailyLimit ?? fallback;
+  const user = await systemPrisma.user.findUnique({ where: { id: userId }, select: { aiDailyLimit: true, plan: true, planUntil: true } });
+  if (!user) return fallback;
+  return dailyRequestLimit({ allowance: user.aiDailyLimit, plan: effectivePlan(user, now) }, fallback, REQUESTS_PER_ANALYSIS);
 }
 
 /** A limit, or how to look it up when each request is made; null for none. */

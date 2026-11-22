@@ -12,6 +12,7 @@ import { loadJobBoards } from "@/lib/crawl/boards-admin";
 import { crawlerEnabled } from "@/lib/crawl/crawl";
 
 import { AllowanceForm } from "./allowance-form";
+import { PlanForm } from "./plan-form";
 import { AddJobBoards, BoardSwitch } from "./job-boards";
 
 /** "Admin" for admins only: for anyone else the tab says nothing about the console. */
@@ -97,12 +98,12 @@ export default async function AdminPage() {
             <span className="font-medium text-ink">
               {overview.defaultAllowance === null ? "no limit" : `${overview.defaultAllowance} free analyses a day`}
             </span>{" "}
-            (PATHFINDER_AI_DAILY_LIMIT on the server). Give one student more, fewer, or 0 to stop their free analyses; it applies at once. Newest first
+            (PATHFINDER_AI_DAILY_LIMIT on the server); a paid plan gives its own, and an allowance set here wins over both. Give one student more, fewer, or 0 to stop their free analyses; it applies at once. Set a student&apos;s plan for a number of days, or leave the days empty for no end date. Newest first
             {students.total > STUDENT_LIMIT ? `, the latest ${STUDENT_LIMIT}` : ""}.
           </p>
           <Table
             caption="Students"
-            head={["Student", "Joined", "Analyses", "AI today", "Cost, 30 days", "Free analyses a day"]}
+            head={["Student", "Joined", "Analyses", "AI today", "Cost, 30 days", "Plan", "Free analyses a day"]}
             rows={overview.studentList.map((student) => [
               <span key="who" className="flex min-w-0 flex-col">
                 <span className="truncate font-medium">{student.email}</span>
@@ -112,6 +113,7 @@ export default async function AdminPage() {
               count.format(student.analyses),
               count.format(student.requestsToday),
               money.format(student.costUsd30d),
+              <PlanForm key="plan" userId={student.id} email={student.email} plan={student.plan} planUntil={student.planUntil} />,
               <AllowanceForm key="allowance" userId={student.id} email={student.email} allowance={student.allowance} />,
             ])}
             empty="No students yet."

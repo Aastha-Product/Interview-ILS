@@ -2,6 +2,7 @@ import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { runAsUser } from "@/lib/owner/context";
 import { rawClientOf } from "@/lib/owner/scope";
+import { PLANS } from "@/lib/plans";
 import { createTestClient, resetDatabase, TEST_USER_ID } from "@/test/db";
 
 import { resolveAiConfig } from "./config";
@@ -156,6 +157,23 @@ describe("the daily AI limit (Pathfinder)", () => {
       expect(await analysesLeftToday(true, 0)).toBe(0);
     } finally {
       env.PATHFINDER_AI_DAILY_LIMIT = undefined;
+    }
+  });
+
+  it("gives a paid plan its own limit until it ends, and an admin's allowance still wins (Phase 4)", async () => {
+    env.PATHFINDER_AI_DAILY_LIMIT = 10;
+    const users = rawClientOf(prisma()).user;
+    try {
+      await users.update({ where: { id: TEST_USER_ID }, data: { plan: "MONTHLY", planUntil: new Date(Date.now() + 86_400_000) } });
+      expect(await studentDailyLimit()).toBe(PLANS.MONTHLY.analysesPerDay! * 2);
+      // Ended: back to the server's limit.
+      await users.update({ where: { id: TEST_USER_ID }, data: { planUntil: new Date(Date.now() - 1000) } });
+      expect(await studentDailyLimit()).toBe(10);
+      await users.update({ where: { id: TEST_USER_ID }, data: { planUntil: null, aiDailyLimit: 4 } });
+      expect(await studentDailyLimit()).toBe(4);
+    } finally {
+      env.PATHFINDER_AI_DAILY_LIMIT = undefined;
+      await users.update({ where: { id: TEST_USER_ID }, data: { plan: "FREE", planUntil: null, aiDailyLimit: null } });
     }
   });
 
