@@ -10,7 +10,7 @@ import { signInMode } from "@/lib/auth/google-sign-in";
 import { HOME_PATH } from "@/lib/auth/next-path";
 import { getSession } from "@/lib/auth/session";
 import { cn } from "@/lib/cn";
-import { pricedPlans } from "@/lib/billing";
+import { buyablePlans, pricedPlans } from "@/lib/billing";
 import { env } from "@/lib/env";
 import { priceText } from "@/lib/plans";
 
@@ -37,6 +37,7 @@ export default async function WelcomePage() {
   const perDay = analysesPerDay();
   // The paid plans with the prices set on the server (Phase 4).
   const priced = pricedPlans(env);
+  const canBuy = buyablePlans(env);
   const start = signedIn
     ? { href: HOME_PATH, label: "Go to your dashboard" }
     : { href: canSignUp ? "/signup" : "/login", label: "Get started free" };
@@ -174,45 +175,63 @@ export default async function WelcomePage() {
           </p>
         </Section>
 
-        <Section id="plans" title="Plans" intro="Free to start, with no card required." tone="gray">
-          <div className="grid gap-8 md:grid-cols-2">
-            <div className="flex flex-col gap-6 rounded-panel border border-line bg-white p-8 shadow-page">
-              <div>
-                <h3 className="text-2xl">Free</h3>
-                <p className="mt-2 text-muted">Everything you need to try it.</p>
-              </div>
-              <ul className="flex flex-col gap-4">
-                {[
-                  perDay ? `${perDay} resume ${perDay === 1 ? "analysis" : "analyses"} a day` : "Resume analyses at no cost",
-                  "Your past analyses, kept for you",
-                  "Save any analysis as a PDF",
-                ].map((item) => (
-                  <li key={item} className="flex items-center gap-3">
-                    <Check className="size-5 shrink-0 text-check" aria-hidden="true" />
-                    <span className="text-muted">{item}</span>
-                  </li>
-                ))}
-              </ul>
-              <Link href={start.href} className={buttonClassName("secondary", "lg", "mt-auto w-full")}>
-                {start.label}
-              </Link>
-            </div>
-            <div className="on-navy flex flex-col gap-4 rounded-panel p-8 shadow-page">
-              <h3 className="text-2xl">Paid plans</h3>
-              <p className="text-on-brand-muted">More analyses and more applications a day, for a week, a month or three. Paying online opens soon; the free plan stays free.</p>
-              <ul className="flex flex-col gap-3">
-                {[priced.WEEKLY, priced.MONTHLY, priced.QUARTERLY].map((plan) => (
-                  <li key={plan.id} className="flex flex-col">
-                    <span className="font-semibold text-white">
-                      {plan.name} · {priceText(plan)}
-                    </span>
-                    <span className="text-sm text-on-brand-muted">
-                      {plan.analysesPerDay} analyses and up to {plan.applicationsPerDay} auto-applications a day
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </div>
+        <Section id="plans" title="Plans" intro="Free to start, with no card required. Paid plans give you more each day, for a week, a month or three, and don't renew on their own." tone="gray">
+          <ul aria-label="Plans" className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+            {[priced.FREE, priced.WEEKLY, priced.MONTHLY, priced.QUARTERLY].map((plan) => {
+              const free = plan.id === "FREE";
+              const buyable = (canBuy as readonly string[]).includes(plan.id);
+              const analyses = plan.analysesPerDay ?? perDay;
+              return (
+                <li key={plan.id} className={cn("flex flex-col gap-5 rounded-panel p-6 shadow-page", plan.id === "MONTHLY" ? "on-navy" : "border border-line bg-white")}>
+                  <div className="flex flex-col gap-1">
+                    <h3 className="text-xl">{plan.name}</h3>
+                    <p className={cn("text-2xl font-semibold", plan.id === "MONTHLY" ? "text-white" : "text-ink")}>{priceText(plan)}</p>
+                    <p className={cn("text-sm", plan.id === "MONTHLY" ? "text-on-brand-muted" : "text-muted")}>{plan.summary}</p>
+                  </div>
+                  <ul className="flex flex-col gap-3 text-sm">
+                    {[
+                      analyses ? `${analyses} resume ${analyses === 1 ? "analysis" : "analyses"} a day` : "Resume analyses every day",
+                      `Up to ${plan.applicationsPerDay} auto-applications a day`,
+                    ].map((item) => (
+                      <li key={item} className="flex items-start gap-2">
+                        <Check className="mt-0.5 size-4 shrink-0 text-check" aria-hidden="true" />
+                        <span className={plan.id === "MONTHLY" ? "text-on-brand-muted" : "text-muted"}>{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  {free ? (
+                    <Link href={start.href} className={buttonClassName("secondary", "md", "mt-auto w-full")}>
+                      {start.label}
+                    </Link>
+                  ) : buyable ? (
+                    <Link href={signedIn ? "/settings?section=plan" : start.href} className={buttonClassName(plan.id === "MONTHLY" ? "secondary" : "primary", "md", "mt-auto w-full")}>
+                      Choose {plan.name}
+                    </Link>
+                  ) : (
+                    <p className={cn("mt-auto text-sm", plan.id === "MONTHLY" ? "text-on-brand-muted" : "text-muted")}>Paying online opens soon.</p>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+          <div className="mt-10 flex flex-col gap-4">
+            <h3 className="text-lg font-semibold">Every plan includes</h3>
+            <ul className="grid gap-3 text-sm sm:grid-cols-2">
+              {[
+                "A resume analysis with what to fix, and a free ATS check",
+                "Jobs matched to your profile, from company career pages",
+                "A tailored resume and cover letter for each job",
+                "Auto-apply from your own Chrome, starting as a dry run",
+                "Recruiter emails drafted by AI, sent from your Gmail only when you approve",
+                "Your applications, replies and interviews in one place",
+              ].map((item) => (
+                <li key={item} className="flex items-start gap-2">
+                  <Check className="mt-0.5 size-4 shrink-0 text-check" aria-hidden="true" />
+                  <span className="text-muted">{item}</span>
+                </li>
+              ))}
+            </ul>
+            <p className="text-sm text-muted">Prices are in Indian rupees for the whole period. When a paid plan ends you go back to Free; nothing is charged again.</p>
           </div>
         </Section>
 
@@ -307,7 +326,7 @@ const FAQ: { q: string; a: string }[] = [
   },
   {
     q: "Is it free?",
-    a: "Yes, the Free plan is free and needs no card: resume analyses every day, and auto-apply up to 10 applications a day. Paid plans with more analyses and applications are coming; the free plan stays free.",
+    a: "Yes, the Free plan is free and needs no card: resume analyses every day, and auto-apply up to 10 applications a day. Paid plans give you more analyses and applications a day for a week, a month or three months; they don't renew on their own, and the free plan stays free.",
   },
   {
     q: "How does auto-apply work?",
