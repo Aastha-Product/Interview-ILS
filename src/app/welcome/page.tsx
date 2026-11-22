@@ -273,6 +273,28 @@ export default async function WelcomePage() {
               </details>
             ))}
           </div>
+          {env.PATHFINDER_ONBOARDING_CALL_URL || env.PATHFINDER_WHATSAPP ? (
+            <div aria-label="Talk to us" role="group" className="mx-auto mt-8 flex w-full max-w-3xl flex-col items-center gap-3 text-center">
+              <p className="font-semibold">Still have a question? Talk to us.</p>
+              <div className="flex flex-wrap justify-center gap-3">
+                {env.PATHFINDER_ONBOARDING_CALL_URL ? (
+                  <a href={env.PATHFINDER_ONBOARDING_CALL_URL} target="_blank" rel="noopener noreferrer" className={buttonClassName("primary", "md")}>
+                    Book a free onboarding call
+                  </a>
+                ) : null}
+                {env.PATHFINDER_WHATSAPP ? (
+                  <a
+                    href={`https://wa.me/${env.PATHFINDER_WHATSAPP}?text=${encodeURIComponent("Hi Pathfinder, I have a question.")}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={buttonClassName("secondary", "md")}
+                  >
+                    Chat on WhatsApp
+                  </a>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
         </Section>
 
         <section className="on-navy px-4 py-16 text-center">
