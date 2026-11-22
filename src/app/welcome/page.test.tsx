@@ -11,7 +11,8 @@ vi.mock("@/lib/auth/session", () => ({ getSession: async () => null }));
 vi.mock("@/lib/auth/google-sign-in", () => ({ signInMode: () => "firebase" }));
 vi.mock("@/lib/ai/daily-limit", () => ({ analysesPerDay: () => 5 }));
 // No prices set on the server: the paid plans say "Price coming soon" (Phase 4).
-vi.mock("@/lib/env", () => ({ env: {} }));
+const server = vi.hoisted(() => ({ env: {} as Record<string, unknown> }));
+vi.mock("@/lib/env", () => server);
 
 describe("the welcome page", () => {
   it("says what auto-apply does, that it's in pilot, and what it needs (the owner's decision)", async () => {
@@ -41,5 +42,35 @@ describe("the welcome page", () => {
     expect(faq.getByText(/doesn't automate LinkedIn, Naukri or Indeed/)).toBeInTheDocument();
     expect(faq.getByText(/never invents experience/)).toBeInTheDocument();
     expect(faq.getAllByRole("group")).toHaveLength(9);
+  });
+
+  it("compares the plans, with what each allows a day and what every plan includes (Phase 5)", async () => {
+    server.env = {};
+    render(await WelcomePage());
+    const plans = within(screen.getByRole("list", { name: "Plans" }));
+    const cards = plans.getAllByRole("listitem").filter((item) => item.parentElement?.getAttribute("aria-label") === "Plans");
+    expect(cards.map((card) => within(card).getByRole("heading", { level: 3 }).textContent)).toEqual(["Free", "Weekly", "Monthly", "3 months"]);
+    expect(cards[0]).toHaveTextContent("5 resume analyses a day");
+    expect(cards[0]).toHaveTextContent("Up to 10 auto-applications a day");
+    expect(within(cards[0]).getByRole("link", { name: "Get started free" })).toHaveAttribute("href", "/signup");
+    // No prices or Razorpay keys on the server: nothing to buy yet.
+    expect(cards[2]).toHaveTextContent("Price coming soon");
+    expect(cards[2]).toHaveTextContent("25 resume analyses a day");
+    expect(cards[2]).toHaveTextContent("Paying online opens soon.");
+    expect(within(cards[2]).queryByRole("link")).toBeNull();
+    const region = within(screen.getByRole("region", { name: "Plans" }));
+    expect(region.getByText("Every plan includes")).toBeInTheDocument();
+    expect(region.getByText(/sent from your Gmail only when you approve/)).toBeInTheDocument();
+  });
+
+  it("offers each plan with a price once Razorpay is set up (Phase 4)", async () => {
+    server.env = { PATHFINDER_PRICE_MONTHLY: 499, RAZORPAY_KEY_ID: "rzp_test_x", RAZORPAY_KEY_SECRET: "secret" };
+    render(await WelcomePage());
+    const plans = within(screen.getByRole("list", { name: "Plans" }));
+    expect(plans.getByText("₹499 a month")).toBeInTheDocument();
+    expect(plans.getByRole("link", { name: "Choose Monthly" })).toHaveAttribute("href", "/signup");
+    // A plan without a price still can't be bought.
+    expect(plans.queryByRole("link", { name: "Choose Weekly" })).toBeNull();
+    server.env = {};
   });
 });
