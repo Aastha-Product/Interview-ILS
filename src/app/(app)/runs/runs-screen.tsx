@@ -3,7 +3,10 @@ import type { ReactNode } from "react";
 
 import { PageHeader } from "@/components/page-header";
 import { Card } from "@/components/ui/card";
+import type { PauseState } from "@/lib/pause-all";
 import type { RunLogView } from "@/lib/run-log-data";
+
+import { PauseControl } from "./pause-control";
 
 function Fact({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -24,12 +27,31 @@ const link = (href: string, text: string) => (
  * Runs & schedule (Phase 3): when the job agent and auto-apply last ran, what each did, and when
  * they run next. Read from what each already keeps; nothing can be started or changed here.
  */
-export function RunsScreen({ view, timeZone }: { view: RunLogView; timeZone: string }) {
+export function RunsScreen({ view, timeZone, pause }: { view: RunLogView; timeZone: string; pause?: PauseState }) {
   const { agent, autoApply } = view;
   return (
     <>
       <PageHeader title="Runs & schedule" description={`What runs for you in the background, what it did lately, and when it runs next. Times are in ${timeZone}.`} />
       <div className="flex max-w-[960px] flex-col gap-6 px-4 pb-20 sm:px-10">
+        {pause && (pause.paused || pause.running.autoApply || pause.running.agent) ? (
+          <section aria-label="Pause everything">
+            <Card className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm">
+                {pause.paused ? (
+                  <>
+                    <span className="font-medium">Everything is paused</span> since{" "}
+                    {new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit", timeZone }).format(pause.paused.since)}. Resume switches back on what was running.
+                  </>
+                ) : (
+                  <>
+                    <span className="font-medium">Need a break?</span> Pause everything stops auto-apply and the job agent at once. Your settings, answers and queue stay as they are.
+                  </>
+                )}
+              </p>
+              <PauseControl paused={pause.paused !== null} running={pause.running.autoApply || pause.running.agent} />
+            </Card>
+          </section>
+        ) : null}
         <section aria-labelledby="runs-auto-apply">
           <Card className="flex flex-col gap-5">
             <div className="flex flex-col gap-1">
