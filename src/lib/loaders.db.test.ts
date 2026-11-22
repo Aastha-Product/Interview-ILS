@@ -56,7 +56,7 @@ describe("loadApplicationRows (E9-1)", () => {
     const kestrel = await prisma().application.findFirstOrThrow({ where: { company: "Kestrel Maps" }, select: { id: true } });
     await prisma().application.update({ where: { id: oaken.id }, data: { origin: "AUTO_APPLY" } });
     // Sent long ago and quiet since.
-    await prisma().$executeRaw`UPDATE "Application" SET status = 'SENT', "updatedAt" = ${new Date(now.getTime() - 30 * 86_400_000)} WHERE id = ${kestrel.id}`;
+    await prisma().application.update({ where: { id: kestrel.id }, data: { status: "SENT", updatedAt: new Date(now.getTime() - 30 * 86_400_000) } });
     const rows = await loadApplicationRows({ archived: false, sort: DEFAULT_SORT }, now, { quietDays: 7, replies: new Map([[oaken.id, { count: 2 }]]) });
     expect(rows.find((row) => row.id === oaken.id)).toMatchObject({ source: "AUTO_APPLY", replies: 2 });
     expect(rows.find((row) => row.id === kestrel.id)).toMatchObject({ followUp: true, source: null, replies: 0 });
