@@ -44,6 +44,17 @@ describe("the open jobs board (Phase 5)", () => {
     expect(within(pages).getByText("Page 2 of 3")).toBeInTheDocument();
   });
 
+  it("filters by when a job was posted, its job site, and whether Pathfinder can apply", () => {
+    render(<OpenJobsScreen view={view()} query={{ ...query, posted: 7, site: "LEVER", appliable: true }} signedIn={false} canSignUp />);
+    const form = within(screen.getByRole("search", { name: "Search open jobs" }));
+    expect(form.getByLabelText("Posted")).toHaveValue("7");
+    expect(form.getByLabelText("Job site")).toHaveValue("lever");
+    expect(within(form.getByLabelText("Job site")).getAllByRole("option").map((option) => option.textContent)).toEqual(["All", "Greenhouse", "Lever", "Ashby", "SmartRecruiters", "BambooHR", "Workday"]);
+    expect(form.getByLabelText("Pathfinder can apply")).toBeChecked();
+    // Filters alone count as a search.
+    expect(screen.getByText(/match your search/)).toBeInTheDocument();
+  });
+
   it("invites a visitor to sign up, and a signed-in student to set up auto-apply", () => {
     const { unmount } = render(<OpenJobsScreen view={view()} query={query} signedIn={false} canSignUp />);
     expect(screen.getByRole("link", { name: "Sign up free" })).toHaveAttribute("href", "/signup");
