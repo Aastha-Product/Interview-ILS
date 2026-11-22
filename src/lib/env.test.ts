@@ -44,6 +44,15 @@ describe("parseEnv", () => {
     expect(problems({ ...valid, PATHFINDER_AI_DAILY_LIMIT: "0" })).toEqual(["PATHFINDER_AI_DAILY_LIMIT must be at least 1."]);
   });
 
+  it("reads the onboarding call page and the WhatsApp number (Pathfinder, Phase 5)", () => {
+    expect(parseEnv({ ...valid, PATHFINDER_ONBOARDING_CALL_URL: "https://forms.example/call", PATHFINDER_WHATSAPP: "+91 98765-43210" })).toMatchObject({
+      PATHFINDER_ONBOARDING_CALL_URL: "https://forms.example/call",
+      PATHFINDER_WHATSAPP: "919876543210",
+    });
+    expect(problems({ ...valid, PATHFINDER_ONBOARDING_CALL_URL: "http://forms.example/call" })).toEqual(["PATHFINDER_ONBOARDING_CALL_URL must be an https:// URL."]);
+    expect(problems({ ...valid, PATHFINDER_WHATSAPP: "call me" })).toEqual(["PATHFINDER_WHATSAPP must be a phone number in international form, e.g. 919876543210."]);
+  });
+
   it("reads the database pool size and the background job settings (Pathfinder)", () => {
     expect(parseEnv(valid).PATHFINDER_DB_POOL).toBeUndefined();
     expect(parseEnv({ ...valid, PATHFINDER_DB_POOL: " 30 " }).PATHFINDER_DB_POOL).toBe(30);

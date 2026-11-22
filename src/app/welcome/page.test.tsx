@@ -74,4 +74,17 @@ describe("the welcome page", () => {
     expect(plans.queryByRole("link", { name: "Choose Weekly" })).toBeNull();
     server.env = {};
   });
+
+  it("offers a call and WhatsApp once the server sets them, and neither before (Phase 5)", async () => {
+    server.env = {};
+    const { unmount } = render(await WelcomePage());
+    expect(screen.queryByRole("group", { name: "Talk to us" })).toBeNull();
+    unmount();
+    server.env = { PATHFINDER_ONBOARDING_CALL_URL: "https://forms.example/call", PATHFINDER_WHATSAPP: "919876543210" };
+    render(await WelcomePage());
+    const talk = within(screen.getByRole("group", { name: "Talk to us" }));
+    expect(talk.getByRole("link", { name: "Book a free onboarding call" })).toHaveAttribute("href", "https://forms.example/call");
+    expect(talk.getByRole("link", { name: "Chat on WhatsApp" })).toHaveAttribute("href", "https://wa.me/919876543210?text=Hi%20Pathfinder%2C%20I%20have%20a%20question.");
+    server.env = {};
+  });
 });

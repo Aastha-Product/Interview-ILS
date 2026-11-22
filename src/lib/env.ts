@@ -315,6 +315,17 @@ const schema = z.object({
   RAZORPAY_KEY_ID: optional(z.string().trim()),
   RAZORPAY_KEY_SECRET: optional(z.string().trim()),
   RAZORPAY_WEBHOOK_SECRET: optional(z.string().trim()),
+  // Pathfinder (Phase 5): ways to reach the team, shown on the homepage when set. A page where a
+  // student books a free onboarding call (a Google Form, Calendly…), and a WhatsApp number in full
+  // international form, digits only, e.g. 919876543210.
+  PATHFINDER_ONBOARDING_CALL_URL: optional(z.url({ protocol: /^https$/, error: "PATHFINDER_ONBOARDING_CALL_URL must be an https:// URL." })),
+  PATHFINDER_WHATSAPP: optional(
+    z
+      .string()
+      .trim()
+      .transform((value) => value.replace(/[\s+()-]/g, ""))
+      .pipe(z.string().regex(/^\d{8,15}$/, { error: "PATHFINDER_WHATSAPP must be a phone number in international form, e.g. 919876543210." })),
+  ),
   // Pathfinder: who may open the admin console (/admin), as a comma-separated list of the email
   // addresses they sign in with, e.g. "owner@example.com, ops@example.com". Unset means nobody.
   PATHFINDER_ADMIN_EMAILS: optional(z.string().trim()),

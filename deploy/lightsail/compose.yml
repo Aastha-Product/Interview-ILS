@@ -58,6 +58,10 @@ services:
       RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID:-}
       RAZORPAY_KEY_SECRET: ${RAZORPAY_KEY_SECRET:-}
       RAZORPAY_WEBHOOK_SECRET: ${RAZORPAY_WEBHOOK_SECRET:-}
+      # Ways to reach the team, on the homepage when set (Phase 5): a booking page for a free
+      # onboarding call, and a WhatsApp number in international form (digits only).
+      PATHFINDER_ONBOARDING_CALL_URL: ${PATHFINDER_ONBOARDING_CALL_URL:-}
+      PATHFINDER_WHATSAPP: ${PATHFINDER_WHATSAPP:-}
       # Startups reads company websites, so it's off unless set to on in .env.
       PATHFINDER_STARTUPS: ${PATHFINDER_STARTUPS:-off}
       # Dossier's job-search tools (Find jobs, the agent, applications, Inbox), on unless set to
