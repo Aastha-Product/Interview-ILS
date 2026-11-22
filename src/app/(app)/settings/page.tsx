@@ -21,6 +21,7 @@ import { googleConnection } from "@/lib/google/account";
 import { loadGoogleClientConfig, redirectUri } from "@/lib/google/oauth";
 import { lastKnownTimeZone, userTimeZone } from "@/lib/time-zone";
 import { appVersion } from "@/lib/version";
+import { loadStudentPlan } from "@/lib/plans-data";
 import { prisma, systemPrisma } from "@/lib/prisma";
 import { loadProfileName } from "@/lib/profile-data";
 import { scoringProblem } from "@/lib/scoring";
@@ -270,8 +271,8 @@ async function StudentSettings({ param }: { param: string | string[] | undefined
 /** One of the student's own sections: account, plan, privacy and help (Pathfinder). */
 async function studentSection(section: StudentSectionId) {
   if (section === "plan") {
-    const [ai, limit] = await Promise.all([loadAiConfig(), studentDailyLimit()]);
-    return <PlanSection perDay={analysesPerDay(limit)} left={await analysesLeftToday(ai.sharedKey, limit)} />;
+    const [ai, limit, plan] = await Promise.all([loadAiConfig(), studentDailyLimit(), loadStudentPlan()]);
+    return <PlanSection perDay={analysesPerDay(limit)} left={await analysesLeftToday(ai.sharedKey, limit)} plan={plan.plan} until={plan.until} />;
   }
   if (section === "privacy") return <PrivacySection analyses={(await listResumeAnalyses()).length} tools={toolsEnabled()} />;
   if (section === "help") return <HelpSection />;

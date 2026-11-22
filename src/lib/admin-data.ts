@@ -2,6 +2,7 @@ import "server-only";
 
 import { limitDay, REQUESTS_PER_ANALYSIS } from "@/lib/ai/daily-limit";
 import { env } from "@/lib/env";
+import { effectivePlan, type PlanId } from "@/lib/plans";
 import { systemPrisma } from "@/lib/prisma";
 
 // Pathfinder: what the admin console shows. Counts, tokens and costs only: never a resume, an
@@ -33,6 +34,9 @@ export type AdminStudent = {
   requestsToday: number;
   /** The allowance an admin set, in analyses a day; null means the server's default. */
   allowance: number | null;
+  /** The plan in effect (Phase 4), and when a paid one ends. */
+  plan: PlanId;
+  planUntil: Date | null;
   /** AI cost in the last 30 days, in US dollars. */
   costUsd30d: number;
 };
@@ -109,7 +113,7 @@ export async function loadAdminOverview(now: Date = new Date()): Promise<AdminOv
   const users = await systemPrisma.user.findMany({
     orderBy: { createdAt: "desc" },
     take: STUDENT_LIMIT,
-    select: { id: true, email: true, name: true, createdAt: true, aiDailyLimit: true, _count: { select: { resumeAnalyses: true } } },
+    select: { id: true, email: true, name: true, createdAt: true, aiDailyLimit: true, plan: true, planUntil: true, _count: { select: { resumeAnalyses: true } } },
   });
   const ids = users.map((user) => user.id);
   const [usage, costs, feedback] = await Promise.all([
@@ -142,6 +146,8 @@ export async function loadAdminOverview(now: Date = new Date()): Promise<AdminOv
       analyses: user._count.resumeAnalyses,
       requestsToday: usedToday.get(user.id) ?? 0,
       allowance: allowanceFromLimit(user.aiDailyLimit),
+      plan: effectivePlan(user),
+      planUntil: effectivePlan(user) === "FREE" ? null : user.planUntil,
       costUsd30d: cost30d.get(user.id) ?? 0,
     })),
     feedback: feedback.map(({ user, ...row }) => ({ ...row, email: user.email })),

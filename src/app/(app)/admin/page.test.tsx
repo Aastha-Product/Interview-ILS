@@ -30,6 +30,13 @@ vi.mock("./allowance-form", () => ({
     </span>
   ),
 }));
+vi.mock("./plan-form", () => ({
+  PlanForm: ({ email, plan }: { email: string; plan: string }) => (
+    <span>
+      plan for {email}: {plan}
+    </span>
+  ),
+}));
 vi.mock("@/lib/crawl/boards-admin", () => ({ loadJobBoards: vi.fn(async () => mocks.boards) }));
 vi.mock("@/lib/crawl/crawl", () => ({ crawlerEnabled: () => mocks.crawling }));
 vi.mock("./job-boards", () => ({
@@ -62,8 +69,8 @@ function overview(extra: Partial<AdminOverview> = {}): AdminOverview {
     },
     defaultAllowance: 5,
     studentList: [
-      { id: "s1", email: "asha@example.test", name: "Asha Rao", joined: new Date("2026-11-08T10:00:00Z"), analyses: 2, requestsToday: 4, allowance: 10, costUsd30d: 0.27 },
-      { id: "s2", email: "ravi@example.test", name: "", joined: new Date("2026-11-07T10:00:00Z"), analyses: 0, requestsToday: 0, allowance: null, costUsd30d: 0 },
+      { id: "s1", email: "asha@example.test", name: "Asha Rao", joined: new Date("2026-11-08T10:00:00Z"), analyses: 2, requestsToday: 4, allowance: 10, costUsd30d: 0.27, plan: "MONTHLY", planUntil: new Date("2026-12-20T00:00:00Z") },
+      { id: "s2", email: "ravi@example.test", name: "", joined: new Date("2026-11-07T10:00:00Z"), analyses: 0, requestsToday: 0, allowance: null, costUsd30d: 0, plan: "FREE", planUntil: null },
     ],
     feedback: [{ id: "f1", email: "asha@example.test", page: "/analyze", message: "Loved the strengths list.", createdAt: new Date("2026-11-08T10:00:00Z") }],
     ...extra,
@@ -112,6 +119,9 @@ describe("the admin page", () => {
     const asha = within(students).getByRole("row", { name: /asha@example\.test/ });
     expect(within(asha).getByText("Asha Rao")).toBeInTheDocument();
     expect(within(asha).getByText("allowance for asha@example.test: 10")).toBeInTheDocument();
+    // Each student's plan, to change from here (Phase 4).
+    expect(within(asha).getByText("plan for asha@example.test: MONTHLY")).toBeInTheDocument();
+    expect(within(students).getByText("plan for ravi@example.test: FREE")).toBeInTheDocument();
     expect(within(students).getByText("allowance for ravi@example.test: default")).toBeInTheDocument();
     expect(screen.getByText("5 free analyses a day")).toBeInTheDocument();
     // More students than the table lists.
