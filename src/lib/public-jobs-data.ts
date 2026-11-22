@@ -4,7 +4,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { postedAgo, safeLink } from "@/lib/job-search/search";
 import { systemPrisma } from "@/lib/prisma";
 
-import { PUBLIC_MAX_PAGE, PUBLIC_PAGE_SIZE, searchWords, type PublicJobsQuery } from "./public-jobs";
+import { APPLIABLE_SITES, PUBLIC_MAX_PAGE, PUBLIC_PAGE_SIZE, searchWords, type PublicJobsQuery } from "./public-jobs";
 
 export type PublicJob = { id: string; title: string; company: string; location: string; remote: boolean; posted: string; url: string };
 export type PublicJobsView = { jobs: PublicJob[]; total: number; pages: number; companies: number };
@@ -16,6 +16,18 @@ export async function loadPublicJobs(query: PublicJobsQuery, now = new Date()): 
     // The jobs the crawler keeps are India's, or remote ones open to anywhere (no country).
     country: { in: ["in", ""] },
     ...(query.remote ? { remote: true } : {}),
+    // A job without its posting date counts from when the crawler first saw it.
+    ...(query.posted
+      ? {
+          OR: [
+            { postedAt: { gte: new Date(now.getTime() - query.posted * 86_400_000) } },
+            { postedAt: null, firstSeenAt: { gte: new Date(now.getTime() - query.posted * 86_400_000) } },
+          ],
+        }
+      : {}),
+    ...(query.site || query.appliable
+      ? { company: { system: query.site ? query.site : { in: [...APPLIABLE_SITES] } } }
+      : {}),
     ...(query.city ? { location: { contains: query.city, mode: "insensitive" } } : {}),
     // Every word somewhere in the title, company or department: "data analyst" finds "Analyst, Data & Insights".
     ...(query.q

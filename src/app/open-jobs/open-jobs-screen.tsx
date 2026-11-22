@@ -3,7 +3,7 @@ import Link from "next/link";
 import { BrandMark } from "@/components/brand-mark";
 import { buttonClassName } from "@/components/ui/button";
 import { HOME_PATH } from "@/lib/auth/next-path";
-import { publicJobsHref, type PublicJobsQuery } from "@/lib/public-jobs";
+import { JOB_SITES, publicJobsHref, type JobSite, type PublicJobsQuery } from "@/lib/public-jobs";
 import type { PublicJobsView } from "@/lib/public-jobs-data";
 
 const count = new Intl.NumberFormat("en-IN");
@@ -15,7 +15,7 @@ const count = new Intl.NumberFormat("en-IN");
  */
 export function OpenJobsScreen({ view, query, signedIn, canSignUp }: { view: PublicJobsView; query: PublicJobsQuery; signedIn: boolean; canSignUp: boolean }) {
   const start = signedIn ? { href: "/auto-apply", label: "Set up auto-apply" } : { href: canSignUp ? "/signup" : "/login", label: "Sign up free" };
-  const searching = Boolean(query.q || query.city || query.remote);
+  const searching = Boolean(query.q || query.city || query.remote || query.posted || query.site || query.appliable);
   return (
     <div className="flex min-h-screen flex-col bg-white pt-16 text-ink light-page">
       <header className="on-navy fixed top-0 z-50 w-full">
@@ -51,7 +51,8 @@ export function OpenJobsScreen({ view, query, signedIn, canSignUp }: { view: Pub
                 </>
               )}
             </p>
-            <form action="/open-jobs" method="get" role="search" aria-label="Search open jobs" className="flex flex-col gap-3 rounded-card bg-white p-4 sm:flex-row sm:items-end">
+            <form action="/open-jobs" method="get" role="search" aria-label="Search open jobs" className="flex flex-col gap-3 rounded-card bg-white p-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
               <label className="flex flex-1 flex-col gap-1 text-sm font-medium">
                 Role or company
                 <input name="q" defaultValue={query.q} maxLength={80} placeholder="Data analyst, Razorpay…" className="h-10 rounded-control border border-line-field px-3 font-normal" />
@@ -60,13 +61,40 @@ export function OpenJobsScreen({ view, query, signedIn, canSignUp }: { view: Pub
                 City
                 <input name="city" defaultValue={query.city} maxLength={80} placeholder="Bengaluru" className="h-10 rounded-control border border-line-field px-3 font-normal" />
               </label>
-              <label className="flex items-center gap-2 text-sm sm:h-10">
-                <input type="checkbox" name="remote" value="1" defaultChecked={query.remote} className="size-4" />
-                Remote only
-              </label>
               <button type="submit" className={buttonClassName("primary", "md")}>
                 Search
               </button>
+              </div>
+              <div className="flex flex-wrap items-end gap-x-5 gap-y-3 text-sm">
+                <label className="flex flex-col gap-1 font-medium">
+                  Posted
+                  <select name="posted" defaultValue={query.posted ? String(query.posted) : ""} className="h-9 rounded-control border border-line-field px-2 font-normal">
+                    <option value="">Any time</option>
+                    <option value="1">Last 24 hours</option>
+                    <option value="7">Last 7 days</option>
+                    <option value="30">Last 30 days</option>
+                  </select>
+                </label>
+                <label className="flex flex-col gap-1 font-medium">
+                  Job site
+                  <select name="site" defaultValue={query.site ? query.site.toLowerCase() : ""} className="h-9 rounded-control border border-line-field px-2 font-normal">
+                    <option value="">All</option>
+                    {(Object.keys(JOB_SITES) as JobSite[]).map((site) => (
+                      <option key={site} value={site.toLowerCase()}>
+                        {JOB_SITES[site]}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="flex items-center gap-2 sm:h-9">
+                  <input type="checkbox" name="remote" value="1" defaultChecked={query.remote} className="size-4" />
+                  Remote only
+                </label>
+                <label className="flex items-center gap-2 sm:h-9">
+                  <input type="checkbox" name="appliable" value="1" defaultChecked={query.appliable} className="size-4" />
+                  Pathfinder can apply
+                </label>
+              </div>
             </form>
           </div>
         </section>

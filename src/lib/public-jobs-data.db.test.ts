@@ -71,5 +71,12 @@ describe("the open jobs board's jobs (Phase 5)", () => {
     expect((await loadPublicJobs({ ...all, q: "analyst atlan" }, now)).total).toBe(0);
     expect((await loadPublicJobs({ ...all, city: "bengaluru" }, now)).total).toBe(2);
     expect((await loadPublicJobs({ ...all, remote: true }, now)).jobs.map((job) => job.title)).toEqual(["Backend Engineer"]);
+    // Posted within the last few days, and by job site; Workday's jobs aren't ones Pathfinder can apply to.
+    expect((await loadPublicJobs({ ...all, posted: 7 }, now)).jobs.map((job) => job.title)).toEqual(["Business Analyst", "Backend Engineer"]);
+    expect((await loadPublicJobs({ ...all, site: "ASHBY" }, now)).jobs.map((job) => job.title)).toEqual(["Backend Engineer", "QA"]);
+    const workday = (await raw().company.create({ data: { name: "Acme", system: "WORKDAY", boardToken: "acme.wd3/careers" } })).id;
+    await posting(workday, "wd", { companyName: "Acme", title: "Workday Analyst", postedAt: new Date("2026-11-21T00:00:00Z") });
+    expect((await loadPublicJobs({ ...all, q: "analyst", appliable: true }, now)).jobs.map((job) => job.title)).toEqual(["Business Analyst", "Data Analyst"]);
+    expect((await loadPublicJobs({ ...all, q: "analyst" }, now)).total).toBe(3);
   });
 });
