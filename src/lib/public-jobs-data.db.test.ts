@@ -54,7 +54,7 @@ describe("the open jobs board's jobs (Phase 5)", () => {
     await posting(groww, "closed", { closedAt: new Date() });
     await posting(groww, "us", { country: "us", location: "New York" });
     // A link that isn't an ordinary web address isn't given out.
-    await posting(atlan, "bad-link", { companyName: "Atlan", title: "QA", url: "javascript:alert(1)", postedAt: new Date("2026-11-01T00:00:00Z") });
+    await posting(atlan, "bad-link", { companyName: "Atlan", title: "QA", location: "Pune", url: "javascript:alert(1)", postedAt: new Date("2026-11-01T00:00:00Z") });
 
     const view = await loadPublicJobs(all, now);
     expect(view.jobs.map((job) => job.id)).toHaveLength(4);
