@@ -1076,6 +1076,8 @@ enum BoardSystem {
   SMARTRECRUITERS
   /// Phase 2: <company>.bamboohr.com/careers.
   BAMBOOHR
+  /// Phase 2: <tenant>.wd<N>.myworkdayjobs.com/<site>; boardToken is "<tenant>.wd<N>/<site>".
+  WORKDAY
 }
 
 /// A company whose public job board the crawler reads. Shared by everyone: no owner.
