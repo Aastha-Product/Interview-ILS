@@ -157,6 +157,33 @@ function Card({
 }
 
 /** What a card shows; also the copy that follows the pointer while dragging. */
+/** How it was made, a reply waiting, and a follow-up due (Phase 3): what a glance at the board should tell. */
+function CardBadges({ row }: { row: ApplicationRow }) {
+  const badges: { text: string; tone: "info" | "good" | "warn" }[] = [];
+  if (row.replies && row.replies > 0) badges.push({ text: row.replies === 1 ? "Reply waiting" : `${row.replies} replies waiting`, tone: "good" });
+  if (row.followUp) badges.push({ text: "Follow up", tone: "warn" });
+  if (row.source === "AUTO_APPLY") badges.push({ text: "Auto-applied", tone: "info" });
+  if (row.source === "AGENT") badges.push({ text: "From the agent", tone: "info" });
+  if (badges.length === 0) return null;
+  return (
+    <p className="flex flex-wrap gap-1.5">
+      {badges.map((badge) => (
+        <span
+          key={badge.text}
+          className={cn(
+            "rounded-[6px] px-2 py-[3px] text-xs",
+            badge.tone === "good" && "bg-hover text-primary-text",
+            badge.tone === "warn" && "bg-warning-surface text-warning",
+            badge.tone === "info" && "bg-track text-muted",
+          )}
+        >
+          {badge.text}
+        </span>
+      ))}
+    </p>
+  );
+}
+
 function CardFace({ row, lifted = false, onOpen }: { row: ApplicationRow; lifted?: boolean; onOpen?: (event: React.MouseEvent) => void }) {
   const place = [row.location, row.mode].filter(Boolean).join(" · ");
   return (
@@ -180,6 +207,7 @@ function CardFace({ row, lifted = false, onOpen }: { row: ApplicationRow; lifted
         {row.role}
       </Link>
       {place && <p className="text-label text-muted">{place}</p>}
+      <CardBadges row={row} />
       {row.status === "DRAFT" && row.deadline && (
         <p className="flex">
           <span className="rounded-[6px] bg-warning-surface px-2 py-[3px] text-xs text-warning">Apply by {row.deadline}</span>

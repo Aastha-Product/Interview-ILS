@@ -50,6 +50,17 @@ describe("loadApplicationRows (E9-1)", () => {
     const all = await loadApplicationRows({ archived: true, sort: DEFAULT_SORT }, now);
     expect(all.find((row) => row.company === "Quill & Co")).toMatchObject({ archived: true });
   });
+
+  it("marks how an application was made, a follow-up due and the replies waiting (Phase 3)", async () => {
+    const oaken = await prisma().application.findFirstOrThrow({ where: { company: "Oaken Studio" }, select: { id: true } });
+    const kestrel = await prisma().application.findFirstOrThrow({ where: { company: "Kestrel Maps" }, select: { id: true } });
+    await prisma().application.update({ where: { id: oaken.id }, data: { origin: "AUTO_APPLY" } });
+    // Sent long ago and quiet since.
+    await prisma().application.update({ where: { id: kestrel.id }, data: { status: "SENT", updatedAt: new Date(now.getTime() - 30 * 86_400_000) } });
+    const rows = await loadApplicationRows({ archived: false, sort: DEFAULT_SORT }, now, { quietDays: 7, replies: new Map([[oaken.id, { count: 2 }]]) });
+    expect(rows.find((row) => row.id === oaken.id)).toMatchObject({ source: "AUTO_APPLY", replies: 2 });
+    expect(rows.find((row) => row.id === kestrel.id)).toMatchObject({ followUp: true, source: null, replies: 0 });
+  });
 });
 
 describe("loadDocuments (E8-8)", () => {
