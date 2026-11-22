@@ -46,6 +46,9 @@ export default async function WelcomePage() {
             <span className="text-xl font-bold">Pathfinder</span>
           </Link>
           <div className="flex items-center gap-1 sm:gap-6">
+            <Link href="/open-jobs" className="hidden rounded-md px-3 py-2 text-on-brand-muted hover:text-white md:inline">
+              Open jobs
+            </Link>
             <a href="#how" className="hidden rounded-md px-3 py-2 text-on-brand-muted hover:text-white md:inline">
               How it works
             </a>

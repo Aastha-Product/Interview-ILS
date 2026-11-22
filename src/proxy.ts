@@ -14,9 +14,9 @@ const SIGN_IN_PATHS = /^\/api\/auth\/google(?:\/callback)?$/;
 
 /**
  * Pages for visitors who aren't signed in (Pathfinder): the homepage, signing in, up and resetting
- * a password, and the privacy notice, which is read before signing up.
+ * a password, the privacy notice, which is read before signing up, and the open jobs board (Phase 5).
  */
-const PUBLIC_PAGES = new Set(["/welcome", "/login", "/signup", "/reset-password", "/privacy"]);
+const PUBLIC_PAGES = new Set(["/welcome", "/login", "/signup", "/reset-password", "/privacy", "/open-jobs"]);
 
 /** The Claude connector's endpoint, its sign-in and the metadata that points to them. */
 const CONNECTOR_PATHS = /^\/(?:api\/(?:mcp|oauth)(?:\/|$)|\.well-known\/oauth-(?:authorization-server|protected-resource)(?:\/|$))/;
