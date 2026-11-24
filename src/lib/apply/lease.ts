@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 
 import { z } from "zod";
 
-import type { Prisma } from "@/generated/prisma/client";
+import { Prisma } from "@/generated/prisma/client";
 import { ApplicationStatus, ApplyState } from "@/generated/prisma/enums";
 import { prisma, systemPrisma } from "@/lib/prisma";
 import { applyStatusChange } from "@/lib/status-changes";
@@ -12,6 +12,7 @@ import { applyStatusChange } from "@/lib/status-changes";
 import type { Answer } from "./answers";
 import { greenhouseAnswers } from "./greenhouse-answers";
 import { loadAutoApply } from "./settings";
+import { snapshotCutoff, snapshotSchema } from "./snapshot";
 
 // Pathfinder (auto-apply step 5): the extension's side of an application. A browser leases one
 // READY task at a time, fills the form, and reports how it went. Every move is one conditional
@@ -145,11 +146,11 @@ export const reportSchema = z.discriminatedUnion("outcome", [
   /** Filled in a dry run, not submitted. */
   z.object({ outcome: z.literal("dry-run"), leaseId: z.string().min(1) }),
   /** A puzzle, an emailed code, a question without an answer, or a form error. */
-  z.object({ outcome: z.literal("needs-student"), leaseId: z.string().min(1), reason: z.string().min(1).max(500) }),
+  z.object({ outcome: z.literal("needs-student"), leaseId: z.string().min(1), reason: z.string().min(1).max(500), snapshot: snapshotSchema.optional() }),
   /** Submit was pressed and no clear answer came back. */
-  z.object({ outcome: z.literal("uncertain"), leaseId: z.string().min(1), reason: z.string().max(500).optional() }),
+  z.object({ outcome: z.literal("uncertain"), leaseId: z.string().min(1), reason: z.string().max(500).optional(), snapshot: snapshotSchema.optional() }),
   /** The form couldn't be filled (not recognised, the page didn't load). */
-  z.object({ outcome: z.literal("failed"), leaseId: z.string().min(1), reason: z.string().min(1).max(500) }),
+  z.object({ outcome: z.literal("failed"), leaseId: z.string().min(1), reason: z.string().min(1).max(500), snapshot: snapshotSchema.optional() }),
   /** Not now (the browser is closing): back to READY, if Submit wasn't pressed. */
   z.object({ outcome: z.literal("release"), leaseId: z.string().min(1) }),
 ]);
@@ -160,13 +161,15 @@ export async function reportOutcome(taskId: string, report: Report, now = new Da
   const mine = { id: taskId, leaseId: report.leaseId };
   const held = { ...mine, state: ApplyState.LEASED, leaseUntil: { gt: now } };
   const move = async (where: Prisma.ApplyTaskWhereInput, data: Prisma.ApplyTaskUpdateManyMutationInput) => (await prisma.applyTask.updateMany({ where, data })).count > 0;
+  // What the page said (Phase 3), kept with the outcome that stopped short of applied.
+  const said = "snapshot" in report && report.snapshot ? { snapshot: report.snapshot, snapshotAt: now } : {};
 
   switch (report.outcome) {
     case "submitting":
       return move(held, { state: ApplyState.SUBMITTING, leaseUntil: new Date(now.getTime() + SUBMIT_MS) });
     case "applied": {
       // Also after the wait ran out: a late confirmation still counts.
-      const moved = await move({ ...mine, state: { in: [ApplyState.SUBMITTING, ApplyState.UNCERTAIN] } }, { state: ApplyState.APPLIED, appliedAt: now, reason: null, evidence: { ...report.evidence, at: now.toISOString() } });
+      const moved = await move({ ...mine, state: { in: [ApplyState.SUBMITTING, ApplyState.UNCERTAIN] } }, { state: ApplyState.APPLIED, appliedAt: now, reason: null, evidence: { ...report.evidence, at: now.toISOString() }, snapshot: Prisma.DbNull, snapshotAt: null });
       if (moved) await markApplicationSent(taskId, now);
       return moved;
     }
@@ -175,17 +178,17 @@ export async function reportOutcome(taskId: string, report: Report, now = new Da
     case "needs-student": {
       // Before Submit (LEASED): a question only the student can answer; they answer it and it's
       // prepared again (prepareAgain re-opens NEEDS_STUDENT).
-      if (await move({ ...mine, state: ApplyState.LEASED }, { state: ApplyState.NEEDS_STUDENT, reason: report.reason, leaseUntil: null })) return true;
+      if (await move({ ...mine, state: ApplyState.LEASED }, { state: ApplyState.NEEDS_STUDENT, reason: report.reason, leaseUntil: null, ...said })) return true;
       // After Submit was pressed (SUBMITTING): the application may already have reached the employer
       // (a challenge, an emailed code or an error can appear after a real submit), so it must NEVER be
       // handed out again. It becomes uncertain for the student to check — not a retryable question —
       // the same as a submit that went quiet. This is what stops a second submission.
-      return move({ ...mine, state: ApplyState.SUBMITTING }, { state: ApplyState.UNCERTAIN, reason: report.reason });
+      return move({ ...mine, state: ApplyState.SUBMITTING }, { state: ApplyState.UNCERTAIN, reason: report.reason, ...said });
     }
     case "uncertain":
-      return move({ ...mine, state: ApplyState.SUBMITTING }, { state: ApplyState.UNCERTAIN, reason: report.reason || UNCERTAIN_REASON });
+      return move({ ...mine, state: ApplyState.SUBMITTING }, { state: ApplyState.UNCERTAIN, reason: report.reason || UNCERTAIN_REASON, ...said });
     case "failed":
-      return move(held, { state: ApplyState.FAILED, reason: report.reason, leaseUntil: null });
+      return move(held, { state: ApplyState.FAILED, reason: report.reason, leaseUntil: null, ...said });
     case "release":
       return move(held, { state: ApplyState.READY, leaseId: null, leaseUntil: null });
   }
@@ -197,11 +200,17 @@ async function markApplicationSent(taskId: string, now: Date): Promise<void> {
   if (task?.applicationId) await applyStatusChange(prisma, task.applicationId, ApplicationStatus.SENT, now);
 }
 
+/** Deletes what job pages said once it's SNAPSHOT_DAYS old, for every student (the scheduler). */
+export async function clearOldSnapshots(now = new Date()): Promise<number> {
+  const { count } = await systemPrisma.applyTask.updateMany({ where: { snapshotAt: { lt: snapshotCutoff(now) } }, data: { snapshot: Prisma.DbNull, snapshotAt: null } });
+  return count;
+}
+
 /** "Mark as applied", by the student: after a dry run they submitted themselves, or an uncertain one they checked. */
 export async function markAppliedByStudent(taskId: string, now = new Date()): Promise<boolean> {
   const { count } = await prisma.applyTask.updateMany({
     where: { id: taskId, state: { in: [ApplyState.NEEDS_STUDENT, ApplyState.UNCERTAIN] } },
-    data: { state: ApplyState.APPLIED, appliedAt: now, reason: null, evidence: { byStudent: true, at: now.toISOString() }, leaseId: null, leaseUntil: null },
+    data: { state: ApplyState.APPLIED, appliedAt: now, reason: null, evidence: { byStudent: true, at: now.toISOString() }, leaseId: null, leaseUntil: null, snapshot: Prisma.DbNull, snapshotAt: null },
   });
   if (count > 0) await markApplicationSent(taskId, now);
   return count > 0;

@@ -197,6 +197,32 @@ function QuestionsForm({ task, busy, onAnswer }: { task: ApplyTaskView; busy: bo
   );
 }
 
+/**
+ * What the job page said when the application stopped (Phase 3): its heading, the errors it showed,
+ * and the required questions left empty. Folded, beside the reason; kept 30 days.
+ */
+function PageSaid({ snapshot }: { snapshot: NonNullable<ApplyTaskView["snapshot"]> }) {
+  return (
+    <details className="text-meta">
+      <summary className="cursor-pointer text-muted">What the page said</summary>
+      <div className="mt-1 flex flex-col gap-1 border-l-2 border-line pl-3">
+        {snapshot.title ? <span className="font-medium">{snapshot.title}</span> : null}
+        {snapshot.messages.map((message) => (
+          <span key={message} className="text-warning">
+            {message}
+          </span>
+        ))}
+        {snapshot.unfilled.length > 0 ? <span>Still empty: {snapshot.unfilled.join("; ")}</span> : null}
+        {snapshot.url ? (
+          <a href={snapshot.url} target="_blank" rel="noreferrer" className="w-fit underline underline-offset-2">
+            Open the page
+          </a>
+        ) : null}
+      </div>
+    </details>
+  );
+}
+
 function TaskRow({ task, onSkip, onRetry, onMarkApplied, onAnswer, busy }: { task: ApplyTaskView; busy: boolean } & RowActions) {
   const needsYou = task.state === "NEEDS_STUDENT" || task.state === "UNCERTAIN";
   return (
@@ -207,6 +233,7 @@ function TaskRow({ task, onSkip, onRetry, onMarkApplied, onAnswer, busy }: { tas
           {[task.company, task.location, task.tier ? `${TIER_LABELS[task.tier]}${task.score !== null ? ` · ${task.score}` : ""}` : null].filter(Boolean).join(" · ")}
         </span>
         {task.reason ? <span className={needsYou ? "text-meta text-warning" : "text-meta text-muted"}>{task.reason}</span> : null}
+        {task.snapshot ? <PageSaid snapshot={task.snapshot} /> : null}
         {task.confirmation ? (
           <span className="text-meta text-muted">{task.confirmation.by === "board" ? `Confirmed by the job site: “${task.confirmation.text}”` : "You marked it as applied."}</span>
         ) : null}
