@@ -37,8 +37,8 @@ const view = (overrides: Partial<AutoApplyScreenView> = {}): AutoApplyScreenView
   consentText: "I allow Pathfinder to submit job applications for me.",
   summary: { matches: { STRONG: 4, GOOD: 2, PARTIAL: 5, NOT_RECOMMENDED: 9, pending: 0, failed: 0 }, tasks },
   tasks: [
-    { id: "t1", state: "NEEDS_STUDENT", title: "Data Analyst", company: "Groww", location: "Bengaluru", url: "https://groww.example/1", score: 86, tier: "STRONG", reason: "Answer this question to apply: Why Groww?", questions: [], applicationId: "app-1", appliedAt: null, confirmation: null, updatedAt: "2026-11-10T08:00:00Z" },
-    { id: "t2", state: "APPLIED", title: "Business Analyst", company: "Paytm", location: "Noida", url: "", score: 72, tier: "GOOD", reason: null, questions: [], applicationId: "app-2", appliedAt: "2026-11-10T07:00:00Z", confirmation: { by: "board", text: "Thank you for applying to Paytm." }, updatedAt: "2026-11-10T07:00:00Z" },
+    { id: "t1", state: "NEEDS_STUDENT", title: "Data Analyst", company: "Groww", location: "Bengaluru", url: "https://groww.example/1", score: 86, tier: "STRONG", reason: "Answer this question to apply: Why Groww?", snapshot: { url: "https://groww.example/1/apply", title: "Apply for Data Analyst", messages: ["Please upload a resume in PDF format."], unfilled: ["Why Groww?", "Notice period"], at: "2026-11-10T08:00:00Z" }, questions: [], applicationId: "app-1", appliedAt: null, confirmation: null, updatedAt: "2026-11-10T08:00:00Z" },
+    { id: "t2", state: "APPLIED", title: "Business Analyst", company: "Paytm", location: "Noida", url: "", score: 72, tier: "GOOD", reason: null, snapshot: null, questions: [], applicationId: "app-2", appliedAt: "2026-11-10T07:00:00Z", confirmation: { by: "board", text: "Thank you for applying to Paytm." }, updatedAt: "2026-11-10T07:00:00Z" },
   ],
   matchRunId: null,
   openJobs: 1734,
@@ -142,6 +142,19 @@ describe("the auto-apply dashboard (auto-apply step 4)", () => {
     await userEvent.click(within(rows[2]).getByRole("button", { name: "Mark as applied" }));
     expect(markApplied).toHaveBeenCalledWith({ taskId: "t3" });
     expect(screen.getByRole("link", { name: "Connect the extension" })).toHaveAttribute("href", "/auto-apply/extension");
+  });
+
+  it("shows what the job page said when an application stopped (Phase 3)", async () => {
+    const user = userEvent.setup();
+    render(<AutoApplyScreen view={view()} />);
+    const row = screen.getAllByRole("listitem")[0];
+    await user.click(within(row).getByText("What the page said"));
+    expect(within(row).getByText("Apply for Data Analyst")).toBeInTheDocument();
+    expect(within(row).getByText("Please upload a resume in PDF format.")).toBeInTheDocument();
+    expect(within(row).getByText("Still empty: Why Groww?; Notice period")).toBeInTheDocument();
+    expect(within(row).getByRole("link", { name: "Open the page" })).toHaveAttribute("href", "https://groww.example/1/apply");
+    // An applied one has none.
+    expect(within(screen.getAllByRole("listitem").find((item) => item.textContent?.includes("Business Analyst"))!).queryByText("What the page said")).toBeNull();
   });
 
   it("shows how each application was confirmed (step 5)", () => {

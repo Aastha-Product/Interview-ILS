@@ -297,7 +297,10 @@ export default function PrivacyPage() {
               <strong>What it sends to Pathfinder:</strong> the questions on a form that Pathfinder&apos;s copy of it
               lacked (their wording and choices), and what happened: that it&apos;s about to press Submit, that the job
               site confirmed the application (with the confirmation&apos;s first 500 characters and the page&apos;s
-              address), or why it stopped. It sends nothing about other pages.
+              address), or why it stopped. When it stops short of applying, it also sends what the page said, so you
+              can see why on Auto-apply: the page&apos;s address and heading, the job site&apos;s error messages, and the
+              names of required questions left empty. It never sends what was typed into the form, and Pathfinder
+              deletes this after 30 days. It sends nothing about other pages.
             </li>
             <li>
               <strong>You stay in charge:</strong> <em>Pause in this browser</em>, behind the extension&apos;s icon, stops

@@ -96,7 +96,7 @@ The text below matches the extension as it is now: the manifest's permissions an
 | Location | No | It doesn't read the device's location. A city typed into the profile counts as PII above. |
 | Web history | No | It knows only the pages it opened for an application. |
 | User activity | No | |
-| Website content | Yes | It reads the application form's questions and the job site's confirmation message. |
+| Website content | Yes | It reads the application form's questions, the job site's confirmation message and, when it stops short of applying, the page's heading, error messages and the names of required questions left empty (never what was typed); Pathfinder deletes those after 30 days. |
 
 **Certify:** tick all three.
 - I do not sell or transfer user data to third parties, outside of the approved use cases.

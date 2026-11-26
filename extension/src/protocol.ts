@@ -47,13 +47,16 @@ export type LeasedTask = {
   documents: { resume: boolean; coverLetter: boolean };
 };
 
+/** What the page said when an application stopped short of applied (snapshot.ts); never form values. */
+export type Snapshot = { url: string; title: string; messages: string[]; unfilled: string[] };
+
 export type Report =
   | { outcome: "submitting" }
   | { outcome: "applied"; evidence: { url: string; text: string } }
   | { outcome: "dry-run" }
-  | { outcome: "needs-student"; reason: string }
-  | { outcome: "uncertain"; reason?: string }
-  | { outcome: "failed"; reason: string }
+  | { outcome: "needs-student"; reason: string; snapshot?: Snapshot }
+  | { outcome: "uncertain"; reason?: string; snapshot?: Snapshot }
+  | { outcome: "failed"; reason: string; snapshot?: Snapshot }
   | { outcome: "release" };
 
 export type FormAnswers = { answers: Record<string, Answer>; missing: string[] };

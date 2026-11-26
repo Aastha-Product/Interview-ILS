@@ -1,6 +1,7 @@
 // The apply script's entry, put in the job's tab by the background worker (see run.ts).
 import { REASONS, type Reply, type TabRequest } from "./protocol";
 import { apply, type Finish, type Port, type TabTask } from "./run";
+import { withSnapshot } from "./snapshot";
 
 const port: Port = <T>(request: TabRequest) => chrome.runtime.sendMessage<Reply<T>>(request);
 
@@ -12,13 +13,14 @@ async function main(): Promise<void> {
     finish = await apply(port, document, location, reply.data);
   } catch (error) {
     // "uncertain" is only accepted once Submit was pressed; before that, the form couldn't be filled.
-    const after = await port({ type: "report", report: { outcome: "uncertain", reason: REASONS.noAnswer }, keepTab: true });
+    const after = await port({ type: "report", report: withSnapshot({ outcome: "uncertain", reason: REASONS.noAnswer }, document, location.href), keepTab: true });
     if (after.ok) return;
     const reason = `Pathfinder couldn't fill this form (${error instanceof Error ? error.message : String(error)}).`.slice(0, 500);
-    await port({ type: "report", report: { outcome: "failed", reason }, keepTab: false });
+    await port({ type: "report", report: withSnapshot({ outcome: "failed", reason }, document, location.href), keepTab: false });
     return;
   }
-  await port({ type: "report", report: finish.report, keepTab: finish.keepTab });
+  // Phase 3: what the page said, when it stopped short of applied.
+  await port({ type: "report", report: withSnapshot(finish.report, document, location.href), keepTab: finish.keepTab });
 }
 
 // Once per page, even when injected again.

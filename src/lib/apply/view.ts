@@ -11,6 +11,7 @@ import { loadProfile } from "@/lib/profile-data";
 import { autoApplySummary, type AutoApplySummary } from "./prepare";
 import { taskQuestions, type TaskQuestion } from "./questions";
 import { CONSENT_TEXT, loadAutoApply, type AutoApplyView } from "./settings";
+import { snapshotOf } from "./snapshot";
 
 // Pathfinder (auto-apply step 4): what the auto-apply screens show for the current student.
 
@@ -26,6 +27,8 @@ export type ApplyTaskView = {
   tier: MatchTier | null;
   /** Why it waits, failed or was skipped. */
   reason: string | null;
+  /** Phase 3: what the job page said when it stopped short of applied; null once applied or 30 days old. */
+  snapshot: TaskSnapshot | null;
   /** Waiting on the student: the form's questions nobody could answer, to answer on this page. */
   questions: TaskQuestion[];
   /** The application with the tailored documents, once written. */
@@ -35,6 +38,9 @@ export type ApplyTaskView = {
   confirmation: Confirmation | null;
   updatedAt: string;
 };
+
+/** What a job page said (lib/apply/snapshot.ts), with when. */
+export type TaskSnapshot = { url: string; title: string; messages: string[]; unfilled: string[]; at: string };
 
 export type Confirmation = { by: "board"; text: string } | { by: "student" };
 
@@ -113,6 +119,7 @@ export async function loadAutoApplyScreen(now = new Date()): Promise<AutoApplySc
         score: task.jobMatch.score,
         tier: task.jobMatch.tier,
         reason: task.reason,
+        snapshot: task.state === "APPLIED" ? null : snapshotOf(task.snapshot, task.snapshotAt),
         questions: task.state === "NEEDS_STUDENT" ? taskQuestions(task.questions) : [],
         applicationId: task.applicationId,
         appliedAt: task.appliedAt?.toISOString() ?? null,

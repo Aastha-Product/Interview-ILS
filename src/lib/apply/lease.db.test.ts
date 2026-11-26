@@ -26,7 +26,7 @@ vi.mock("./greenhouse-answers", async (orig) => ({
 
 const { rawClientOf } = await import("@/lib/owner/scope");
 const { giveConsent, saveAutoApply, setAutoApplyEnabled } = await import("./settings");
-const { DRY_RUN_REASON, LEASE_MS, leaseNext, markAppliedByStudent, reportOutcome, SUBMIT_MS, sweepLeases, UNCERTAIN_REASON } = await import("./lease");
+const { clearOldSnapshots, DRY_RUN_REASON, LEASE_MS, leaseNext, markAppliedByStudent, reportOutcome, SUBMIT_MS, sweepLeases, UNCERTAIN_REASON } = await import("./lease");
 const { createExtensionToken, listExtensionTokens, revokeExtensionToken, verifyExtensionToken, TOKEN_LIFETIME_MS } = await import("@/lib/extension/tokens");
 
 const prisma = () => db.client!;
@@ -207,6 +207,28 @@ describe("what a browser reports (auto-apply step 5)", () => {
     const fourth = (await leaseNext())!;
     expect(await reportOutcome(task.id, { outcome: "failed", leaseId: fourth.leaseId, reason: "The form didn't load." })).toBe(true);
     expect(await state(task.id)).toMatchObject({ state: "FAILED", reason: "The form didn't load.", attempts: 4 });
+  });
+
+  it("keeps what the page said when it stops short of applied, until applied or 30 days on (Phase 3)", async () => {
+    const snapshot = { url: "https://job-boards.greenhouse.io/acme/jobs/1", title: "Apply for Analyst", messages: ["Resume is required"], unfilled: ["Notice period"] };
+    const now = new Date();
+    const { task, leaseId } = await leased();
+    expect(await reportOutcome(task.id, { outcome: "needs-student", leaseId, reason: "Answer this question to apply: Notice period.", snapshot }, now)).toBe(true);
+    expect(await state(task.id)).toMatchObject({ state: "NEEDS_STUDENT", snapshot, snapshotAt: now });
+
+    // Kept for 30 days, then cleared by the scheduler.
+    expect(await clearOldSnapshots(new Date(now.getTime() + 29 * 86_400_000))).toBe(0);
+    expect(await clearOldSnapshots(new Date(now.getTime() + 31 * 86_400_000))).toBe(1);
+    expect(await state(task.id)).toMatchObject({ snapshot: null, snapshotAt: null });
+
+    // A failure keeps one too; applying clears it.
+    await prisma().applyTask.update({ where: { id: task.id }, data: { state: "READY", leaseId: null } });
+    const again = (await leaseNext())!;
+    expect(await reportOutcome(task.id, { outcome: "failed", leaseId: again.leaseId, reason: "The form didn't load.", snapshot }, now)).toBe(true);
+    expect((await state(task.id)).snapshot).toEqual(snapshot);
+    await prisma().applyTask.update({ where: { id: task.id }, data: { state: "UNCERTAIN" } });
+    expect(await markAppliedByStudent(task.id)).toBe(true);
+    expect(await state(task.id)).toMatchObject({ state: "APPLIED", snapshot: null, snapshotAt: null });
   });
 
   it("lets the student mark a dry run or an uncertain one as applied", async () => {
